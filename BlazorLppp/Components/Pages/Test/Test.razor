@@ -1,0 +1,50 @@
+@page "/test/{AttemptId:guid}"
+@layout TestLayout
+@rendermode InteractiveServer
+@attribute [AllowAnonymous]
+
+@using Microsoft.AspNetCore.Authorization
+
+@inject ITestAttemptService TestAttemptService
+
+<PageTitle>Тестування</PageTitle>
+
+<div class="test-page">
+    <div class="test-page__card">
+        @if (_isLoading)
+        {
+            <p class="test-page__text">Завантаження...</p>
+        }
+        else if (_attempt is null)
+        {
+            <h1 class="test-page__title">Спробу не знайдено</h1>
+            <p class="test-page__text">Перевірте посилання або почніть тестування знову.</p>
+            <a class="test-page__link" href="/">До стартової сторінки</a>
+        }
+        else
+        {
+            <h1 class="test-page__title">Тестування розпочато</h1>
+            <p class="test-page__name">
+                @_attempt.LastName @_attempt.FirstName @_attempt.MiddleName
+            </p>
+            <p class="test-page__text">
+                Сторінка проходження тесту буде доступна на наступному етапі.
+            </p>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Guid AttemptId { get; set; }
+
+    private TestAttempt? _attempt;
+    private bool _isLoading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isLoading = true;
+        _attempt = await TestAttemptService.GetByIdAsync(AttemptId);
+        _isLoading = false;
+    }
+}

@@ -1,0 +1,159 @@
+@page "/"
+@page "/test/start"
+@layout TestLayout
+@rendermode InteractiveServer
+@attribute [AllowAnonymous]
+@implements IDisposable
+
+@using Microsoft.AspNetCore.Authorization
+
+@inject ITestAttemptService TestAttemptService
+@inject NavigationManager Navigation
+
+<PageTitle>Початок тестування</PageTitle>
+
+<div class="test-start">
+    <div class="test-start__card">
+        <header class="test-start__header">
+            <h1 class="test-start__title">Вітаємо!</h1>
+            <p class="test-start__lead">
+                Вам запропоновано пройти психологічне тестування.
+            </p>
+            <p class="test-start__text">
+                Перед початком, будь ласка, вкажіть свої дані. Під час проходження уважно читайте
+                кожне твердження та обирайте відповідь, яка найбільше відповідає Вашій думці або стану.
+            </p>
+            <p class="test-start__text">
+                У тестуванні немає правильних чи неправильних відповідей. Важливо відповідати щиро
+                та не витрачати багато часу на обдумування кожного запитання.
+            </p>
+        </header>
+
+        <EditForm EditContext="_editContext" OnSubmit="HandleStartAsync">
+            <DataAnnotationsValidator />
+
+            <section class="test-start__form" aria-labelledby="respondent-data-heading">
+                <h2 id="respondent-data-heading" class="test-start__section-title">Ваші дані</h2>
+
+                <div class="test-start__field">
+                    <label class="test-start__label" for="lastName">Прізвище</label>
+                    <InputText id="lastName"
+                               class="test-start__input"
+                               @bind-Value="Model.LastName"
+                               @bind-Value:event="oninput"
+                               placeholder="Введіть прізвище"
+                               maxlength="100"
+                               autocomplete="family-name" />
+                    <ValidationMessage For="() => Model.LastName" class="test-start__error" />
+                </div>
+
+                <div class="test-start__field">
+                    <label class="test-start__label" for="firstName">Ім’я</label>
+                    <InputText id="firstName"
+                               class="test-start__input"
+                               @bind-Value="Model.FirstName"
+                               @bind-Value:event="oninput"
+                               placeholder="Введіть ім’я"
+                               maxlength="100"
+                               autocomplete="given-name" />
+                    <ValidationMessage For="() => Model.FirstName" class="test-start__error" />
+                </div>
+
+                <div class="test-start__field">
+                    <label class="test-start__label" for="middleName">По батькові</label>
+                    <InputText id="middleName"
+                               class="test-start__input"
+                               @bind-Value="Model.MiddleName"
+                               @bind-Value:event="oninput"
+                               placeholder="Введіть по батькові"
+                               maxlength="100"
+                               autocomplete="additional-name" />
+                    <ValidationMessage For="() => Model.MiddleName" class="test-start__error" />
+                </div>
+            </section>
+
+            <button type="submit"
+                    class="test-start__submit @(CanStart && !_isStarting ? "test-start__submit--active" : null)"
+                    disabled="@(!CanStart || _isStarting)">
+                @(_isStarting ? "Починаємо..." : "Почати тест")
+            </button>
+
+            <p class="test-start__hint">
+                Натискаючи «Почати тест», Ви переходите безпосередньо до тестування.
+            </p>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <p class="test-start__form-error" role="alert">@_errorMessage</p>
+            }
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private RespondentModel Model { get; set; } = new();
+    private EditContext _editContext = default!;
+    private bool _isStarting;
+    private string? _errorMessage;
+    private bool _showFieldValidation;
+
+    private bool CanStart =>
+        !string.IsNullOrWhiteSpace(Model.LastName) &&
+        !string.IsNullOrWhiteSpace(Model.FirstName) &&
+        !string.IsNullOrWhiteSpace(Model.MiddleName);
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(Model);
+        _editContext.OnFieldChanged += HandleFieldChanged;
+    }
+
+    private void HandleFieldChanged(object? sender, FieldChangedEventArgs e)
+    {
+        if (_showFieldValidation)
+        {
+            _editContext.NotifyValidationStateChanged();
+            _editContext.Validate();
+        }
+    }
+
+    private async Task HandleStartAsync()
+    {
+        if (_isStarting || !CanStart)
+        {
+            return;
+        }
+
+        _isStarting = true;
+        _errorMessage = null;
+        _showFieldValidation = true;
+
+        try
+        {
+            Model.LastName = Model.LastName.Trim();
+            Model.FirstName = Model.FirstName.Trim();
+            Model.MiddleName = Model.MiddleName.Trim();
+
+            if (!_editContext.Validate())
+            {
+                return;
+            }
+
+            var attempt = await TestAttemptService.StartAsync(Model);
+            Navigation.NavigateTo($"/test/{attempt.Id}");
+        }
+        catch (Exception)
+        {
+            _errorMessage = "Не вдалося розпочати тестування. Спробуйте ще раз.";
+        }
+        finally
+        {
+            _isStarting = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _editContext.OnFieldChanged -= HandleFieldChanged;
+    }
+}

@@ -1,0 +1,149 @@
+.test-start {
+    width: 100%;
+    max-width: 580px;
+    margin: 0 auto;
+}
+
+.test-start__card {
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 8px 28px rgba(35, 52, 72, 0.08), 0 1px 3px rgba(35, 52, 72, 0.04);
+    padding: 2rem 1.5rem 1.75rem;
+    border: 1px solid rgba(55, 75, 95, 0.06);
+}
+
+@media (min-width: 576px) {
+    .test-start__card {
+        padding: 2.5rem 2.25rem 2rem;
+    }
+}
+
+.test-start__header {
+    margin-bottom: 1.75rem;
+}
+
+.test-start__title {
+    margin: 0 0 0.75rem;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #243447;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+}
+
+.test-start__lead {
+    margin: 0 0 1rem;
+    font-size: 1.05rem;
+    color: #3a4d63;
+    line-height: 1.5;
+}
+
+.test-start__text {
+    margin: 0 0 0.85rem;
+    font-size: 0.95rem;
+    color: #5a6b7d;
+    line-height: 1.55;
+}
+
+.test-start__text:last-child {
+    margin-bottom: 0;
+}
+
+.test-start__section-title {
+    margin: 0 0 1.15rem;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #243447;
+}
+
+.test-start__field {
+    margin-bottom: 1.1rem;
+}
+
+.test-start__label {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #3a4d63;
+}
+
+.test-start__input {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.8rem 0.95rem;
+    font-size: 1rem;
+    line-height: 1.4;
+    color: #243447;
+    background: #f8fafb;
+    border: 1px solid #d5dde6;
+    border-radius: 10px;
+    transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.test-start__input::placeholder {
+    color: #94a3b3;
+}
+
+.test-start__input:focus {
+    outline: none;
+    background: #ffffff;
+    border-color: #6b8fad;
+    box-shadow: 0 0 0 3px rgba(107, 143, 173, 0.2);
+}
+
+.test-start__error {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.85rem;
+    color: #b42318;
+}
+
+.test-start__submit {
+    display: block;
+    width: 100%;
+    margin-top: 0.5rem;
+    padding: 0.95rem 1.25rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    color: #ffffff;
+    background: #b0bac4;
+    cursor: not-allowed;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.test-start__submit--active {
+    background: #3d6b8f;
+    cursor: pointer;
+}
+
+.test-start__submit--active:hover {
+    background: #335a78;
+}
+
+.test-start__submit--active:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(61, 107, 143, 0.35);
+}
+
+.test-start__submit:disabled {
+    opacity: 1;
+}
+
+.test-start__hint {
+    margin: 0.9rem 0 0;
+    text-align: center;
+    font-size: 0.85rem;
+    color: #7a8a9a;
+    line-height: 1.45;
+}
+
+.test-start__form-error {
+    margin: 0.75rem 0 0;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #b42318;
+}

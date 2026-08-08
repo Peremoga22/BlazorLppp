@@ -1,3 +1,4 @@
+using BlazorLppp.Application.Services;
 using BlazorLppp.Components;
 using BlazorLppp.Components.Account;
 using BlazorLppp.Data;
@@ -15,6 +16,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+builder.Services.AddScoped<ITestAttemptService, TestAttemptService>();
 
 builder.Services.AddAuthentication(options =>
     {

@@ -1,0 +1,47 @@
+.test-page {
+    width: 100%;
+    max-width: 580px;
+    margin: 0 auto;
+}
+
+.test-page__card {
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 8px 28px rgba(35, 52, 72, 0.08), 0 1px 3px rgba(35, 52, 72, 0.04);
+    padding: 2.25rem 1.75rem;
+    border: 1px solid rgba(55, 75, 95, 0.06);
+    text-align: center;
+}
+
+.test-page__title {
+    margin: 0 0 1rem;
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: #243447;
+}
+
+.test-page__name {
+    margin: 0 0 1rem;
+    font-size: 1.15rem;
+    font-weight: 500;
+    color: #3a4d63;
+}
+
+.test-page__text {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #5a6b7d;
+    line-height: 1.5;
+}
+
+.test-page__link {
+    display: inline-block;
+    margin-top: 1.25rem;
+    color: #3d6b8f;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.test-page__link:hover {
+    text-decoration: underline;
+}
