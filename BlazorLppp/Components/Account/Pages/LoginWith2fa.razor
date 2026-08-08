@@ -78,7 +78,7 @@
             Logger.LogInformation("User with ID '{UserId}' logged in with 2fa.", userId);
             var redirectUrl = string.IsNullOrWhiteSpace(ReturnUrl) &&
                               await UserManager.IsInRoleAsync(user, AppRoles.Admin)
-                ? "/admin-home"
+                ? "admin-home"
                 : ReturnUrl;
             RedirectManager.RedirectTo(redirectUrl);
         }

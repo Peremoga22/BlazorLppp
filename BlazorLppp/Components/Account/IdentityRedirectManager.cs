@@ -27,6 +27,8 @@ namespace BlazorLppp.Components.Account
                 uri = navigationManager.ToBaseRelativePath(uri);
             }
 
+            // Project uses BlazorDisableThrowNavigationException=true, so NavigateTo does not throw.
+            // Do not use forceLoad here: RedirectHttpResult requires rooted local URLs ("/...").
             navigationManager.NavigateTo(uri);
         }
 
@@ -51,6 +53,9 @@ namespace BlazorLppp.Components.Account
             => RedirectToWithStatus(CurrentPath, message, context);
 
         public void RedirectToInvalidUser(UserManager<ApplicationUser> userManager, HttpContext context)
-            => RedirectToWithStatus("Account/InvalidUser", $"Error: Unable to load user with ID '{userManager.GetUserId(context.User)}'.", context);
+            => RedirectToWithStatus(
+                "Account/InvalidUser",
+                $"Error: Unable to load user with ID '{userManager.GetUserId(context.User)}'.",
+                context);
     }
 }

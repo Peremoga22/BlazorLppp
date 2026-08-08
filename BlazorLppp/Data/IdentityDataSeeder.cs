@@ -7,9 +7,9 @@ namespace BlazorLppp.Data;
 
 public class AdminSeedOptions
 {
-    public const string SectionName = "AdminSeed";
+    public const string SectionName = "Admin";
 
-    public string Email { get; set; } = "admin@local.test";
+    public string EmailAdmin { get; set; } = "admin@local.test";
 
     public string Password { get; set; } = "Admin123!";
 }
@@ -22,6 +22,11 @@ public static class IdentityDataSeeder
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
         var options = services.GetRequiredService<IOptions<AdminSeedOptions>>().Value;
 
+        if (string.IsNullOrWhiteSpace(options.EmailAdmin) || string.IsNullOrWhiteSpace(options.Password))
+        {
+            return;
+        }
+
         if (!await roleManager.RoleExistsAsync(AppRoles.Admin))
         {
             var roleResult = await roleManager.CreateAsync(new IdentityRole(AppRoles.Admin));
@@ -32,13 +37,13 @@ public static class IdentityDataSeeder
             }
         }
 
-        var admin = await userManager.FindByEmailAsync(options.Email);
+        var admin = await userManager.FindByEmailAsync(options.EmailAdmin);
         if (admin is null)
         {
             admin = new ApplicationUser
             {
-                UserName = options.Email,
-                Email = options.Email,
+                UserName = options.EmailAdmin,
+                Email = options.EmailAdmin,
                 EmailConfirmed = true
             };
 
@@ -46,7 +51,7 @@ public static class IdentityDataSeeder
             if (!createResult.Succeeded)
             {
                 throw new InvalidOperationException(
-                    $"Failed to create admin user '{options.Email}': {FormatErrors(createResult)}");
+                    $"Failed to create admin user '{options.EmailAdmin}': {FormatErrors(createResult)}");
             }
         }
         else if (!admin.EmailConfirmed)
@@ -61,7 +66,7 @@ public static class IdentityDataSeeder
             if (!addRoleResult.Succeeded)
             {
                 throw new InvalidOperationException(
-                    $"Failed to assign role '{AppRoles.Admin}' to '{options.Email}': {FormatErrors(addRoleResult)}");
+                    $"Failed to assign role '{AppRoles.Admin}' to '{options.EmailAdmin}': {FormatErrors(addRoleResult)}");
             }
         }
     }

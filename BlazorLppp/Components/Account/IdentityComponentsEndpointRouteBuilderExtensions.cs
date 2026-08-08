@@ -49,6 +49,22 @@ namespace Microsoft.AspNetCore.Routing
                 [FromForm] string returnUrl) =>
             {
                 await signInManager.SignOutAsync();
+
+                // LocalRedirect requires "~/" or "/...". Never produce "~//..." or "~/https://...".
+                if (string.IsNullOrWhiteSpace(returnUrl))
+                {
+                    return TypedResults.LocalRedirect("~/");
+                }
+
+                if (Uri.TryCreate(returnUrl, UriKind.Absolute, out var absolute))
+                {
+                    returnUrl = absolute.PathAndQuery.TrimStart('/');
+                }
+                else
+                {
+                    returnUrl = returnUrl.TrimStart('~', '/');
+                }
+
                 return TypedResults.LocalRedirect($"~/{returnUrl}");
             });
 
