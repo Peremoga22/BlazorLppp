@@ -1,11 +1,10 @@
 @page "/"
-@page "/test/start"
-@layout TestLayout
+@* @page "/test/start" *@
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
-@implements IDisposable
 
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Routing
 
 @inject ITestAttemptService TestAttemptService
 @inject NavigationManager Navigation
@@ -29,7 +28,7 @@
             </p>
         </header>
 
-        <EditForm EditContext="_editContext" OnSubmit="HandleStartAsync">
+        <EditForm Model="Model" OnValidSubmit="HandleStartAsync">
             <DataAnnotationsValidator />
 
             <section class="test-start__form" aria-labelledby="respondent-data-heading">
@@ -37,37 +36,37 @@
 
                 <div class="test-start__field">
                     <label class="test-start__label" for="lastName">Прізвище</label>
-                    <InputText id="lastName"
-                               class="test-start__input"
-                               @bind-Value="Model.LastName"
-                               @bind-Value:event="oninput"
-                               placeholder="Введіть прізвище"
-                               maxlength="100"
-                               autocomplete="family-name" />
+                    <input id="lastName"
+                           class="test-start__input"
+                           @bind="Model.LastName"
+                           @bind:event="oninput"
+                           placeholder="Введіть прізвище"
+                           maxlength="100"
+                           autocomplete="family-name" />
                     <ValidationMessage For="() => Model.LastName" class="test-start__error" />
                 </div>
 
                 <div class="test-start__field">
                     <label class="test-start__label" for="firstName">Ім’я</label>
-                    <InputText id="firstName"
-                               class="test-start__input"
-                               @bind-Value="Model.FirstName"
-                               @bind-Value:event="oninput"
-                               placeholder="Введіть ім’я"
-                               maxlength="100"
-                               autocomplete="given-name" />
+                    <input id="firstName"
+                           class="test-start__input"
+                           @bind="Model.FirstName"
+                           @bind:event="oninput"
+                           placeholder="Введіть ім’я"
+                           maxlength="100"
+                           autocomplete="given-name" />
                     <ValidationMessage For="() => Model.FirstName" class="test-start__error" />
                 </div>
 
                 <div class="test-start__field">
                     <label class="test-start__label" for="middleName">По батькові</label>
-                    <InputText id="middleName"
-                               class="test-start__input"
-                               @bind-Value="Model.MiddleName"
-                               @bind-Value:event="oninput"
-                               placeholder="Введіть по батькові"
-                               maxlength="100"
-                               autocomplete="additional-name" />
+                    <input id="middleName"
+                           class="test-start__input"
+                           @bind="Model.MiddleName"
+                           @bind:event="oninput"
+                           placeholder="Введіть по батькові"
+                           maxlength="100"
+                           autocomplete="additional-name" />
                     <ValidationMessage For="() => Model.MiddleName" class="test-start__error" />
                 </div>
             </section>
@@ -92,30 +91,13 @@
 
 @code {
     private RespondentModel Model { get; set; } = new();
-    private EditContext _editContext = default!;
     private bool _isStarting;
     private string? _errorMessage;
-    private bool _showFieldValidation;
 
     private bool CanStart =>
         !string.IsNullOrWhiteSpace(Model.LastName) &&
         !string.IsNullOrWhiteSpace(Model.FirstName) &&
         !string.IsNullOrWhiteSpace(Model.MiddleName);
-
-    protected override void OnInitialized()
-    {
-        _editContext = new EditContext(Model);
-        _editContext.OnFieldChanged += HandleFieldChanged;
-    }
-
-    private void HandleFieldChanged(object? sender, FieldChangedEventArgs e)
-    {
-        if (_showFieldValidation)
-        {
-            _editContext.NotifyValidationStateChanged();
-            _editContext.Validate();
-        }
-    }
 
     private async Task HandleStartAsync()
     {
@@ -126,7 +108,6 @@
 
         _isStarting = true;
         _errorMessage = null;
-        _showFieldValidation = true;
 
         try
         {
@@ -134,26 +115,18 @@
             Model.FirstName = Model.FirstName.Trim();
             Model.MiddleName = Model.MiddleName.Trim();
 
-            if (!_editContext.Validate())
-            {
-                return;
-            }
-
             var attempt = await TestAttemptService.StartAsync(Model);
             Navigation.NavigateTo($"/test/{attempt.Id}");
+        }
+        catch (NavigationException)
+        {
+            // Очікувана поведінка навігації в Blazor — не перехоплювати як помилку.
+            throw;
         }
         catch (Exception)
         {
             _errorMessage = "Не вдалося розпочати тестування. Спробуйте ще раз.";
-        }
-        finally
-        {
             _isStarting = false;
         }
-    }
-
-    public void Dispose()
-    {
-        _editContext.OnFieldChanged -= HandleFieldChanged;
     }
 }

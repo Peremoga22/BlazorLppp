@@ -1,5 +1,4 @@
 @page "/test/{AttemptId:guid}"
-@layout TestLayout
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
 
@@ -14,6 +13,12 @@
         @if (_isLoading)
         {
             <p class="test-page__text">Завантаження...</p>
+        }
+        else if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <h1 class="test-page__title">Помилка</h1>
+            <p class="test-page__text">@_errorMessage</p>
+            <a class="test-page__link" href="/">До стартової сторінки</a>
         }
         else if (_attempt is null)
         {
@@ -40,11 +45,25 @@
 
     private TestAttempt? _attempt;
     private bool _isLoading = true;
+    private string? _errorMessage;
 
     protected override async Task OnParametersSetAsync()
     {
         _isLoading = true;
-        _attempt = await TestAttemptService.GetByIdAsync(AttemptId);
-        _isLoading = false;
+        _errorMessage = null;
+
+        try
+        {
+            _attempt = await TestAttemptService.GetByIdAsync(AttemptId);
+        }
+        catch (Exception)
+        {
+            _attempt = null;
+            _errorMessage = "Не вдалося завантажити дані спроби.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 }

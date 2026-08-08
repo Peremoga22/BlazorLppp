@@ -7,12 +7,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BlazorLppp.Application.Services;
 
-public class TestAttemptService(ApplicationDbContext dbContext) : ITestAttemptService
+public class TestAttemptService(IDbContextFactory<ApplicationDbContext> dbContextFactory) : ITestAttemptService
 {
     public async Task<TestAttempt> StartAsync(
         RespondentModel respondent,
         CancellationToken cancellationToken = default)
     {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
         var attempt = new TestAttempt
         {
             Id = Guid.NewGuid(),
@@ -30,11 +32,13 @@ public class TestAttemptService(ApplicationDbContext dbContext) : ITestAttemptSe
         return attempt;
     }
 
-    public Task<TestAttempt?> GetByIdAsync(
+    public async Task<TestAttempt?> GetByIdAsync(
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        return dbContext.TestAttempts
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await dbContext.TestAttempts
             .AsNoTracking()
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
     }
