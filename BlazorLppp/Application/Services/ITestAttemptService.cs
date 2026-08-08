@@ -12,4 +12,11 @@ public interface ITestAttemptService
     Task<TestAttempt?> GetByIdAsync(
         Guid id,
         CancellationToken cancellationToken = default);
+
+    Task<TestAttemptListResult> GetListAsync(
+        TestAttemptListQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<TestAttemptStats> GetStatsAsync(
+        CancellationToken cancellationToken = default);
 }

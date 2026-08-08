@@ -1,0 +1,20 @@
+﻿@inherits LayoutComponentBase
+
+<div class="admin-layout">
+    <aside class="admin-layout__sidebar">
+        <a class="admin-layout__brand" href="/admin-home">Адмінка</a>
+        <nav class="admin-layout__nav">
+            <NavLink class="admin-layout__link" href="/admin-home" Match="NavLinkMatch.All">Головна</NavLink>
+            <NavLink class="admin-layout__link" href="/admin/attempts">Спроби</NavLink>
+            <NavLink class="admin-layout__link" href="/">До тесту</NavLink>
+            <form class="admin-layout__logout" action="Account/Logout" method="post">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="/" />
+                <button type="submit" class="admin-layout__link admin-layout__link--button">Вийти</button>
+            </form>
+        </nav>
+    </aside>
+    <main class="admin-layout__main">
+        @Body
+    </main>
+</div>

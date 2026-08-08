@@ -42,4 +42,70 @@ public class TestAttemptService(IDbContextFactory<ApplicationDbContext> dbContex
             .AsNoTracking()
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
     }
+
+    public async Task<TestAttemptListResult> GetListAsync(
+        TestAttemptListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var page = query.Page < 1 ? 1 : query.Page;
+        var pageSize = query.PageSize is < 1 or > 100 ? 20 : query.PageSize;
+
+        var attempts = dbContext.TestAttempts.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var term = query.Search.Trim();
+            attempts = attempts.Where(a =>
+                a.LastName.Contains(term) ||
+                a.FirstName.Contains(term) ||
+                a.MiddleName.Contains(term));
+        }
+
+        if (query.Status.HasValue)
+        {
+            attempts = attempts.Where(a => a.Status == query.Status.Value);
+        }
+
+        var totalCount = await attempts.CountAsync(cancellationToken);
+
+        var items = await attempts
+            .OrderByDescending(a => a.StartedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new TestAttemptListResult
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
+    public async Task<TestAttemptStats> GetStatsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var todayUtc = DateTime.UtcNow.Date;
+
+        var total = await dbContext.TestAttempts.CountAsync(cancellationToken);
+        var inProgress = await dbContext.TestAttempts
+            .CountAsync(a => a.Status == TestAttemptStatus.InProgress, cancellationToken);
+        var completed = await dbContext.TestAttempts
+            .CountAsync(a => a.Status == TestAttemptStatus.Completed, cancellationToken);
+        var startedToday = await dbContext.TestAttempts
+            .CountAsync(a => a.StartedAt >= todayUtc, cancellationToken);
+
+        return new TestAttemptStats
+        {
+            Total = total,
+            InProgress = inProgress,
+            Completed = completed,
+            StartedToday = startedToday
+        };
+    }
 }

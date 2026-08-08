@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
 @using BlazorLppp.Data
+@using BlazorLppp.Domain
 
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
@@ -127,7 +128,21 @@
         if (result.Succeeded)
         {
             Logger.LogInformation("User logged in.");
-            RedirectManager.RedirectTo(ReturnUrl);
+
+            var redirectUrl = ReturnUrl;
+            if (string.IsNullOrWhiteSpace(redirectUrl))
+            {
+                var user = !string.IsNullOrWhiteSpace(Input.Email)
+                    ? await UserManager.FindByEmailAsync(Input.Email)
+                    : null;
+
+                if (user is not null && await UserManager.IsInRoleAsync(user, AppRoles.Admin))
+                {
+                    redirectUrl = "/admin-home";
+                }
+            }
+
+            RedirectManager.RedirectTo(redirectUrl);
         }
         else if (result.RequiresTwoFactor)
         {

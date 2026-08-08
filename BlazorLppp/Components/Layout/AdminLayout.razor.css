@@ -1,0 +1,76 @@
+.admin-layout {
+    display: flex;
+    min-height: 100vh;
+    background: #f4f6f8;
+}
+
+.admin-layout__sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: linear-gradient(180deg, #243447 0%, #2f445a 100%);
+    color: #fff;
+    padding: 1.25rem 1rem;
+}
+
+.admin-layout__brand {
+    display: block;
+    margin-bottom: 1.5rem;
+    color: #fff;
+    font-weight: 600;
+    font-size: 1.1rem;
+    text-decoration: none;
+}
+
+.admin-layout__nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.admin-layout__link {
+    display: block;
+    padding: 0.55rem 0.75rem;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.85);
+    text-decoration: none;
+    font-size: 0.95rem;
+}
+
+.admin-layout__link:hover,
+.admin-layout__link.active {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.admin-layout__link--button {
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
+.admin-layout__logout {
+    margin-top: 0.75rem;
+}
+
+.admin-layout__main {
+    flex: 1;
+    padding: 1.5rem;
+    min-width: 0;
+}
+
+@media (max-width: 768px) {
+    .admin-layout {
+        flex-direction: column;
+    }
+
+    .admin-layout__sidebar {
+        width: 100%;
+    }
+
+    .admin-layout__nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+}

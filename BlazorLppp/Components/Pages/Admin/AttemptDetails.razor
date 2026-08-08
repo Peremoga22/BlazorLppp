@@ -1,0 +1,111 @@
+@page "/admin/attempts/{AttemptId:guid}"
+@layout AdminLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = AppRoles.Admin)]
+
+@using BlazorLppp.Domain
+@using BlazorLppp.Domain.Entities
+@using BlazorLppp.Domain.Enums
+@using Microsoft.AspNetCore.Authorization
+
+@inject ITestAttemptService TestAttemptService
+
+<PageTitle>Деталі спроби</PageTitle>
+
+<div class="admin-page">
+    <header class="admin-page__header">
+        <div class="admin-page__header-row">
+            <div>
+                <h1 class="admin-page__title">Деталі спроби</h1>
+                <p class="admin-page__subtitle">Інформація про респондента та статус</p>
+            </div>
+            <a class="admin-link" href="/admin/attempts">← До списку</a>
+        </div>
+    </header>
+
+    @if (_isLoading)
+    {
+        <p class="admin-page__muted">Завантаження...</p>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <p class="admin-page__error" role="alert">@_errorMessage</p>
+    }
+    else if (_attempt is null)
+    {
+        <p class="admin-page__muted">Спробу не знайдено.</p>
+    }
+    else
+    {
+        <dl class="admin-details">
+            <div class="admin-details__row">
+                <dt>ID</dt>
+                <dd><code>@_attempt.Id</code></dd>
+            </div>
+            <div class="admin-details__row">
+                <dt>Прізвище</dt>
+                <dd>@_attempt.LastName</dd>
+            </div>
+            <div class="admin-details__row">
+                <dt>Ім’я</dt>
+                <dd>@_attempt.FirstName</dd>
+            </div>
+            <div class="admin-details__row">
+                <dt>По батькові</dt>
+                <dd>@_attempt.MiddleName</dd>
+            </div>
+            <div class="admin-details__row">
+                <dt>Статус</dt>
+                <dd>
+                    <span class="admin-badge @(_attempt.Status == TestAttemptStatus.Completed ? "admin-badge--done" : "admin-badge--progress")">
+                        @StatusLabel(_attempt.Status)
+                    </span>
+                </dd>
+            </div>
+            <div class="admin-details__row">
+                <dt>Початок (UTC)</dt>
+                <dd>@_attempt.StartedAt.ToString("dd.MM.yyyy HH:mm:ss")</dd>
+            </div>
+            <div class="admin-details__row">
+                <dt>Завершення (UTC)</dt>
+                <dd>@(_attempt.CompletedAt?.ToString("dd.MM.yyyy HH:mm:ss") ?? "—")</dd>
+            </div>
+        </dl>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid AttemptId { get; set; }
+
+    private TestAttempt? _attempt;
+    private bool _isLoading = true;
+    private string? _errorMessage;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            _attempt = await TestAttemptService.GetByIdAsync(AttemptId);
+        }
+        catch (Exception)
+        {
+            _attempt = null;
+            _errorMessage = "Не вдалося завантажити спробу.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static string StatusLabel(TestAttemptStatus status) => status switch
+    {
+        TestAttemptStatus.InProgress => "В процесі",
+        TestAttemptStatus.Completed => "Завершено",
+        _ => status.ToString()
+    };
+}

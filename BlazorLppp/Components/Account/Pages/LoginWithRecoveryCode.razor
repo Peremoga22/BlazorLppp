@@ -3,6 +3,7 @@
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Identity
 @using BlazorLppp.Data
+@using BlazorLppp.Domain
 
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
@@ -63,7 +64,11 @@
         if (result.Succeeded)
         {
             Logger.LogInformation("User with ID '{UserId}' logged in with a recovery code.", userId);
-            RedirectManager.RedirectTo(ReturnUrl);
+            var redirectUrl = string.IsNullOrWhiteSpace(ReturnUrl) &&
+                              await UserManager.IsInRoleAsync(user, AppRoles.Admin)
+                ? "/admin-home"
+                : ReturnUrl;
+            RedirectManager.RedirectTo(redirectUrl);
         }
         else if (result.IsLockedOut)
         {
