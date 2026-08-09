@@ -69,6 +69,18 @@
                            autocomplete="additional-name" />
                     <ValidationMessage For="() => Model.MiddleName" class="test-start__error" />
                 </div>
+                <div class="test-start__field">
+                    <label class="test-start__label" for="numberUnit">Вкажіть ваш номер</label>
+                    <input id="numberUnit"
+                           class="test-start__input"
+                           @bind="Model.NumberUnit"
+                           @bind:event="oninput"
+                           placeholder="Введіть ваш номер"
+                           type="number"
+                           min="1"
+                           autocomplete="additional-name" />
+                    <ValidationMessage For="() => Model.NumberUnit" class="test-start__error" />
+                </div>
             </section>
 
             <button type="submit"
@@ -97,6 +109,7 @@
     private bool CanStart =>
         !string.IsNullOrWhiteSpace(Model.LastName) &&
         !string.IsNullOrWhiteSpace(Model.FirstName) &&
+         Model.NumberUnit > 0 &&
         !string.IsNullOrWhiteSpace(Model.MiddleName);
 
     private async Task HandleStartAsync()
@@ -114,7 +127,7 @@
             Model.LastName = Model.LastName.Trim();
             Model.FirstName = Model.FirstName.Trim();
             Model.MiddleName = Model.MiddleName.Trim();
-
+            Model.NumberUnit = Model.NumberUnit;
             var attempt = await TestAttemptService.StartAsync(Model);
             Navigation.NavigateTo($"/test/{attempt.Id}");
         }

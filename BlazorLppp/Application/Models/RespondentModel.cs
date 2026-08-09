@@ -16,6 +16,10 @@ public class RespondentModel : IValidatableObject
     [StringLength(100, ErrorMessage = "По батькові не може перевищувати 100 символів")]
     public string MiddleName { get; set; } = string.Empty;
 
+    [Required(ErrorMessage = "Вкажіть ваш номер")]
+    [Range(1, int.MaxValue, ErrorMessage = "Номер одиниці має бути додатним числом")]
+    public int NumberUnit { get; set; }
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         foreach (var result in ValidateTrimmed(LastName, nameof(LastName), "Вкажіть прізвище", "Прізвище"))

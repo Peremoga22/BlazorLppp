@@ -38,6 +38,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .IsRequired()
                 .HasConversion<int>();
 
+            entity.Property(e => e.NumberUnit)
+                .IsRequired();
+
             entity.HasIndex(e => e.StartedAt);
         });
     }

@@ -12,6 +12,8 @@ public class TestAttempt
 
     public string MiddleName { get; set; } = string.Empty;
 
+    public int NumberUnit { get; set; }
+
     public DateTime StartedAt { get; set; }
 
     public DateTime? CompletedAt { get; set; }
