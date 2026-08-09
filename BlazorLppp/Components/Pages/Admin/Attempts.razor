@@ -60,9 +60,10 @@
                 <thead>
                     <tr>
                         <th>ПІБ</th>
+                        <th>Підрозділ</th>
                         <th>Статус</th>
-                        <th>Початок (UTC)</th>
-                        <th>Завершення (UTC)</th>
+                        <th>Початок</th>
+                        <th>Завершення</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -71,6 +72,7 @@
                     {
                         <tr>
                             <td>@item.LastName @item.FirstName @item.MiddleName</td>
+                            <td>@item.NumberUnit</td>
                             <td>
                                 <span class="admin-badge @(item.Status == TestAttemptStatus.Completed ? "admin-badge--done" : "admin-badge--progress")">
                                     @StatusLabel(item.Status)

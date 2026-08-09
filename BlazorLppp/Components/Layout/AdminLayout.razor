@@ -1,14 +1,33 @@
 ﻿@inherits LayoutComponentBase
 
 <div class="admin-layout">
-    <aside class="admin-layout__sidebar">
-        <a class="admin-layout__brand" href="/admin-home">Адмінка</a>
+    <input type="checkbox"
+           id="admin-menu-toggle"
+           class="admin-layout__menu-checkbox"
+           autocomplete="off" />
+
+    <header class="admin-topbar">
+        <label for="admin-menu-toggle" class="admin-topbar__toggle">
+            <span class="admin-topbar__toggle-icon" aria-hidden="true"></span>
+            Меню
+        </label>
+        <a class="admin-topbar__brand" href="/admin-home">Адмінка</a>
+    </header>
+
+    <label for="admin-menu-toggle" class="admin-layout__backdrop" aria-label="Закрити меню"></label>
+
+    <aside id="admin-sidebar" class="admin-layout__sidebar">
+        <div class="admin-layout__sidebar-head">
+            <a class="admin-layout__brand" href="/admin-home" @attributes="CloseMenuAttrs">Адмінка</a>
+            <label for="admin-menu-toggle" class="admin-layout__close" aria-label="Закрити меню">
+                <span aria-hidden="true">×</span>
+            </label>
+        </div>
         <nav class="admin-layout__nav">
-            <NavLink class="admin-layout__link" href="/admin-home" Match="NavLinkMatch.All">Головна</NavLink>
-            <NavLink class="admin-layout__link" href="/admin/attempts">Спроби</NavLink>
-            <NavLink class="admin-layout__link" href="/admin/results">Результати</NavLink>
-            <NavLink class="admin-layout__link" href="/admin/documents">Документи</NavLink>
-            <NavLink class="admin-layout__link" href="/">До тесту</NavLink>
+            <NavLink class="admin-layout__link" href="/admin-home" Match="NavLinkMatch.All" @attributes="CloseMenuAttrs">Головна</NavLink>
+            <NavLink class="admin-layout__link" href="/admin/attempts" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">Спроби</NavLink>
+            <NavLink class="admin-layout__link" href="/admin/documents" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">Документи</NavLink>
+            <NavLink class="admin-layout__link" href="/" Match="NavLinkMatch.All" @attributes="CloseMenuAttrs">До тесту</NavLink>
             <form class="admin-layout__logout" action="Account/Logout" method="post">
                 <AntiforgeryToken />
                 <input type="hidden" name="ReturnUrl" value="" />
@@ -20,3 +39,10 @@
         @Body
     </main>
 </div>
+
+@code {
+    private static readonly Dictionary<string, object> CloseMenuAttrs = new()
+    {
+        ["onclick"] = "document.getElementById('admin-menu-toggle').checked=false"
+    };
+}

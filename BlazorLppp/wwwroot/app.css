@@ -642,6 +642,18 @@ h1:focus {
     margin-bottom: 0.85rem;
 }
 
+.admin-home-results {
+    margin-top: 2rem;
+}
+
+.admin-home-results__header {
+    margin-bottom: 1rem;
+}
+
+.admin-home-results .admin-upload__title {
+    margin-bottom: 0.35rem;
+}
+
 .admin-preview-list {
     margin: 1rem 0 0;
     padding-left: 1.25rem;

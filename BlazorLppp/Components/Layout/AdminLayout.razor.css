@@ -4,17 +4,35 @@
     background: #f4f6f8;
 }
 
+.admin-layout__menu-checkbox {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.admin-topbar {
+    display: none;
+}
+
 .admin-layout__sidebar {
     width: 240px;
     flex-shrink: 0;
     background: linear-gradient(180deg, #243447 0%, #2f445a 100%);
     color: #fff;
-    padding: 1.35rem 1rem;
+    padding: 1.15rem 1rem 1.35rem;
+    z-index: 40;
+}
+
+.admin-layout__sidebar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
 }
 
 .admin-layout__brand {
     display: block;
-    margin-bottom: 1.5rem;
     padding: 0 0.35rem;
     color: #fff;
     font-weight: 700;
@@ -23,13 +41,38 @@
     text-decoration: none;
 }
 
+.admin-layout__close {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 2.35rem;
+    height: 2.35rem;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 1.55rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.admin-layout__close:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.35);
+    transform: translateY(-1px);
+}
+
+.admin-layout__backdrop {
+    display: none;
+}
+
 .admin-layout__nav {
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
 }
 
-/* :deep — NavLink renders <a> outside this component's CSS scope */
 ::deep(.admin-layout__link) {
     display: flex;
     align-items: center;
@@ -67,20 +110,22 @@
 .admin-layout__link--button,
 ::deep(.admin-layout__link--button) {
     border-color: rgba(255, 255, 255, 0.22);
-    background: rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.07) 100%);
     color: #fff;
     font: inherit;
-    text-align: left;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+    font-weight: 600;
+    text-align: center;
+    justify-content: center;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
 }
 
 .admin-layout__link--button:hover,
 ::deep(.admin-layout__link--button:hover) {
-    background: rgba(255, 255, 255, 0.18);
-    border-color: rgba(255, 255, 255, 0.35);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.12) 100%);
+    border-color: rgba(255, 255, 255, 0.4);
     color: #fff;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
 }
 
 .admin-layout__logout {
@@ -95,21 +140,103 @@
     min-width: 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
     .admin-layout {
         flex-direction: column;
     }
 
+    .admin-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: linear-gradient(180deg, #243447 0%, #2c4056 100%);
+        color: #fff;
+        box-shadow: 0 4px 16px rgba(36, 52, 71, 0.2);
+    }
+
+    .admin-topbar__toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        min-height: 2.4rem;
+        padding: 0.45rem 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.12);
+        color: #fff;
+        font: inherit;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .admin-topbar__toggle:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.4);
+        transform: translateY(-1px);
+    }
+
+    .admin-topbar__toggle-icon {
+        width: 1.05rem;
+        height: 0.85rem;
+        display: inline-block;
+        background:
+            linear-gradient(#fff, #fff) 0 0 / 100% 2px no-repeat,
+            linear-gradient(#fff, #fff) 0 50% / 100% 2px no-repeat,
+            linear-gradient(#fff, #fff) 0 100% / 100% 2px no-repeat;
+    }
+
+    .admin-topbar__brand {
+        color: #fff;
+        font-weight: 700;
+        font-size: 1.05rem;
+        text-decoration: none;
+    }
+
     .admin-layout__sidebar {
-        width: 100%;
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: min(280px, 86vw);
+        padding-top: 1rem;
+        transform: translateX(-105%);
+        transition: transform 0.22s ease;
+        box-shadow: 8px 0 28px rgba(0, 0, 0, 0.28);
+        overflow-y: auto;
     }
 
-    .admin-layout__nav {
-        flex-direction: row;
-        flex-wrap: wrap;
+    .admin-layout__menu-checkbox:checked ~ .admin-layout__sidebar {
+        transform: translateX(0);
     }
 
-    .admin-layout__logout {
-        width: 100%;
+    .admin-layout__close {
+        display: inline-flex;
+    }
+
+    .admin-layout__backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 35;
+        background: rgba(20, 30, 40, 0.45);
+        backdrop-filter: blur(2px);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+    }
+
+    .admin-layout__menu-checkbox:checked ~ .admin-layout__backdrop {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .admin-layout__main {
+        padding: 1rem;
     }
 }

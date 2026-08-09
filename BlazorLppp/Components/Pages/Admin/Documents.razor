@@ -143,7 +143,14 @@
     @if (_preview is not null)
     {
         <section class="admin-upload-list" aria-labelledby="preview-heading">
-            <h2 id="preview-heading" class="admin-upload__title">Попередній перегляд: @_preview.Title</h2>
+            <div class="admin-page__header-row">
+                <h2 id="preview-heading" class="admin-upload__title">Попередній перегляд: @_preview.Title</h2>
+                <button type="button"
+                        class="admin-btn admin-btn--ghost admin-btn--sm"
+                        @onclick="HidePreview">
+                    Сховати
+                </button>
+            </div>
             @if (!string.IsNullOrWhiteSpace(_preview.Instruction))
             {
                 <p class="admin-page__muted">@_preview.Instruction</p>
@@ -228,7 +235,7 @@
                 $"Документ оброблено: «{document.Title}». Знайдено питань: {document.Questions.Count}. Тест активовано.";
             _selectedFile = null;
             _canUpload = false;
-            _preview = document;
+            _preview = null;
             await ReloadListAsync();
         }
         catch (Exception ex)
@@ -250,7 +257,6 @@
             await TestDefinitionService.SetActiveAsync(documentId);
             _successMessage = "Тест активовано для проходження працівниками.";
             await ReloadListAsync();
-            await PreviewAsync(documentId);
         }
         catch (Exception ex)
         {
@@ -260,8 +266,16 @@
 
     private async Task PreviewAsync(Guid documentId)
     {
+        if (_preview?.Id == documentId)
+        {
+            HidePreview();
+            return;
+        }
+
         _preview = await TestDefinitionService.GetByIdAsync(documentId);
     }
+
+    private void HidePreview() => _preview = null;
 
     private async Task ReloadListAsync()
     {
@@ -272,9 +286,9 @@
             _testDocuments.Clear();
             _testDocuments.AddRange(items);
 
-            if (_preview is null)
+            if (_preview is not null)
             {
-                _preview = items.FirstOrDefault(d => d.IsActive) ?? items.FirstOrDefault();
+                _preview = items.FirstOrDefault(d => d.Id == _preview.Id);
             }
         }
         catch (Exception)

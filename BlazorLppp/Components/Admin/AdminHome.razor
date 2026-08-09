@@ -1,4 +1,4 @@
-﻿@page "/admin-home"
+@page "/admin-home"
 @layout AdminLayout
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = AppRoles.Admin)]
@@ -21,66 +21,173 @@
     {
         <p class="admin-page__muted">Завантаження...</p>
     }
-    else if (!string.IsNullOrEmpty(_errorMessage))
+    else if (!string.IsNullOrEmpty(_errorMessage) && _stats is null)
     {
         <p class="admin-page__error" role="alert">@_errorMessage</p>
     }
-    else if (_stats is not null)
+    else
     {
-        <div class="admin-stats">
-            <div class="admin-stats__item">
-                <span class="admin-stats__value">@_stats.Total</span>
-                <span class="admin-stats__label">Усього спроб</span>
+        @if (_stats is not null)
+        {
+            <div class="admin-stats">
+                <div class="admin-stats__item">
+                    <span class="admin-stats__value">@_stats.Total</span>
+                    <span class="admin-stats__label">Усього спроб</span>
+                </div>
+                <div class="admin-stats__item">
+                    <span class="admin-stats__value">@_stats.InProgress</span>
+                    <span class="admin-stats__label">В процесі</span>
+                </div>
+                <div class="admin-stats__item">
+                    <span class="admin-stats__value">@_stats.Completed</span>
+                    <span class="admin-stats__label">Завершені</span>
+                </div>
+                <div class="admin-stats__item">
+                    <span class="admin-stats__value">@_stats.StartedToday</span>
+                    <span class="admin-stats__label">Сьогодні</span>
+                </div>
             </div>
-            <div class="admin-stats__item">
-                <span class="admin-stats__value">@_stats.InProgress</span>
-                <span class="admin-stats__label">В процесі</span>
-            </div>
-            <div class="admin-stats__item">
-                <span class="admin-stats__value">@_stats.Completed</span>
-                <span class="admin-stats__label">Завершені</span>
-            </div>
-            <div class="admin-stats__item">
-                <span class="admin-stats__value">@_stats.StartedToday</span>
-                <span class="admin-stats__label">Сьогодні</span>
-            </div>
-        </div>
 
-        <div class="admin-page__actions admin-actions">
-            <a class="admin-btn" href="/admin/attempts">
-                <span class="admin-btn__icon admin-btn__icon--list" aria-hidden="true"></span>
-                Список спроб
-            </a>
-            <a class="admin-btn admin-btn--secondary" href="/admin/results">
-                <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
-                Результати
-            </a>
-            <a class="admin-btn admin-btn--soft" href="/admin/documents">
-                <span class="admin-btn__icon admin-btn__icon--file" aria-hidden="true"></span>
-                Документи
-            </a>
-        </div>
+            <div class="admin-page__actions admin-actions">
+                <a class="admin-btn" href="/admin/attempts">
+                    <span class="admin-btn__icon admin-btn__icon--list" aria-hidden="true"></span>
+                    Список спроб
+                </a>
+                <a class="admin-btn admin-btn--soft" href="/admin/documents">
+                    <span class="admin-btn__icon admin-btn__icon--file" aria-hidden="true"></span>
+                    Документи
+                </a>
+            </div>
+        }
+
+        <section class="admin-home-results" aria-labelledby="results-heading">
+            <header class="admin-home-results__header">
+                <div>
+                    <h2 id="results-heading" class="admin-upload__title">Результати тестів</h2>
+                    <p class="admin-page__muted">
+                        Завершені тести. Файли: «Прізвище_І_П.docx»
+                    </p>
+                </div>
+            </header>
+
+            @if (!string.IsNullOrEmpty(_resultsError))
+            {
+                <p class="admin-page__error" role="alert">@_resultsError</p>
+            }
+            else if (_results.Count == 0)
+            {
+                <p class="admin-page__muted">Завершених тестів ще немає.</p>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Працівник</th>
+                                <th>Номер</th>
+                                <th>Файл</th>
+                                <th>Завершено</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in _results)
+                            {
+                                <tr>
+                                    <td>@item.DisplayName</td>
+                                    <td>@item.NumberUnit</td>
+                                    <td>
+                                        @if (item.HasResultFile)
+                                        {
+                                            <code>@item.ResultFileName</code>
+                                        }
+                                        else
+                                        {
+                                            <span class="admin-page__muted">не сформовано</span>
+                                        }
+                                    </td>
+                                    <td>@(item.CompletedAt?.ToString("dd.MM.yyyy HH:mm") ?? "—")</td>
+                                    <td>
+                                        <div class="admin-actions">
+                                            <a class="admin-btn admin-btn--soft admin-btn--sm"
+                                               href="@($"/admin/results/{item.AttemptId}")">
+                                                <span class="admin-btn__icon admin-btn__icon--eye" aria-hidden="true"></span>
+                                                Деталі
+                                            </a>
+                                            @if (item.HasResultFile)
+                                            {
+                                                <a class="admin-btn admin-btn--download admin-btn--sm"
+                                                   href="@($"/admin/results/{item.AttemptId}/download")">
+                                                    <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
+                                                    Завантажити
+                                                </a>
+                                            }
+                                            else
+                                            {
+                                                <button type="button"
+                                                        class="admin-btn admin-btn--secondary admin-btn--sm"
+                                                        @onclick="() => GenerateAsync(item.AttemptId)">
+                                                    <span class="admin-btn__icon admin-btn__icon--file" aria-hidden="true"></span>
+                                                    Сформувати
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
     }
 </div>
 
 @code {
     private TestAttemptStats? _stats;
+    private readonly List<TestResultListItem> _results = [];
     private bool _isLoading = true;
     private string? _errorMessage;
+    private string? _resultsError;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            _stats = await TestAttemptService.GetStatsAsync();
+            var statsTask = TestAttemptService.GetStatsAsync();
+            var resultsTask = TestAttemptService.GetCompletedResultsAsync();
+            await Task.WhenAll(statsTask, resultsTask);
+
+            _stats = await statsTask;
+            _results.Clear();
+            _results.AddRange(await resultsTask);
         }
         catch (Exception)
         {
-            _errorMessage = "Не вдалося завантажити статистику.";
+            _errorMessage = "Не вдалося завантажити дані панелі.";
         }
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private async Task GenerateAsync(Guid attemptId)
+    {
+        try
+        {
+            await TestAttemptService.EnsureResultFileAsync(attemptId);
+            var items = await TestAttemptService.GetCompletedResultsAsync();
+            _results.Clear();
+            _results.AddRange(items);
+            _resultsError = null;
+        }
+        catch (Exception ex)
+        {
+            _resultsError = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося сформувати файл."
+                : ex.Message;
         }
     }
 }
