@@ -1,3 +1,4 @@
+using BlazorLppp.Application.Models;
 using BlazorLppp.Application.Services;
 using BlazorLppp.Components;
 using BlazorLppp.Components.Account;
@@ -7,6 +8,7 @@ using BlazorLppp.Domain;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,10 +23,25 @@ builder.Services.Configure<CircuitOptions>(options =>
 builder.Services.Configure<AdminSeedOptions>(
     builder.Configuration.GetSection(AdminSeedOptions.SectionName));
 
+builder.Services.Configure<DocumentStorageOptions>(
+    builder.Configuration.GetSection(DocumentStorageOptions.SectionName));
+
+var documentStorageOptions = builder.Configuration
+    .GetSection(DocumentStorageOptions.SectionName)
+    .Get<DocumentStorageOptions>() ?? new DocumentStorageOptions();
+
+builder.Services.Configure<HubOptions>(options =>
+{
+    options.MaximumReceiveMessageSize = Math.Max(
+        options.MaximumReceiveMessageSize ?? 32 * 1024,
+        documentStorageOptions.MaxFileSizeBytes);
+});
+
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 builder.Services.AddScoped<ITestAttemptService, TestAttemptService>();
+builder.Services.AddScoped<IDocumentStorageService, DocumentStorageService>();
 
 builder.Services.AddAuthentication(options =>
     {

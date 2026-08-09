@@ -1,0 +1,203 @@
+@page "/admin/documents"
+@layout AdminLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = AppRoles.Admin)]
+
+@using BlazorLppp.Application.Models
+@using BlazorLppp.Domain
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Options
+
+@inject IDocumentStorageService DocumentStorageService
+@inject IOptions<DocumentStorageOptions> DocumentStorageOptions
+
+<PageTitle>Документи</PageTitle>
+
+<div class="admin-page">
+    <header class="admin-page__header">
+        <div class="admin-page__header-row">
+            <div>
+                <h1 class="admin-page__title">Документи</h1>
+                <p class="admin-page__subtitle">
+                    Завантажте файл — на сервері створиться папка з назвою документа
+                </p>
+            </div>
+            <a class="admin-link" href="/admin-home">← До панелі</a>
+        </div>
+    </header>
+
+    <section class="admin-upload" aria-labelledby="upload-heading">
+        <h2 id="upload-heading" class="admin-upload__title">Завантаження</h2>
+        <p class="admin-page__muted">
+            Дозволені формати: @AllowedExtensionsText. Максимум @_maxSizeMb МБ.
+        </p>
+
+        <div class="admin-upload__row">
+            <InputFile class="admin-upload__input"
+                       OnChange="OnFileSelectedAsync"
+                       accept="@_acceptAttribute" />
+            <button type="button"
+                    class="admin-btn"
+                    disabled="@(!_canUpload || _isUploading)"
+                    @onclick="UploadAsync">
+                @(_isUploading ? "Завантаження..." : "Завантажити")
+            </button>
+        </div>
+
+        @if (_selectedFile is not null)
+        {
+            <p class="admin-upload__selected">
+                Обрано: <strong>@_selectedFile.Name</strong>
+                (@FormatSize(_selectedFile.Size))
+            </p>
+        }
+
+        @if (!string.IsNullOrEmpty(_successMessage))
+        {
+            <p class="admin-upload__success" role="status">@_successMessage</p>
+        }
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <p class="admin-page__error" role="alert">@_errorMessage</p>
+        }
+    </section>
+
+    <section class="admin-upload-list" aria-labelledby="documents-heading">
+        <h2 id="documents-heading" class="admin-upload__title">Збережені документи</h2>
+
+        @if (_isLoading)
+        {
+            <p class="admin-page__muted">Завантаження списку...</p>
+        }
+        else if (_documents.Count == 0)
+        {
+            <p class="admin-page__muted">Документів ще немає.</p>
+        }
+        else
+        {
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Папка</th>
+                            <th>Файл</th>
+                            <th>Розмір</th>
+                            <th>Збережено</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var doc in _documents)
+                        {
+                            <tr>
+                                <td>@doc.FolderName</td>
+                                <td>@doc.FileName</td>
+                                <td>@FormatSize(doc.SizeBytes)</td>
+                                <td>@doc.SavedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private readonly List<StoredDocumentInfo> _documents = [];
+    private IBrowserFile? _selectedFile;
+    private bool _isLoading = true;
+    private bool _isUploading;
+    private bool _canUpload;
+    private string? _errorMessage;
+    private string? _successMessage;
+    private long _maxSizeMb;
+    private string _acceptAttribute = string.Empty;
+
+    private string AllowedExtensionsText =>
+        string.Join(", ", DocumentStorageOptions.Value.AllowedExtensions);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var options = DocumentStorageOptions.Value;
+        _maxSizeMb = Math.Max(1, options.MaxFileSizeBytes / (1024 * 1024));
+        _acceptAttribute = string.Join(',', options.AllowedExtensions);
+        await ReloadListAsync();
+    }
+
+    private Task OnFileSelectedAsync(InputFileChangeEventArgs args)
+    {
+        _errorMessage = null;
+        _successMessage = null;
+        _selectedFile = args.FileCount > 0 ? args.File : null;
+        _canUpload = _selectedFile is not null;
+        return Task.CompletedTask;
+    }
+
+    private async Task UploadAsync()
+    {
+        if (_selectedFile is null || _isUploading)
+        {
+            return;
+        }
+
+        _isUploading = true;
+        _errorMessage = null;
+        _successMessage = null;
+
+        try
+        {
+            var result = await DocumentStorageService.UploadAsync(_selectedFile);
+            _successMessage =
+                $"Документ збережено: {result.RelativePath} (папка «{result.FolderName}»).";
+            _selectedFile = null;
+            _canUpload = false;
+            await ReloadListAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося завантажити документ."
+                : ex.Message;
+        }
+        finally
+        {
+            _isUploading = false;
+        }
+    }
+
+    private async Task ReloadListAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            var items = await DocumentStorageService.ListAsync();
+            _documents.Clear();
+            _documents.AddRange(items);
+        }
+        catch (Exception)
+        {
+            _errorMessage = "Не вдалося завантажити список документів.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} Б";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024d:0.#} КБ";
+        }
+
+        return $"{bytes / (1024d * 1024d):0.#} МБ";
+    }
+}

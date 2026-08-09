@@ -66,6 +66,9 @@ artifacts/
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
 
+# Uploaded admin documents
+**/App_Data/Documents/
+
 # StyleCop
 StyleCopReport.xml
 

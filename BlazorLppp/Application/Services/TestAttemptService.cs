@@ -21,7 +21,8 @@ public class TestAttemptService(IDbContextFactory<ApplicationDbContext> dbContex
             LastName = respondent.LastName.Trim(),
             FirstName = respondent.FirstName.Trim(),
             MiddleName = respondent.MiddleName.Trim(),
-            StartedAt = DateTime.UtcNow,
+            NumberUnit = respondent.NumberUnit,
+            StartedAt = DateTime.Now,
             CompletedAt = null,
             Status = TestAttemptStatus.InProgress
         };
@@ -90,7 +91,7 @@ public class TestAttemptService(IDbContextFactory<ApplicationDbContext> dbContex
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        var todayUtc = DateTime.UtcNow.Date;
+        var today = DateTime.Today;
 
         var total = await dbContext.TestAttempts.CountAsync(cancellationToken);
         var inProgress = await dbContext.TestAttempts
@@ -98,7 +99,7 @@ public class TestAttemptService(IDbContextFactory<ApplicationDbContext> dbContex
         var completed = await dbContext.TestAttempts
             .CountAsync(a => a.Status == TestAttemptStatus.Completed, cancellationToken);
         var startedToday = await dbContext.TestAttempts
-            .CountAsync(a => a.StartedAt >= todayUtc, cancellationToken);
+            .CountAsync(a => a.StartedAt >= today, cancellationToken);
 
         return new TestAttemptStats
         {

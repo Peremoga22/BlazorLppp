@@ -32,7 +32,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasMaxLength(100);
 
             entity.Property(e => e.StartedAt)
-                .IsRequired();
+                .IsRequired()
+                .HasDefaultValueSql("GETDATE()");
 
             entity.Property(e => e.Status)
                 .IsRequired()
