@@ -2,6 +2,8 @@
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
 
+@using BlazorLppp.Application.Models
+@using BlazorLppp.Domain.Enums
 @using Microsoft.AspNetCore.Authorization
 
 @inject ITestAttemptService TestAttemptService
@@ -9,18 +11,18 @@
 <PageTitle>Тестування</PageTitle>
 
 <div class="test-page">
-    <div class="test-page__card">
+    <div class="test-page__card test-page__card--form">
         @if (_isLoading)
         {
             <p class="test-page__text">Завантаження...</p>
         }
-        else if (!string.IsNullOrEmpty(_errorMessage))
+        else if (!string.IsNullOrEmpty(_errorMessage) && _form is null)
         {
             <h1 class="test-page__title">Помилка</h1>
             <p class="test-page__text">@_errorMessage</p>
             <a class="test-page__link" href="/">До стартової сторінки</a>
         }
-        else if (_attempt is null)
+        else if (_form is null)
         {
             <h1 class="test-page__title">Спробу не знайдено</h1>
             <p class="test-page__text">Перевірте посилання або почніть тестування знову.</p>
@@ -28,13 +30,93 @@
         }
         else
         {
-            <h1 class="test-page__title">Тестування розпочато</h1>
-            <p class="test-page__name">
-                @_attempt.LastName @_attempt.FirstName @_attempt.MiddleName
-            </p>
-            <p class="test-page__text">
-                Сторінка проходження тесту буде доступна на наступному етапі.
-            </p>
+            <header class="test-form__header">
+                <h1 class="test-page__title">@_form.TestTitle</h1>
+                <p class="test-page__name">@_form.RespondentName</p>
+                @if (!string.IsNullOrWhiteSpace(_form.Instruction))
+                {
+                    <p class="test-page__text test-form__instruction">@_form.Instruction</p>
+                }
+            </header>
+
+            @if (_form.IsCompleted)
+            {
+                <p class="test-form__done">Дякуємо! Ваші відповіді збережено.</p>
+                <a class="test-page__link" href="/">На головну</a>
+            }
+            else
+            {
+                <EditForm Model="_form" OnValidSubmit="SubmitAsync">
+                    <ol class="test-form__list">
+                        @foreach (var question in _form.Questions)
+                        {
+                            <li class="test-form__question">
+                                <div class="test-form__question-text">
+                                    <span class="test-form__number">@question.SortOrder.</span>
+                                    @question.Text
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(question.Hint))
+                                {
+                                    <p class="test-form__hint">@question.Hint</p>
+                                }
+
+                                @if (question.Type is QuestionType.SingleChoice or QuestionType.YesNo)
+                                {
+                                    <div class="test-form__options" role="radiogroup" aria-label="@question.Text">
+                                        @foreach (var option in question.Options)
+                                        {
+                                            <label class="test-form__option">
+                                                <input type="radio"
+                                                       name="@($"q-{question.Id}")"
+                                                       checked="@(question.SelectedOptionId == option.Id)"
+                                                       @onchange="() => question.SelectedOptionId = option.Id" />
+                                                <span>
+                                                    @if (!string.IsNullOrWhiteSpace(option.Key) &&
+                                                         option.Key is not ("Так" or "Ні"))
+                                                    {
+                                                        <strong>@option.Key.</strong>
+                                                    }
+                                                    @option.Text
+                                                </span>
+                                            </label>
+                                        }
+                                    </div>
+                                }
+                                else if (question.Type == QuestionType.Scale)
+                                {
+                                    var min = question.ScaleMin ?? 1;
+                                    var max = question.ScaleMax ?? 10;
+                                    <div class="test-form__scale" role="radiogroup" aria-label="@question.Text">
+                                        @for (var value = min; value <= max; value++)
+                                        {
+                                            var scaleValue = value;
+                                            <label class="test-form__scale-item">
+                                                <input type="radio"
+                                                       name="@($"q-scale-{question.Id}")"
+                                                       checked="@(question.ScaleValue == scaleValue)"
+                                                       @onchange="() => question.ScaleValue = scaleValue" />
+                                                <span>@scaleValue</span>
+                                            </label>
+                                        }
+                                    </div>
+                                }
+                            </li>
+                        }
+                    </ol>
+
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <p class="test-form__error" role="alert">@_errorMessage</p>
+                    }
+
+                    <button type="submit"
+                            class="test-form__submit"
+                            disabled="@_isSubmitting">
+                        @(_isSubmitting ? "Збереження..." : "Завершити тест")
+                    </button>
+                </EditForm>
+            }
         }
     </div>
 </div>
@@ -43,8 +125,9 @@
     [Parameter]
     public Guid AttemptId { get; set; }
 
-    private TestAttempt? _attempt;
+    private TestFormModel? _form;
     private bool _isLoading = true;
+    private bool _isSubmitting;
     private string? _errorMessage;
 
     protected override async Task OnParametersSetAsync()
@@ -54,16 +137,52 @@
 
         try
         {
-            _attempt = await TestAttemptService.GetByIdAsync(AttemptId);
+            _form = await TestAttemptService.GetFormAsync(AttemptId);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            _attempt = null;
-            _errorMessage = "Не вдалося завантажити дані спроби.";
+            _form = null;
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося завантажити форму тесту."
+                : ex.Message;
         }
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_form is null || _isSubmitting || _form.IsCompleted)
+        {
+            return;
+        }
+
+        _isSubmitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            var answers = _form.Questions.Select(q => new TestAnswerInput
+            {
+                QuestionId = q.Id,
+                SelectedOptionId = q.SelectedOptionId,
+                ScaleValue = q.ScaleValue
+            }).ToList();
+
+            await TestAttemptService.SubmitAsync(AttemptId, answers);
+            _form = await TestAttemptService.GetFormAsync(AttemptId);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося зберегти відповіді."
+                : ex.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
         }
     }
 }

@@ -19,7 +19,10 @@
                 <h1 class="admin-page__title">Деталі спроби</h1>
                 <p class="admin-page__subtitle">Інформація про респондента та статус</p>
             </div>
-            <a class="admin-link" href="/admin/attempts">← До списку</a>
+            <a class="admin-link admin-link--back" href="/admin/attempts">
+                <span class="admin-btn__icon admin-btn__icon--arrow-left" aria-hidden="true"></span>
+                До списку
+            </a>
         </div>
     </header>
 
@@ -67,10 +70,20 @@
                 <dd>@_attempt.StartedAt.ToString("dd.MM.yyyy HH:mm:ss")</dd>
             </div>
             <div class="admin-details__row">
-                <dt>Завершення (UTC)</dt>
+                <dt>Завершення</dt>
                 <dd>@(_attempt.CompletedAt?.ToString("dd.MM.yyyy HH:mm:ss") ?? "—")</dd>
             </div>
         </dl>
+
+        @if (_attempt.Status == TestAttemptStatus.Completed)
+        {
+            <div class="admin-page__actions admin-actions">
+                <a class="admin-btn" href="@($"/admin/results/{_attempt.Id}")">
+                    <span class="admin-btn__icon admin-btn__icon--file" aria-hidden="true"></span>
+                    Результат і файл
+                </a>
+            </div>
+        }
     }
 </div>
 

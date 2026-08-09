@@ -1,0 +1,150 @@
+@page "/admin/results"
+@layout AdminLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = AppRoles.Admin)]
+
+@using BlazorLppp.Application.Models
+@using BlazorLppp.Domain
+@using Microsoft.AspNetCore.Authorization
+
+@inject ITestAttemptService TestAttemptService
+
+<PageTitle>Результати тестів</PageTitle>
+
+<div class="admin-page">
+    <header class="admin-page__header">
+        <div class="admin-page__header-row">
+            <div>
+                <h1 class="admin-page__title">Результати тестів</h1>
+                <p class="admin-page__subtitle">
+                    Завершені тести з даними працівників. Файли названі як «Прізвище_І_П.docx»
+                </p>
+            </div>
+            <a class="admin-link admin-link--back" href="/admin-home">
+                <span class="admin-btn__icon admin-btn__icon--arrow-left" aria-hidden="true"></span>
+                До панелі
+            </a>
+        </div>
+    </header>
+
+    @if (_isLoading)
+    {
+        <p class="admin-page__muted">Завантаження...</p>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <p class="admin-page__error" role="alert">@_errorMessage</p>
+    }
+    else if (_items.Count == 0)
+    {
+        <p class="admin-page__muted">Завершених тестів ще немає.</p>
+    }
+    else
+    {
+        <div class="admin-table-wrap">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Працівник</th>
+                        <th>Номер</th>
+                        <th>Файл</th>
+                        <th>Завершено</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in _items)
+                    {
+                        <tr>
+                            <td>@item.DisplayName</td>
+                            <td>@item.NumberUnit</td>
+                            <td>
+                                @if (item.HasResultFile)
+                                {
+                                    <code>@item.ResultFileName</code>
+                                }
+                                else
+                                {
+                                    <span class="admin-page__muted">не сформовано</span>
+                                }
+                            </td>
+                            <td>@(item.CompletedAt?.ToString("dd.MM.yyyy HH:mm") ?? "—")</td>
+                            <td>
+                                <div class="admin-actions">
+                                    <a class="admin-btn admin-btn--soft admin-btn--sm"
+                                       href="@($"/admin/results/{item.AttemptId}")">
+                                        <span class="admin-btn__icon admin-btn__icon--eye" aria-hidden="true"></span>
+                                        Деталі
+                                    </a>
+                                    @if (item.HasResultFile)
+                                    {
+                                        <a class="admin-btn admin-btn--download admin-btn--sm"
+                                           href="@($"/admin/results/{item.AttemptId}/download")">
+                                            <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
+                                            Завантажити
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <button type="button"
+                                                class="admin-btn admin-btn--secondary admin-btn--sm"
+                                                @onclick="() => GenerateAsync(item.AttemptId)">
+                                            <span class="admin-btn__icon admin-btn__icon--file" aria-hidden="true"></span>
+                                            Сформувати
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private readonly List<TestResultListItem> _items = [];
+    private bool _isLoading = true;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            var items = await TestAttemptService.GetCompletedResultsAsync();
+            _items.Clear();
+            _items.AddRange(items);
+        }
+        catch (Exception)
+        {
+            _errorMessage = "Не вдалося завантажити результати.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task GenerateAsync(Guid attemptId)
+    {
+        try
+        {
+            await TestAttemptService.EnsureResultFileAsync(attemptId);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося сформувати файл."
+                : ex.Message;
+        }
+    }
+}

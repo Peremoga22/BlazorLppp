@@ -68,6 +68,7 @@ ScaffoldingReadMe.txt
 
 # Uploaded admin documents
 **/App_Data/Documents/
+**/App_Data/Results/
 
 # StyleCop
 StyleCopReport.xml

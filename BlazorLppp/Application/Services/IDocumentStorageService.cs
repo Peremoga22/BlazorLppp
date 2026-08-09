@@ -12,4 +12,6 @@ public interface IDocumentStorageService
 
     Task<IReadOnlyList<StoredDocumentInfo>> ListAsync(
         CancellationToken cancellationToken = default);
+
+    string GetAbsolutePath(string relativePath);
 }

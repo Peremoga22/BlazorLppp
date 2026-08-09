@@ -5,11 +5,13 @@
 
 @using BlazorLppp.Application.Models
 @using BlazorLppp.Domain
+@using BlazorLppp.Domain.Entities
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.Extensions.Options
 
 @inject IDocumentStorageService DocumentStorageService
+@inject ITestDefinitionService TestDefinitionService
 @inject IOptions<DocumentStorageOptions> DocumentStorageOptions
 
 <PageTitle>Документи</PageTitle>
@@ -18,30 +20,34 @@
     <header class="admin-page__header">
         <div class="admin-page__header-row">
             <div>
-                <h1 class="admin-page__title">Документи</h1>
+                <h1 class="admin-page__title">Документи тесту</h1>
                 <p class="admin-page__subtitle">
-                    Завантажте файл — на сервері створиться папка з назвою документа
+                    Завантажте .docx/.txt — система зчитає питання і сформує вебформу для працівників
                 </p>
             </div>
-            <a class="admin-link" href="/admin-home">← До панелі</a>
+            <a class="admin-link admin-link--back" href="/admin-home">
+                <span class="admin-btn__icon admin-btn__icon--arrow-left" aria-hidden="true"></span>
+                До панелі
+            </a>
         </div>
     </header>
 
     <section class="admin-upload" aria-labelledby="upload-heading">
         <h2 id="upload-heading" class="admin-upload__title">Завантаження</h2>
         <p class="admin-page__muted">
-            Дозволені формати: @AllowedExtensionsText. Максимум @_maxSizeMb МБ.
+            Для авторозбору потрібен .docx або .txt. Максимум @_maxSizeMb МБ.
         </p>
 
         <div class="admin-upload__row">
             <InputFile class="admin-upload__input"
                        OnChange="OnFileSelectedAsync"
-                       accept="@_acceptAttribute" />
+                       accept=".docx,.txt,.pdf,.doc" />
             <button type="button"
                     class="admin-btn"
                     disabled="@(!_canUpload || _isUploading)"
                     @onclick="UploadAsync">
-                @(_isUploading ? "Завантаження..." : "Завантажити")
+                <span class="admin-btn__icon admin-btn__icon--upload" aria-hidden="true"></span>
+                @(_isUploading ? "Обробка..." : "Завантажити та розібрати")
             </button>
         </div>
 
@@ -65,15 +71,15 @@
     </section>
 
     <section class="admin-upload-list" aria-labelledby="documents-heading">
-        <h2 id="documents-heading" class="admin-upload__title">Збережені документи</h2>
+        <h2 id="documents-heading" class="admin-upload__title">Розібрані тести</h2>
 
         @if (_isLoading)
         {
             <p class="admin-page__muted">Завантаження списку...</p>
         }
-        else if (_documents.Count == 0)
+        else if (_testDocuments.Count == 0)
         {
-            <p class="admin-page__muted">Документів ще немає.</p>
+            <p class="admin-page__muted">Ще немає активних тестів. Завантажте документ.</p>
         }
         else
         {
@@ -81,20 +87,51 @@
                 <table class="admin-table">
                     <thead>
                         <tr>
-                            <th>Папка</th>
+                            <th>Назва</th>
                             <th>Файл</th>
-                            <th>Розмір</th>
-                            <th>Збережено</th>
+                            <th>Питань</th>
+                            <th>Статус</th>
+                            <th>Завантажено</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var doc in _documents)
+                        @foreach (var doc in _testDocuments)
                         {
                             <tr>
-                                <td>@doc.FolderName</td>
-                                <td>@doc.FileName</td>
-                                <td>@FormatSize(doc.SizeBytes)</td>
-                                <td>@doc.SavedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                                <td>@doc.Title</td>
+                                <td>@doc.OriginalFileName</td>
+                                <td>@doc.Questions.Count</td>
+                                <td>
+                                    @if (doc.IsActive)
+                                    {
+                                        <span class="admin-badge admin-badge--done">Активний</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="admin-badge admin-badge--progress">Неактивний</span>
+                                    }
+                                </td>
+                                <td>@doc.UploadedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                                <td>
+                                    <div class="admin-actions">
+                                        <button type="button"
+                                                class="admin-btn admin-btn--soft admin-btn--sm"
+                                                @onclick="() => PreviewAsync(doc.Id)">
+                                            <span class="admin-btn__icon admin-btn__icon--eye" aria-hidden="true"></span>
+                                            Перегляд
+                                        </button>
+                                        @if (!doc.IsActive)
+                                        {
+                                            <button type="button"
+                                                    class="admin-btn admin-btn--sm"
+                                                    @onclick="() => ActivateAsync(doc.Id)">
+                                                <span class="admin-btn__icon admin-btn__icon--check" aria-hidden="true"></span>
+                                                Зробити активним
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -102,10 +139,50 @@
             </div>
         }
     </section>
+
+    @if (_preview is not null)
+    {
+        <section class="admin-upload-list" aria-labelledby="preview-heading">
+            <h2 id="preview-heading" class="admin-upload__title">Попередній перегляд: @_preview.Title</h2>
+            @if (!string.IsNullOrWhiteSpace(_preview.Instruction))
+            {
+                <p class="admin-page__muted">@_preview.Instruction</p>
+            }
+
+            <ol class="admin-preview-list">
+                @foreach (var question in _preview.Questions.OrderBy(q => q.SortOrder))
+                {
+                    <li class="admin-preview-item">
+                        <strong>@question.Text</strong>
+                        @if (!string.IsNullOrWhiteSpace(question.Hint))
+                        {
+                            <div class="admin-page__muted">@question.Hint</div>
+                        }
+                        @if (question.Options.Count > 0)
+                        {
+                            <ul>
+                                @foreach (var option in question.Options.OrderBy(o => o.SortOrder))
+                                {
+                                    <li>@option.Key. @option.Text</li>
+                                }
+                            </ul>
+                        }
+                        else if (question.Type == Domain.Enums.QuestionType.Scale)
+                        {
+                            <div class="admin-page__muted">
+                                Шкала: @question.ScaleMin – @question.ScaleMax
+                            </div>
+                        }
+                    </li>
+                }
+            </ol>
+        </section>
+    }
 </div>
 
 @code {
-    private readonly List<StoredDocumentInfo> _documents = [];
+    private readonly List<TestDocument> _testDocuments = [];
+    private TestDocument? _preview;
     private IBrowserFile? _selectedFile;
     private bool _isLoading = true;
     private bool _isUploading;
@@ -113,16 +190,10 @@
     private string? _errorMessage;
     private string? _successMessage;
     private long _maxSizeMb;
-    private string _acceptAttribute = string.Empty;
-
-    private string AllowedExtensionsText =>
-        string.Join(", ", DocumentStorageOptions.Value.AllowedExtensions);
 
     protected override async Task OnInitializedAsync()
     {
-        var options = DocumentStorageOptions.Value;
-        _maxSizeMb = Math.Max(1, options.MaxFileSizeBytes / (1024 * 1024));
-        _acceptAttribute = string.Join(',', options.AllowedExtensions);
+        _maxSizeMb = Math.Max(1, DocumentStorageOptions.Value.MaxFileSizeBytes / (1024 * 1024));
         await ReloadListAsync();
     }
 
@@ -148,17 +219,22 @@
 
         try
         {
-            var result = await DocumentStorageService.UploadAsync(_selectedFile);
+            var upload = await DocumentStorageService.UploadAsync(_selectedFile);
+            var document = await TestDefinitionService.ImportUploadedDocumentAsync(
+                upload,
+                upload.AbsolutePath);
+
             _successMessage =
-                $"Документ збережено: {result.RelativePath} (папка «{result.FolderName}»).";
+                $"Документ оброблено: «{document.Title}». Знайдено питань: {document.Questions.Count}. Тест активовано.";
             _selectedFile = null;
             _canUpload = false;
+            _preview = document;
             await ReloadListAsync();
         }
         catch (Exception ex)
         {
             _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
-                ? "Не вдалося завантажити документ."
+                ? "Не вдалося завантажити або розібрати документ."
                 : ex.Message;
         }
         finally
@@ -167,14 +243,39 @@
         }
     }
 
+    private async Task ActivateAsync(Guid documentId)
+    {
+        try
+        {
+            await TestDefinitionService.SetActiveAsync(documentId);
+            _successMessage = "Тест активовано для проходження працівниками.";
+            await ReloadListAsync();
+            await PreviewAsync(documentId);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task PreviewAsync(Guid documentId)
+    {
+        _preview = await TestDefinitionService.GetByIdAsync(documentId);
+    }
+
     private async Task ReloadListAsync()
     {
         _isLoading = true;
         try
         {
-            var items = await DocumentStorageService.ListAsync();
-            _documents.Clear();
-            _documents.AddRange(items);
+            var items = await TestDefinitionService.ListAsync();
+            _testDocuments.Clear();
+            _testDocuments.AddRange(items);
+
+            if (_preview is null)
+            {
+                _preview = items.FirstOrDefault(d => d.IsActive) ?? items.FirstOrDefault();
+            }
         }
         catch (Exception)
         {

@@ -8,6 +8,8 @@ public class DocumentUploadResult
 
     public required string RelativePath { get; init; }
 
+    public required string AbsolutePath { get; init; }
+
     public long SizeBytes { get; init; }
 }
 

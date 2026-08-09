@@ -20,7 +20,10 @@
                 <h1 class="admin-page__title">Спроби тестування</h1>
                 <p class="admin-page__subtitle">Пошук і перегляд усіх записів</p>
             </div>
-            <a class="admin-link" href="/admin-home">← До панелі</a>
+            <a class="admin-link admin-link--back" href="/admin-home">
+                <span class="admin-btn__icon admin-btn__icon--arrow-left" aria-hidden="true"></span>
+                До панелі
+            </a>
         </div>
     </header>
 
@@ -76,7 +79,11 @@
                             <td>@item.StartedAt.ToString("dd.MM.yyyy HH:mm")</td>
                             <td>@(item.CompletedAt?.ToString("dd.MM.yyyy HH:mm") ?? "—")</td>
                             <td>
-                                <a class="admin-link" href="@($"/admin/attempts/{item.Id}")">Деталі</a>
+                                <a class="admin-btn admin-btn--soft admin-btn--sm"
+                                   href="@($"/admin/attempts/{item.Id}")">
+                                    <span class="admin-btn__icon admin-btn__icon--eye" aria-hidden="true"></span>
+                                    Деталі
+                                </a>
                             </td>
                         </tr>
                     }
@@ -85,15 +92,16 @@
         </div>
 
         <div class="admin-pager">
-            <button class="admin-btn admin-btn--secondary"
+            <button class="admin-btn admin-btn--secondary admin-btn--sm"
                     disabled="@(_result.Page <= 1)"
                     @onclick="() => ChangePageAsync(_result.Page - 1)">
+                <span class="admin-btn__icon admin-btn__icon--arrow-left" aria-hidden="true"></span>
                 Назад
             </button>
             <span class="admin-page__muted">
                 Сторінка @_result.Page з @_result.TotalPages (всього @_result.TotalCount)
             </span>
-            <button class="admin-btn admin-btn--secondary"
+            <button class="admin-btn admin-btn--secondary admin-btn--sm"
                     disabled="@(_result.Page >= _result.TotalPages)"
                     @onclick="() => ChangePageAsync(_result.Page + 1)">
                 Далі

@@ -136,9 +136,11 @@
             // Очікувана поведінка навігації в Blazor — не перехоплювати як помилку.
             throw;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            _errorMessage = "Не вдалося розпочати тестування. Спробуйте ще раз.";
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося розпочати тестування. Спробуйте ще раз."
+                : ex.Message;
             _isStarting = false;
         }
     }

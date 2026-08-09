@@ -75,8 +75,21 @@ public partial class DocumentStorageService(
             FolderName = folderName,
             FileName = safeFileName,
             RelativePath = relativePath,
-            SizeBytes = file.Size
+            SizeBytes = file.Size,
+            AbsolutePath = destinationPath
         };
+    }
+
+    public string GetAbsolutePath(string relativePath)
+    {
+        var rootPath = ResolveRootPath();
+        var combined = Path.GetFullPath(Path.Combine(rootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+        if (!combined.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Некоректний шлях до документа.");
+        }
+
+        return combined;
     }
 
     public Task<IReadOnlyList<StoredDocumentInfo>> ListAsync(

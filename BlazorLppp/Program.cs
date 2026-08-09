@@ -42,6 +42,9 @@ builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 builder.Services.AddScoped<ITestAttemptService, TestAttemptService>();
 builder.Services.AddScoped<IDocumentStorageService, DocumentStorageService>();
+builder.Services.AddSingleton<ITestDocumentParser, TestDocumentParser>();
+builder.Services.AddScoped<ITestDefinitionService, TestDefinitionService>();
+builder.Services.AddScoped<ITestResultDocumentService, TestResultDocumentService>();
 
 builder.Services.AddAuthentication(options =>
     {
@@ -96,6 +99,9 @@ else
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.UseAntiforgery();
 
 app.MapStaticAssets();
@@ -104,5 +110,34 @@ app.MapRazorComponents<App>()
 
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();
+
+app.MapGet("/admin/results/{attemptId:guid}/download", async (
+    Guid attemptId,
+    ITestAttemptService attemptService,
+    ITestResultDocumentService resultDocumentService,
+    CancellationToken cancellationToken) =>
+{
+    await attemptService.EnsureResultFileAsync(attemptId, cancellationToken);
+    var details = await attemptService.GetResultDetailsAsync(attemptId, cancellationToken);
+    if (details is null || string.IsNullOrWhiteSpace(details.ResultRelativePath))
+    {
+        return Results.NotFound();
+    }
+
+    var absolutePath = resultDocumentService.GetAbsolutePath(details.ResultRelativePath);
+    if (!File.Exists(absolutePath))
+    {
+        return Results.NotFound();
+    }
+
+    var downloadName = details.Attempt.ResultFileName
+        ?? Path.GetFileName(absolutePath);
+
+    return Results.File(
+        absolutePath,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        downloadName);
+})
+.RequireAuthorization(policy => policy.RequireRole(AppRoles.Admin));
 
 app.Run();
