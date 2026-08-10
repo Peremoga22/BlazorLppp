@@ -101,6 +101,13 @@ public partial class TestResultDocumentService(
             AppendEmptyParagraph(body);
 
             body.AppendChild(BuildAnswersTable(questions, answersByQuestion));
+
+            if (SuicideRiskScoring.CanScore(document, questions))
+            {
+                var scoring = SuicideRiskScoring.Evaluate(questions, answersByQuestion);
+                AppendScoringSection(body, scoring);
+            }
+
             body.AppendChild(CreateSectionProperties());
 
             mainPart.Document.Save();
@@ -351,6 +358,67 @@ public partial class TestResultDocumentService(
             Space = 0,
             Color = "000000"
         };
+
+    private static void AppendScoringSection(Body body, SuicideRiskScoringResult scoring)
+    {
+        AppendEmptyParagraph(body);
+        AppendCenteredParagraph(body, "Оцінка результатів", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            "Обробка виконана за ключем методики СР-45 (П.І. Юнацкевіч). Підраховано кількість відповідей, що співпали з ключем.");
+
+        AppendBodyParagraph(
+            body,
+            $"Шкала «неправди» (L): співпадінь N = {scoring.LieMatches} з {scoring.LieMax}; " +
+            $"L = {FormatCoefficient(scoring.LieCoefficient)} (±0,16).");
+
+        AppendBodyParagraph(
+            body,
+            $"Шкала схильності до суїцидальних реакцій (Sr): співпадінь N = {scoring.RiskMatches} з {scoring.RiskMax}; " +
+            $"Sr = {FormatCoefficient(scoring.RiskCoefficient)} (±0,07).");
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(
+            body,
+            $"Оцінка працівника: {scoring.Score} " +
+            $"{ScoreWord(scoring.Score)} ({scoring.RiskLevelName} рівень прояву).",
+            bold: true);
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Психологічний висновок", bold: true);
+        AppendBodyParagraph(body, scoring.Conclusion);
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Примітка щодо достовірності", bold: true);
+        AppendBodyParagraph(body, scoring.ReliabilityNote);
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(
+            body,
+            "Методика констатує початковий рівень розвитку схильності особистості до самогубства на момент обстеження. " +
+            "За наявності конфліктної ситуації або інших негативних умов ця схильність може змінюватися.");
+    }
+
+    private static string FormatCoefficient(double value)
+        => value.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("uk-UA"));
+
+    private static string ScoreWord(int score) => score switch
+    {
+        1 => "бал",
+        >= 2 and <= 4 => "бали",
+        _ => "балів"
+    };
+
+    private static void AppendBodyParagraph(Body body, string text, bool bold = false)
+    {
+        body.AppendChild(new Paragraph(
+            new ParagraphProperties(
+                new Justification { Val = JustificationValues.Both },
+                new SpacingBetweenLines { After = "80" }),
+            CreateRun(text, bold, BodyFontSize)));
+    }
 
     private static void AppendCenteredParagraph(Body body, string text, bool bold = false, string fontSize = BodyFontSize)
     {
