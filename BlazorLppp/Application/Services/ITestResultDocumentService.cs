@@ -11,4 +11,6 @@ public interface ITestResultDocumentService
     string GetAbsolutePath(string relativePath);
 
     string BuildFileBaseName(string lastName, string firstName, string middleName);
+
+    Task DeleteAsync(string relativePath, CancellationToken cancellationToken = default);
 }

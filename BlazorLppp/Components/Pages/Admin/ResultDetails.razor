@@ -8,6 +8,8 @@
 @using Microsoft.AspNetCore.Authorization
 
 @inject ITestAttemptService TestAttemptService
+@inject IJSRuntime JsRuntime
+@inject NavigationManager NavigationManager
 
 <PageTitle>Результат тесту</PageTitle>
 
@@ -83,6 +85,16 @@
             </div>
         </dl>
 
+        <div class="admin-page__actions admin-actions" style="margin-top: 1rem;">
+            <button type="button"
+                    class="admin-btn admin-btn--danger"
+                    disabled="@_isDeleting"
+                    @onclick="DeleteAsync">
+                <span class="admin-btn__icon admin-btn__icon--trash" aria-hidden="true"></span>
+                @(_isDeleting ? "Видалення..." : "Видалити результат")
+            </button>
+        </div>
+
         <section class="admin-upload-list" style="margin-top: 1.5rem;">
             <h2 class="admin-upload__title">Відповіді</h2>
             <ol class="admin-preview-list">
@@ -104,6 +116,7 @@
 
     private TestResultDetails? _details;
     private bool _isLoading = true;
+    private bool _isDeleting;
     private string? _errorMessage;
 
     protected override async Task OnParametersSetAsync()
@@ -146,6 +159,40 @@
             _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
                 ? "Не вдалося сформувати файл."
                 : ex.Message;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_isDeleting || _details is null)
+        {
+            return;
+        }
+
+        var name = $"{_details.Attempt.LastName} {_details.Attempt.FirstName} {_details.Attempt.MiddleName}".Trim();
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Видалити результат «{name}» разом із файлом на сервері?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+        _errorMessage = null;
+
+        try
+        {
+            await TestAttemptService.DeleteAsync(AttemptId);
+            NavigationManager.NavigateTo("/admin-home");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося видалити результат."
+                : ex.Message;
+            _isDeleting = false;
         }
     }
 }

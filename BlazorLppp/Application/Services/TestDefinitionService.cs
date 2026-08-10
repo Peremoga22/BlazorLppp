@@ -8,7 +8,9 @@ namespace BlazorLppp.Application.Services;
 
 public class TestDefinitionService(
     IDbContextFactory<ApplicationDbContext> dbContextFactory,
-    ITestDocumentParser parser) : ITestDefinitionService
+    ITestDocumentParser parser,
+    IDocumentStorageService documentStorageService,
+    ITestResultDocumentService resultDocumentService) : ITestDefinitionService
 {
     public async Task<TestDocument> ImportUploadedDocumentAsync(
         DocumentUploadResult upload,
@@ -129,5 +131,53 @@ public class TestDefinitionService(
 
         document.IsActive = true;
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(Guid documentId, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var document = await dbContext.TestDocuments
+            .Include(d => d.Questions)
+            .ThenInclude(q => q.Options)
+            .FirstOrDefaultAsync(d => d.Id == documentId, cancellationToken)
+            ?? throw new InvalidOperationException("Документ тесту не знайдено.");
+
+        var questionIds = document.Questions.Select(q => q.Id).ToList();
+        if (questionIds.Count > 0)
+        {
+            var answers = await dbContext.TestAnswers
+                .Where(a => questionIds.Contains(a.TestQuestionId))
+                .ToListAsync(cancellationToken);
+            dbContext.TestAnswers.RemoveRange(answers);
+        }
+
+        var relatedAttempts = await dbContext.TestAttempts
+            .Where(a => a.TestDocumentId == documentId)
+            .ToListAsync(cancellationToken);
+        var resultPaths = relatedAttempts
+            .Select(a => a.ResultRelativePath)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (relatedAttempts.Count > 0)
+        {
+            dbContext.TestAttempts.RemoveRange(relatedAttempts);
+        }
+
+        var relativePath = document.RelativePath;
+        dbContext.TestDocuments.Remove(document);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        foreach (var resultPath in resultPaths)
+        {
+            await resultDocumentService.DeleteAsync(resultPath!, cancellationToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(relativePath))
+        {
+            await documentStorageService.DeleteAsync(relativePath, cancellationToken);
+        }
     }
 }

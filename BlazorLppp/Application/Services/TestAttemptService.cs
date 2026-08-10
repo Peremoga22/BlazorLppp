@@ -428,6 +428,27 @@ public class TestAttemptService(
         };
     }
 
+    public async Task DeleteAsync(
+        Guid attemptId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var attempt = await dbContext.TestAttempts
+            .FirstOrDefaultAsync(a => a.Id == attemptId, cancellationToken)
+            ?? throw new InvalidOperationException("Спробу не знайдено.");
+
+        var resultRelativePath = attempt.ResultRelativePath;
+
+        dbContext.TestAttempts.Remove(attempt);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(resultRelativePath))
+        {
+            await resultDocumentService.DeleteAsync(resultRelativePath, cancellationToken);
+        }
+    }
+
     private static void ValidateAnswer(TestQuestion question, TestAnswerInput input)
     {
         switch (question.Type)

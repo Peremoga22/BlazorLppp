@@ -17,4 +17,6 @@ public interface ITestDefinitionService
     Task<IReadOnlyList<TestDocument>> ListAsync(CancellationToken cancellationToken = default);
 
     Task SetActiveAsync(Guid documentId, CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(Guid documentId, CancellationToken cancellationToken = default);
 }

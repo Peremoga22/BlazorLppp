@@ -122,6 +122,34 @@ public partial class TestResultDocumentService(
         return combined;
     }
 
+    public Task DeleteAsync(string relativePath, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return Task.CompletedTask;
+        }
+
+        var absolutePath = GetAbsolutePath(relativePath);
+        if (File.Exists(absolutePath))
+        {
+            File.Delete(absolutePath);
+        }
+
+        var folderPath = Path.GetDirectoryName(absolutePath);
+        var root = ResolveResultsRoot();
+        if (!string.IsNullOrWhiteSpace(folderPath) &&
+            !string.Equals(folderPath, root, StringComparison.OrdinalIgnoreCase) &&
+            Directory.Exists(folderPath) &&
+            !Directory.EnumerateFileSystemEntries(folderPath).Any())
+        {
+            Directory.Delete(folderPath);
+        }
+
+        return Task.CompletedTask;
+    }
+
     public string BuildFileBaseName(string lastName, string firstName, string middleName)
     {
         var surname = SanitizeSegment(lastName);

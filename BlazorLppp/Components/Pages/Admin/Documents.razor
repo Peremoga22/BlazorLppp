@@ -13,6 +13,7 @@
 @inject IDocumentStorageService DocumentStorageService
 @inject ITestDefinitionService TestDefinitionService
 @inject IOptions<DocumentStorageOptions> DocumentStorageOptions
+@inject IJSRuntime JsRuntime
 
 <PageTitle>Документи</PageTitle>
 
@@ -114,22 +115,32 @@
                                 </td>
                                 <td>@doc.UploadedAt.ToString("dd.MM.yyyy HH:mm")</td>
                                 <td>
-                                    <div class="admin-actions">
+                                    <div class="admin-actions admin-actions--icons">
                                         <button type="button"
-                                                class="admin-btn admin-btn--soft admin-btn--sm"
+                                                class="admin-icon-btn"
+                                                title="Перегляд"
+                                                aria-label="Перегляд"
                                                 @onclick="() => PreviewAsync(doc.Id)">
                                             <span class="admin-btn__icon admin-btn__icon--eye" aria-hidden="true"></span>
-                                            Перегляд
                                         </button>
                                         @if (!doc.IsActive)
                                         {
                                             <button type="button"
-                                                    class="admin-btn admin-btn--sm"
+                                                    class="admin-icon-btn"
+                                                    title="Зробити активним"
+                                                    aria-label="Зробити активним"
                                                     @onclick="() => ActivateAsync(doc.Id)">
                                                 <span class="admin-btn__icon admin-btn__icon--check" aria-hidden="true"></span>
-                                                Зробити активним
                                             </button>
                                         }
+                                        <button type="button"
+                                                class="admin-icon-btn admin-icon-btn--danger"
+                                                title="Видалити"
+                                                aria-label="Видалити"
+                                                disabled="@_isDeleting"
+                                                @onclick="() => DeleteAsync(doc)">
+                                            <span class="admin-btn__icon admin-btn__icon--trash" aria-hidden="true"></span>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -193,6 +204,7 @@
     private IBrowserFile? _selectedFile;
     private bool _isLoading = true;
     private bool _isUploading;
+    private bool _isDeleting;
     private bool _canUpload;
     private string? _errorMessage;
     private string? _successMessage;
@@ -261,6 +273,49 @@
         catch (Exception ex)
         {
             _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task DeleteAsync(TestDocument document)
+    {
+        if (_isDeleting)
+        {
+            return;
+        }
+
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Видалити документ «{document.Title}» разом із файлом на сервері та пов’язаними спробами?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+        _errorMessage = null;
+        _successMessage = null;
+
+        try
+        {
+            await TestDefinitionService.DeleteAsync(document.Id);
+            if (_preview?.Id == document.Id)
+            {
+                _preview = null;
+            }
+
+            _successMessage = $"Документ «{document.Title}» і файл на сервері видалено.";
+            await ReloadListAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося видалити документ."
+                : ex.Message;
+        }
+        finally
+        {
+            _isDeleting = false;
         }
     }
 

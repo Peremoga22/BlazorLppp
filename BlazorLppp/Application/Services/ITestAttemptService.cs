@@ -39,4 +39,8 @@ public interface ITestAttemptService
 
     Task<TestAttemptStats> GetStatsAsync(
         CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        Guid attemptId,
+        CancellationToken cancellationToken = default);
 }

@@ -92,6 +92,34 @@ public partial class DocumentStorageService(
         return combined;
     }
 
+    public Task DeleteAsync(string relativePath, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return Task.CompletedTask;
+        }
+
+        var absolutePath = GetAbsolutePath(relativePath);
+        if (File.Exists(absolutePath))
+        {
+            File.Delete(absolutePath);
+        }
+
+        var folderPath = Path.GetDirectoryName(absolutePath);
+        var rootPath = ResolveRootPath();
+        if (!string.IsNullOrWhiteSpace(folderPath) &&
+            !string.Equals(folderPath, rootPath, StringComparison.OrdinalIgnoreCase) &&
+            Directory.Exists(folderPath) &&
+            !Directory.EnumerateFileSystemEntries(folderPath).Any())
+        {
+            Directory.Delete(folderPath);
+        }
+
+        return Task.CompletedTask;
+    }
+
     public Task<IReadOnlyList<StoredDocumentInfo>> ListAsync(
         CancellationToken cancellationToken = default)
     {

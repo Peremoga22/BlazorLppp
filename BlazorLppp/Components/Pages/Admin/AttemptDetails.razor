@@ -9,6 +9,8 @@
 @using Microsoft.AspNetCore.Authorization
 
 @inject ITestAttemptService TestAttemptService
+@inject IJSRuntime JsRuntime
+@inject NavigationManager NavigationManager
 
 <PageTitle>Деталі спроби</PageTitle>
 
@@ -86,6 +88,25 @@
                     <span class="admin-btn__icon admin-btn__icon--file" aria-hidden="true"></span>
                     Результат і файл
                 </a>
+                <button type="button"
+                        class="admin-btn admin-btn--danger"
+                        disabled="@_isDeleting"
+                        @onclick="DeleteAsync">
+                    <span class="admin-btn__icon admin-btn__icon--trash" aria-hidden="true"></span>
+                    @(_isDeleting ? "Видалення..." : "Видалити")
+                </button>
+            </div>
+        }
+        else
+        {
+            <div class="admin-page__actions admin-actions">
+                <button type="button"
+                        class="admin-btn admin-btn--danger"
+                        disabled="@_isDeleting"
+                        @onclick="DeleteAsync">
+                    <span class="admin-btn__icon admin-btn__icon--trash" aria-hidden="true"></span>
+                    @(_isDeleting ? "Видалення..." : "Видалити спробу")
+                </button>
             </div>
         }
     }
@@ -97,6 +118,7 @@
 
     private TestAttempt? _attempt;
     private bool _isLoading = true;
+    private bool _isDeleting;
     private string? _errorMessage;
 
     protected override async Task OnParametersSetAsync()
@@ -116,6 +138,40 @@
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_isDeleting || _attempt is null)
+        {
+            return;
+        }
+
+        var name = $"{_attempt.LastName} {_attempt.FirstName} {_attempt.MiddleName}".Trim();
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Видалити спробу «{name}»{(_attempt.Status == TestAttemptStatus.Completed ? " разом із файлом результату на сервері" : "")}?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+        _errorMessage = null;
+
+        try
+        {
+            await TestAttemptService.DeleteAsync(AttemptId);
+            NavigationManager.NavigateTo("/admin/attempts");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося видалити спробу."
+                : ex.Message;
+            _isDeleting = false;
         }
     }
 

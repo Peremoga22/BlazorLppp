@@ -10,6 +10,7 @@
 @using Microsoft.AspNetCore.Authorization
 
 @inject ITestAttemptService TestAttemptService
+@inject IJSRuntime JsRuntime
 
 <PageTitle>Спроби тестування</PageTitle>
 
@@ -81,11 +82,22 @@
                             <td>@item.StartedAt.ToString("dd.MM.yyyy HH:mm")</td>
                             <td>@(item.CompletedAt?.ToString("dd.MM.yyyy HH:mm") ?? "—")</td>
                             <td>
-                                <a class="admin-btn admin-btn--soft admin-btn--sm"
-                                   href="@($"/admin/attempts/{item.Id}")">
-                                    <span class="admin-btn__icon admin-btn__icon--eye" aria-hidden="true"></span>
-                                    Деталі
-                                </a>
+                                <div class="admin-actions admin-actions--icons">
+                                    <a class="admin-icon-btn"
+                                       href="@($"/admin/attempts/{item.Id}")"
+                                       title="Деталі"
+                                       aria-label="Деталі">
+                                        <span class="admin-btn__icon admin-btn__icon--eye" aria-hidden="true"></span>
+                                    </a>
+                                    <button type="button"
+                                            class="admin-icon-btn admin-icon-btn--danger"
+                                            title="Видалити"
+                                            aria-label="Видалити"
+                                            disabled="@_isDeleting"
+                                            @onclick="() => DeleteAsync(item)">
+                                        <span class="admin-btn__icon admin-btn__icon--trash" aria-hidden="true"></span>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     }
@@ -118,6 +130,7 @@
     private string _statusFilter = string.Empty;
     private int _page = 1;
     private bool _isLoading = true;
+    private bool _isDeleting;
     private string? _errorMessage;
     private CancellationTokenSource? _searchCts;
 
@@ -155,6 +168,43 @@
     {
         _page = page;
         await LoadAsync();
+    }
+
+    private async Task DeleteAsync(TestAttempt item)
+    {
+        if (_isDeleting)
+        {
+            return;
+        }
+
+        var name = $"{item.LastName} {item.FirstName} {item.MiddleName}".Trim();
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Видалити спробу «{name}»{(item.Status == TestAttemptStatus.Completed ? " разом із файлом результату на сервері" : "")}?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+        _errorMessage = null;
+
+        try
+        {
+            await TestAttemptService.DeleteAsync(item.Id);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося видалити спробу."
+                : ex.Message;
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
     }
 
     private async Task LoadAsync(CancellationToken cancellationToken = default)

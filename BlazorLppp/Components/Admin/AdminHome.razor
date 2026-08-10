@@ -8,6 +8,7 @@
 @using Microsoft.AspNetCore.Authorization
 
 @inject ITestAttemptService TestAttemptService
+@inject IJSRuntime JsRuntime
 
 <PageTitle>Адмін-панель</PageTitle>
 
@@ -109,29 +110,40 @@
                                     </td>
                                     <td>@(item.CompletedAt?.ToString("dd.MM.yyyy HH:mm") ?? "—")</td>
                                     <td>
-                                        <div class="admin-actions">
-                                            <a class="admin-btn admin-btn--soft admin-btn--sm"
-                                               href="@($"/admin/results/{item.AttemptId}")">
+                                        <div class="admin-actions admin-actions--icons">
+                                            <a class="admin-icon-btn"
+                                               href="@($"/admin/results/{item.AttemptId}")"
+                                               title="Деталі"
+                                               aria-label="Деталі">
                                                 <span class="admin-btn__icon admin-btn__icon--eye" aria-hidden="true"></span>
-                                                Деталі
                                             </a>
                                             @if (item.HasResultFile)
                                             {
-                                                <a class="admin-btn admin-btn--download admin-btn--sm"
-                                                   href="@($"/admin/results/{item.AttemptId}/download")">
+                                                <a class="admin-icon-btn admin-icon-btn--download"
+                                                   href="@($"/admin/results/{item.AttemptId}/download")"
+                                                   title="Завантажити"
+                                                   aria-label="Завантажити">
                                                     <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
-                                                    Завантажити
                                                 </a>
                                             }
                                             else
                                             {
                                                 <button type="button"
-                                                        class="admin-btn admin-btn--secondary admin-btn--sm"
+                                                        class="admin-icon-btn admin-icon-btn--secondary"
+                                                        title="Сформувати файл"
+                                                        aria-label="Сформувати файл"
                                                         @onclick="() => GenerateAsync(item.AttemptId)">
                                                     <span class="admin-btn__icon admin-btn__icon--file" aria-hidden="true"></span>
-                                                    Сформувати
                                                 </button>
                                             }
+                                            <button type="button"
+                                                    class="admin-icon-btn admin-icon-btn--danger"
+                                                    title="Видалити"
+                                                    aria-label="Видалити"
+                                                    disabled="@_isDeleting"
+                                                    @onclick="() => DeleteAsync(item)">
+                                                <span class="admin-btn__icon admin-btn__icon--trash" aria-hidden="true"></span>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -148,20 +160,16 @@
     private TestAttemptStats? _stats;
     private readonly List<TestResultListItem> _results = [];
     private bool _isLoading = true;
+    private bool _isDeleting;
     private string? _errorMessage;
     private string? _resultsError;
 
     protected override async Task OnInitializedAsync()
     {
+        _isLoading = true;
         try
         {
-            var statsTask = TestAttemptService.GetStatsAsync();
-            var resultsTask = TestAttemptService.GetCompletedResultsAsync();
-            await Task.WhenAll(statsTask, resultsTask);
-
-            _stats = await statsTask;
-            _results.Clear();
-            _results.AddRange(await resultsTask);
+            await RefreshDataAsync();
         }
         catch (Exception)
         {
@@ -171,6 +179,18 @@
         {
             _isLoading = false;
         }
+    }
+
+    private async Task RefreshDataAsync()
+    {
+        var statsTask = TestAttemptService.GetStatsAsync();
+        var resultsTask = TestAttemptService.GetCompletedResultsAsync();
+        await Task.WhenAll(statsTask, resultsTask);
+
+        _stats = await statsTask;
+        _results.Clear();
+        _results.AddRange(await resultsTask);
+        _errorMessage = null;
     }
 
     private async Task GenerateAsync(Guid attemptId)
@@ -188,6 +208,42 @@
             _resultsError = string.IsNullOrWhiteSpace(ex.Message)
                 ? "Не вдалося сформувати файл."
                 : ex.Message;
+        }
+    }
+
+    private async Task DeleteAsync(TestResultListItem item)
+    {
+        if (_isDeleting)
+        {
+            return;
+        }
+
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Видалити результат «{item.DisplayName}» разом із файлом на сервері?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+        _resultsError = null;
+
+        try
+        {
+            await TestAttemptService.DeleteAsync(item.AttemptId);
+            await RefreshDataAsync();
+        }
+        catch (Exception ex)
+        {
+            _resultsError = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося видалити результат."
+                : ex.Message;
+        }
+        finally
+        {
+            _isDeleting = false;
         }
     }
 }

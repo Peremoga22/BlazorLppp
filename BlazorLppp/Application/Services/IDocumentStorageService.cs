@@ -14,4 +14,6 @@ public interface IDocumentStorageService
         CancellationToken cancellationToken = default);
 
     string GetAbsolutePath(string relativePath);
+
+    Task DeleteAsync(string relativePath, CancellationToken cancellationToken = default);
 }
