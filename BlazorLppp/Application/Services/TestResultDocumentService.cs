@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
+using BlazorLppp.Application.Models;
 using BlazorLppp.Data;
 using BlazorLppp.Domain.Entities;
 using BlazorLppp.Domain.Enums;
@@ -12,8 +13,6 @@ using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
-using BlazorLppp.Application.Models;
-
 namespace BlazorLppp.Application.Services;
 
 public partial class TestResultDocumentService(
@@ -21,6 +20,10 @@ public partial class TestResultDocumentService(
     IWebHostEnvironment environment,
     IOptions<DocumentStorageOptions> documentOptions) : ITestResultDocumentService
 {
+    private const string FontName = "Times New Roman";
+    private const string BodyFontSize = "24"; // 12 pt
+    private const string TitleFontSize = "28"; // 14 pt
+
     public async Task<string> GenerateAsync(
         TestAttempt attempt,
         CancellationToken cancellationToken = default)
@@ -69,38 +72,36 @@ public partial class TestResultDocumentService(
             mainPart.Document = new Document(new Body());
             var body = mainPart.Document.Body!;
 
-            AppendParagraph(body, document?.Title ?? "Результати психологічного тесту", bold: true, fontSize: "28");
-            AppendParagraph(body, string.Empty);
-            AppendParagraph(body, $"Прізвище: {attempt.LastName}");
-            AppendParagraph(body, $"Ім’я: {attempt.FirstName}");
-            AppendParagraph(body, $"По батькові: {attempt.MiddleName}");
-            AppendParagraph(body, $"Номер: {attempt.NumberUnit}");
-            AppendParagraph(body, $"Початок: {attempt.StartedAt:dd.MM.yyyy HH:mm}");
-            AppendParagraph(body, $"Завершення: {(attempt.CompletedAt ?? DateTime.Now):dd.MM.yyyy HH:mm}");
-            AppendParagraph(body, string.Empty);
+            AppendCenteredParagraph(body, "Реєстраційний бланк", bold: true, fontSize: TitleFontSize);
+            AppendEmptyParagraph(body);
 
-            if (!string.IsNullOrWhiteSpace(document?.Instruction))
-            {
-                AppendParagraph(body, $"Інструкція: {document.Instruction}");
-                AppendParagraph(body, string.Empty);
-            }
+            var fullName = $"{attempt.LastName} {attempt.FirstName} {attempt.MiddleName}".Trim();
+            var examDate = (attempt.CompletedAt ?? attempt.StartedAt).ToString("dd.MM.yyyy");
 
-            AppendParagraph(body, "Відповіді:", bold: true);
-            AppendParagraph(body, string.Empty);
+            AppendFieldLine(body, [("П.І.Б. (повністю)", fullName)]);
+            AppendFieldLine(body,
+            [
+                ("Дата обстеження", examDate),
+                ("Вік", string.Empty),
+                ("Стать", string.Empty)
+            ]);
+            AppendFieldLine(body, [("Посада (підрозділ)", attempt.NumberUnit.ToString())]);
+            AppendFieldLine(body,
+            [
+                ("Спеціальність", string.Empty),
+                ("Військове звання", string.Empty)
+            ]);
+            AppendEmptyParagraph(body);
 
-            foreach (var question in questions)
-            {
-                AppendParagraph(body, $"{question.SortOrder}. {question.Text}", bold: true);
-                if (!string.IsNullOrWhiteSpace(question.Hint))
-                {
-                    AppendParagraph(body, question.Hint);
-                }
+            var instruction = !string.IsNullOrWhiteSpace(document?.Instruction)
+                ? document.Instruction
+                : "Вам будуть запропоновані твердження, які стосуються Вашого здоров’я та характеру. Якщо Ви згодні з твердженням, поставте знак “+” у графі “Так” в реєстраційному бланку, якщо ні – поставте знак “-” у графі “Ні”. Над відповідями намагайтеся довго не замислюватися, правильних або неправильних відповідей немає.";
 
-                answersByQuestion.TryGetValue(question.Id, out var answer);
-                var answerText = FormatAnswer(question, answer);
-                AppendParagraph(body, $"Відповідь: {answerText}");
-                AppendParagraph(body, string.Empty);
-            }
+            AppendInstructionParagraph(body, instruction);
+            AppendEmptyParagraph(body);
+
+            body.AppendChild(BuildAnswersTable(questions, answersByQuestion));
+            body.AppendChild(CreateSectionProperties());
 
             mainPart.Document.Save();
         }
@@ -190,37 +191,235 @@ public partial class TestResultDocumentService(
         return Path.GetFullPath(Path.Combine(appData, "Results"));
     }
 
-    private static string FormatAnswer(TestQuestion question, TestAnswer? answer)
+    private static SectionProperties CreateSectionProperties()
+        => new(
+            new PageSize { Width = 11906, Height = 16838 }, // A4
+            new PageMargin
+            {
+                Top = 720,
+                Right = 850,
+                Bottom = 720,
+                Left = 850,
+                Header = 360,
+                Footer = 360
+            });
+
+    private static Table BuildAnswersTable(
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
+    {
+        var table = new Table();
+        table.AppendChild(new TableProperties(
+            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct },
+            new TableBorders(
+                CreateBorder<TopBorder>(),
+                CreateBorder<LeftBorder>(),
+                CreateBorder<BottomBorder>(),
+                CreateBorder<RightBorder>(),
+                CreateBorder<InsideHorizontalBorder>(),
+                CreateBorder<InsideVerticalBorder>()),
+            new TableLayout { Type = TableLayoutValues.Fixed }));
+
+        table.AppendChild(new TableGrid(
+            new GridColumn { Width = "700" },
+            new GridColumn { Width = "7200" },
+            new GridColumn { Width = "900" },
+            new GridColumn { Width = "900" }));
+
+        table.AppendChild(CreateHeaderRow());
+
+        foreach (var question in questions)
+        {
+            answersByQuestion.TryGetValue(question.Id, out var answer);
+            var (yesMark, noMark, fallback) = ResolveMarks(question, answer);
+            table.AppendChild(CreateQuestionRow(question, yesMark, noMark, fallback));
+        }
+
+        return table;
+    }
+
+    private static TableRow CreateHeaderRow()
+    {
+        var row = new TableRow();
+        row.AppendChild(CreateCell("№з/п", bold: true, center: true, width: "700"));
+        row.AppendChild(CreateCell("Питання і твердження", bold: true, center: true, width: "7200"));
+        row.AppendChild(CreateCell("Так", bold: true, center: true, width: "900"));
+        row.AppendChild(CreateCell("Ні", bold: true, center: true, width: "900"));
+        return row;
+    }
+
+    private static TableRow CreateQuestionRow(
+        TestQuestion question,
+        string yesMark,
+        string noMark,
+        string? fallbackAnswer)
+    {
+        var questionText = question.Text;
+        if (!string.IsNullOrWhiteSpace(fallbackAnswer))
+        {
+            questionText = $"{question.Text} ({fallbackAnswer})";
+        }
+
+        var row = new TableRow();
+        row.AppendChild(CreateCell(question.SortOrder.ToString(), center: true, width: "700"));
+        row.AppendChild(CreateCell(questionText, width: "7200"));
+        row.AppendChild(CreateCell(yesMark, center: true, bold: !string.IsNullOrWhiteSpace(yesMark), width: "900"));
+        row.AppendChild(CreateCell(noMark, center: true, bold: !string.IsNullOrWhiteSpace(noMark), width: "900"));
+        return row;
+    }
+
+    private static (string YesMark, string NoMark, string? Fallback) ResolveMarks(
+        TestQuestion question,
+        TestAnswer? answer)
     {
         if (answer is null)
         {
-            return "—";
+            return (string.Empty, string.Empty, null);
         }
 
-        return question.Type switch
+        if (question.Type is QuestionType.YesNo or QuestionType.SingleChoice)
         {
-            QuestionType.Scale => answer.ScaleValue?.ToString() ?? "—",
-            QuestionType.SingleChoice or QuestionType.YesNo when answer.SelectedOption is not null
-                => string.IsNullOrWhiteSpace(answer.SelectedOption.Key) ||
-                   answer.SelectedOption.Key is "Так" or "Ні"
-                    ? answer.SelectedOption.Text
-                    : $"{answer.SelectedOption.Key}. {answer.SelectedOption.Text}",
-            _ => "—"
-        };
+            var optionText = answer.SelectedOption?.Text?.Trim()
+                ?? answer.SelectedOption?.Key?.Trim()
+                ?? string.Empty;
+
+            if (IsYes(optionText) || IsYes(answer.SelectedOption?.Key))
+            {
+                return ("+", string.Empty, null);
+            }
+
+            if (IsNo(optionText) || IsNo(answer.SelectedOption?.Key))
+            {
+                return (string.Empty, "-", null);
+            }
+
+            if (!string.IsNullOrWhiteSpace(optionText))
+            {
+                return (string.Empty, string.Empty, optionText);
+            }
+        }
+
+        if (question.Type == QuestionType.Scale && answer.ScaleValue.HasValue)
+        {
+            return (string.Empty, string.Empty, answer.ScaleValue.Value.ToString());
+        }
+
+        return (string.Empty, string.Empty, null);
     }
 
-    private static void AppendParagraph(Body body, string text, bool bold = false, string fontSize = "22")
+    private static bool IsYes(string? value)
+        => !string.IsNullOrWhiteSpace(value) &&
+           (value.Equals("Так", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("+", StringComparison.Ordinal));
+
+    private static bool IsNo(string? value)
+        => !string.IsNullOrWhiteSpace(value) &&
+           (value.Equals("Ні", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("No", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("-", StringComparison.Ordinal) ||
+            value.Equals("–", StringComparison.Ordinal));
+
+    private static TableCell CreateCell(
+        string text,
+        bool bold = false,
+        bool center = false,
+        string width = "2000")
     {
-        var runProperties = new RunProperties(new FontSize { Val = fontSize });
+        var paragraph = new Paragraph(
+            new ParagraphProperties(
+                new SpacingBetweenLines { Before = "40", After = "40", Line = "240", LineRule = LineSpacingRuleValues.Auto },
+                new Justification
+                {
+                    Val = center ? JustificationValues.Center : JustificationValues.Left
+                }),
+            CreateRun(text, bold, BodyFontSize));
+
+        return new TableCell(
+            new TableCellProperties(
+                new TableCellWidth { Type = TableWidthUnitValues.Dxa, Width = width },
+                new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center }),
+            paragraph);
+    }
+
+    private static TBorder CreateBorder<TBorder>()
+        where TBorder : BorderType, new()
+        => new()
+        {
+            Val = BorderValues.Single,
+            Size = 8,
+            Space = 0,
+            Color = "000000"
+        };
+
+    private static void AppendCenteredParagraph(Body body, string text, bool bold = false, string fontSize = BodyFontSize)
+    {
+        body.AppendChild(new Paragraph(
+            new ParagraphProperties(
+                new Justification { Val = JustificationValues.Center },
+                new SpacingBetweenLines { After = "120" }),
+            CreateRun(text, bold, fontSize)));
+    }
+
+    private static void AppendInstructionParagraph(Body body, string instruction)
+    {
+        var text = instruction.StartsWith("Інструкція", StringComparison.OrdinalIgnoreCase)
+            ? instruction
+            : $"Інструкція: {instruction}";
+
+        body.AppendChild(new Paragraph(
+            new ParagraphProperties(
+                new Justification { Val = JustificationValues.Both },
+                new SpacingBetweenLines { After = "120" }),
+            CreateRun(text, bold: false, BodyFontSize)));
+    }
+
+    private static void AppendFieldLine(Body body, IReadOnlyList<(string Label, string Value)> fields)
+    {
+        var paragraph = new Paragraph(
+            new ParagraphProperties(
+                new SpacingBetweenLines { After = "80", Line = "276", LineRule = LineSpacingRuleValues.Auto }));
+
+        for (var i = 0; i < fields.Count; i++)
+        {
+            if (i > 0)
+            {
+                paragraph.AppendChild(CreateRun("    ", bold: false, BodyFontSize));
+            }
+
+            var (label, value) = fields[i];
+            paragraph.AppendChild(CreateRun($"{label} ", bold: true, BodyFontSize));
+
+            var filled = string.IsNullOrWhiteSpace(value)
+                ? "____________________"
+                : value;
+
+            paragraph.AppendChild(CreateRun(filled, bold: false, BodyFontSize));
+        }
+
+        body.AppendChild(paragraph);
+    }
+
+    private static void AppendEmptyParagraph(Body body)
+    {
+        body.AppendChild(new Paragraph(
+            new ParagraphProperties(new SpacingBetweenLines { After = "60" }),
+            CreateRun(string.Empty, bold: false, BodyFontSize)));
+    }
+
+    private static Run CreateRun(string text, bool bold, string fontSize)
+    {
+        var runProperties = new RunProperties(
+            new RunFonts { Ascii = FontName, HighAnsi = FontName, ComplexScript = FontName, EastAsia = FontName },
+            new FontSize { Val = fontSize },
+            new FontSizeComplexScript { Val = fontSize });
+
         if (bold)
         {
             runProperties.AppendChild(new Bold());
         }
 
-        var paragraph = new Paragraph(
-            new Run(runProperties, new Text(text)));
-
-        body.AppendChild(paragraph);
+        return new Run(runProperties, new Text(text));
     }
 
     private static string Initial(string? value)

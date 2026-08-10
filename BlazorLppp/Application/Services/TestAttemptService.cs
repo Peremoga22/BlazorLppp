@@ -331,12 +331,6 @@ public class TestAttemptService(
             throw new InvalidOperationException("Результат доступний лише для завершених тестів.");
         }
 
-        if (!string.IsNullOrWhiteSpace(attempt.ResultRelativePath) &&
-            File.Exists(resultDocumentService.GetAbsolutePath(attempt.ResultRelativePath)))
-        {
-            return;
-        }
-
         var relativePath = await resultDocumentService.GenerateAsync(attempt, cancellationToken);
         attempt.ResultRelativePath = relativePath;
         attempt.ResultFileName = Path.GetFileName(relativePath);

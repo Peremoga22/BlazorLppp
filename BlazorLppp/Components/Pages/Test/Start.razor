@@ -163,12 +163,12 @@
                         </div>
 
                         <div class="test-start__field test-start__field--wide">
-                            <label class="test-start__label" for="numberUnit">Вкажіть ваш номер</label>
+                            <label class="test-start__label" for="numberUnit">Підрозділ</label>
                             <input id="numberUnit"
                                    class="test-start__input"
                                    value="@(Model.NumberUnit == 0 ? null : Model.NumberUnit)"
                                    @oninput="OnNumberUnitInput"
-                                   placeholder="Введіть ваш номер"
+                                   placeholder="Введіть номер підрозділу"
                                    type="number"
                                    min="1"
                                    inputmode="numeric"

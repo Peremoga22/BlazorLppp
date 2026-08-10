@@ -83,6 +83,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     await IdentityDataSeeder.SeedAsync(scope.ServiceProvider);
+    await TestDocumentSeeder.SeedAsync(scope.ServiceProvider);
 }
 
 // Configure the HTTP request pipeline.
