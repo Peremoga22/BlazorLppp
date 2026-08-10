@@ -2,6 +2,22 @@ html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
+/* Стандартна палітра Blazor (для MainLayout / публічних сторінок) */
+:root {
+    --blazor-blue: #052767;
+    --blazor-purple: #3a0647;
+    --blazor-accent: #512bd4;
+    --blazor-accent-hover: #6a3de0;
+    --blazor-accent-soft: rgba(81, 43, 212, 0.12);
+    --blazor-accent-ring: rgba(81, 43, 212, 0.22);
+    --blazor-gradient: linear-gradient(165deg, #052767 0%, #512bd4 48%, #3a0647 100%);
+    --blazor-gradient-hover: linear-gradient(165deg, #0a3480 0%, #6a3de0 48%, #4a0a5c 100%);
+    --blazor-ink: #1e2d3d;
+    --blazor-muted: #5a6b7d;
+    --blazor-line: #ddd6e8;
+    --blazor-surface: #f7f5fb;
+}
+
 a, .btn-link {
     color: #006bb7;
 }
@@ -14,6 +30,54 @@ a, .btn-link {
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
   box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+/* Тема Blazor лише поза адмінкою (MainLayout = .page) */
+.page a:not(.nav-link):not(.navbar-brand),
+.page .btn-link {
+    color: var(--blazor-accent);
+}
+
+.page a:not(.nav-link):not(.navbar-brand):hover,
+.page .btn-link:hover {
+    color: var(--blazor-accent-hover);
+}
+
+.page .btn-primary {
+    color: #fff;
+    background: var(--blazor-gradient);
+    border-color: transparent;
+    box-shadow: 0 8px 18px rgba(81, 43, 212, 0.25);
+}
+
+.page .btn-primary:hover,
+.page .btn-primary:focus {
+    color: #fff;
+    background: var(--blazor-gradient-hover);
+    border-color: transparent;
+}
+
+.page .btn:focus,
+.page .btn:active:focus,
+.page .btn-link.nav-link:focus,
+.page .form-control:focus,
+.page .form-check-input:focus {
+    box-shadow: 0 0 0 0.1rem #fff, 0 0 0 0.25rem var(--blazor-accent-ring);
+}
+
+.page .form-control:focus {
+    border-color: var(--blazor-accent);
+}
+
+.page h1,
+.page h2,
+.page h3 {
+    color: var(--blazor-ink);
+}
+
+.page hr {
+    border-color: var(--blazor-line);
+    opacity: 1;
 }
 
 .content {

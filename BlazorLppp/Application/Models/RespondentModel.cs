@@ -20,8 +20,16 @@ public class RespondentModel : IValidatableObject
     [Range(1, int.MaxValue, ErrorMessage = "Номер одиниці має бути додатним числом")]
     public int NumberUnit { get; set; }
 
+    [Required(ErrorMessage = "Оберіть тест")]
+    public Guid? TestDocumentId { get; set; }
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
+        if (!TestDocumentId.HasValue || TestDocumentId.Value == Guid.Empty)
+        {
+            yield return new ValidationResult("Оберіть тест", [nameof(TestDocumentId)]);
+        }
+
         foreach (var result in ValidateTrimmed(LastName, nameof(LastName), "Вкажіть прізвище", "Прізвище"))
         {
             yield return result;

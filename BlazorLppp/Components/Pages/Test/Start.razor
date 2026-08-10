@@ -3,10 +3,13 @@
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
 
+@using BlazorLppp.Domain.Entities
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Routing
 
 @inject ITestAttemptService TestAttemptService
+@inject ITestDefinitionService TestDefinitionService
 @inject NavigationManager Navigation
 
 <PageTitle>Початок тестування</PageTitle>
@@ -14,103 +17,283 @@
 <div class="test-start">
     <div class="test-start__card">
         <header class="test-start__header">
+            <p class="test-start__eyebrow">Психологічне тестування</p>
             <h1 class="test-start__title">Вітаємо!</h1>
             <p class="test-start__lead">
                 Вам запропоновано пройти психологічне тестування.
             </p>
-            <p class="test-start__text">
-                Перед початком, будь ласка, вкажіть свої дані. Під час проходження уважно читайте
-                кожне твердження та обирайте відповідь, яка найбільше відповідає Вашій думці або стану.
-            </p>
-            <p class="test-start__text">
-                У тестуванні немає правильних чи неправильних відповідей. Важливо відповідати щиро
-                та не витрачати багато часу на обдумування кожного запитання.
-            </p>
+            <div class="test-start__callout">
+                <p class="test-start__text">
+                    Перед початком оберіть тест та вкажіть свої дані. Під час проходження уважно
+                    читайте кожне твердження та обирайте відповідь, яка найбільше відповідає
+                    Вашій думці або стану.
+                </p>
+                <p class="test-start__text">
+                    У тестуванні немає правильних чи неправильних відповідей. Важливо відповідати
+                    щиро та не витрачати багато часу на обдумування кожного запитання.
+                </p>
+            </div>
         </header>
 
-        <EditForm Model="Model" OnValidSubmit="HandleStartAsync">
-            <DataAnnotationsValidator />
-
-            <section class="test-start__form" aria-labelledby="respondent-data-heading">
-                <h2 id="respondent-data-heading" class="test-start__section-title">Ваші дані</h2>
-
-                <div class="test-start__field">
-                    <label class="test-start__label" for="lastName">Прізвище</label>
-                    <input id="lastName"
-                           class="test-start__input"
-                           @bind="Model.LastName"
-                           @bind:event="oninput"
-                           placeholder="Введіть прізвище"
-                           maxlength="100"
-                           autocomplete="family-name" />
-                    <ValidationMessage For="() => Model.LastName" class="test-start__error" />
-                </div>
-
-                <div class="test-start__field">
-                    <label class="test-start__label" for="firstName">Ім’я</label>
-                    <input id="firstName"
-                           class="test-start__input"
-                           @bind="Model.FirstName"
-                           @bind:event="oninput"
-                           placeholder="Введіть ім’я"
-                           maxlength="100"
-                           autocomplete="given-name" />
-                    <ValidationMessage For="() => Model.FirstName" class="test-start__error" />
-                </div>
-
-                <div class="test-start__field">
-                    <label class="test-start__label" for="middleName">По батькові</label>
-                    <input id="middleName"
-                           class="test-start__input"
-                           @bind="Model.MiddleName"
-                           @bind:event="oninput"
-                           placeholder="Введіть по батькові"
-                           maxlength="100"
-                           autocomplete="additional-name" />
-                    <ValidationMessage For="() => Model.MiddleName" class="test-start__error" />
-                </div>
-                <div class="test-start__field">
-                    <label class="test-start__label" for="numberUnit">Вкажіть ваш номер</label>
-                    <input id="numberUnit"
-                           class="test-start__input"
-                           @bind="Model.NumberUnit"
-                           @bind:event="oninput"
-                           placeholder="Введіть ваш номер"
-                           type="number"
-                           min="1"
-                           autocomplete="additional-name" />
-                    <ValidationMessage For="() => Model.NumberUnit" class="test-start__error" />
-                </div>
-            </section>
-
-            <button type="submit"
-                    class="test-start__submit @(CanStart && !_isStarting ? "test-start__submit--active" : null)"
-                    disabled="@(!CanStart || _isStarting)">
-                @(_isStarting ? "Починаємо..." : "Почати тест")
-            </button>
-
-            <p class="test-start__hint">
-                Натискаючи «Почати тест», Ви переходите безпосередньо до тестування.
+        @if (_isLoadingTests)
+        {
+            <div class="test-start__loading" role="status">
+                <span class="test-start__spinner" aria-hidden="true"></span>
+                <span>Завантаження списку тестів...</span>
+            </div>
+        }
+        else if (_availableTests.Count == 0)
+        {
+            <p class="test-start__form-error" role="alert">
+                Наразі немає доступних тестів. Зверніться до адміністратора.
             </p>
+        }
+        else
+        {
+            <EditForm Model="Model" OnValidSubmit="HandleStartAsync" class="test-start__form-root">
+                <DataAnnotationsValidator />
 
-            @if (!string.IsNullOrEmpty(_errorMessage))
-            {
-                <p class="test-start__form-error" role="alert">@_errorMessage</p>
-            }
-        </EditForm>
+                <section class="test-start__form" aria-labelledby="test-choice-heading">
+                    <div class="test-start__section-head">
+                        <span class="test-start__step" aria-hidden="true">1</span>
+                        <h2 id="test-choice-heading" class="test-start__section-title">Вибір тесту</h2>
+                    </div>
+
+                    <div class="test-start__field">
+                        <label class="test-start__label" id="testDocumentLabel">Який тест Ви проходите?</label>
+                        <div class="test-start__dropdown @(_isTestMenuOpen ? "test-start__dropdown--open" : null)">
+                            @if (_isTestMenuOpen)
+                            {
+                                <button type="button"
+                                        class="test-start__dropdown-backdrop"
+                                        tabindex="-1"
+                                        aria-label="Закрити список тестів"
+                                        @onclick="CloseTestMenu"></button>
+                            }
+
+                            <button type="button"
+                                    id="testDocument"
+                                    class="test-start__dropdown-trigger"
+                                    aria-haspopup="listbox"
+                                    aria-expanded="@_isTestMenuOpen"
+                                    aria-labelledby="testDocumentLabel testDocument"
+                                    @onclick="ToggleTestMenu"
+                                    @onkeydown="OnTestMenuKeyDown">
+                                <span class="test-start__dropdown-value @(!HasSelectedTest ? "test-start__dropdown-value--placeholder" : null)">
+                                    @SelectedTestLabel
+                                </span>
+                                <span class="test-start__dropdown-chevron" aria-hidden="true"></span>
+                            </button>
+
+                            @if (_isTestMenuOpen)
+                            {
+                                <ul class="test-start__dropdown-menu"
+                                    role="listbox"
+                                    aria-labelledby="testDocumentLabel"
+                                    tabindex="-1">
+                                    @foreach (var doc in _availableTests)
+                                    {
+                                        var isSelected = Model.TestDocumentId == doc.Id;
+                                        <li role="presentation">
+                                            <button type="button"
+                                                    class="test-start__dropdown-option @(isSelected ? "test-start__dropdown-option--selected" : null)"
+                                                    role="option"
+                                                    aria-selected="@isSelected"
+                                                    @onclick="() => SelectTest(doc.Id)">
+                                                <span class="test-start__dropdown-option-text">@GetTestDisplayName(doc)</span>
+                                                @if (doc.IsActive)
+                                                {
+                                                    <span class="test-start__dropdown-badge">Активний</span>
+                                                }
+                                                @if (isSelected)
+                                                {
+                                                    <span class="test-start__dropdown-check" aria-hidden="true">✓</span>
+                                                }
+                                            </button>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </div>
+                        <ValidationMessage For="() => Model.TestDocumentId" class="test-start__error" />
+                    </div>
+                </section>
+
+                <section class="test-start__form" aria-labelledby="respondent-data-heading">
+                    <div class="test-start__section-head">
+                        <span class="test-start__step" aria-hidden="true">2</span>
+                        <h2 id="respondent-data-heading" class="test-start__section-title">Ваші дані</h2>
+                    </div>
+
+                    <div class="test-start__grid">
+                        <div class="test-start__field">
+                            <label class="test-start__label" for="lastName">Прізвище</label>
+                            <input id="lastName"
+                                   class="test-start__input"
+                                   @bind="Model.LastName"
+                                   @bind:event="oninput"
+                                   placeholder="Введіть прізвище"
+                                   maxlength="100"
+                                   autocomplete="family-name" />
+                            <ValidationMessage For="() => Model.LastName" class="test-start__error" />
+                        </div>
+
+                        <div class="test-start__field">
+                            <label class="test-start__label" for="firstName">Ім’я</label>
+                            <input id="firstName"
+                                   class="test-start__input"
+                                   @bind="Model.FirstName"
+                                   @bind:event="oninput"
+                                   placeholder="Введіть ім’я"
+                                   maxlength="100"
+                                   autocomplete="given-name" />
+                            <ValidationMessage For="() => Model.FirstName" class="test-start__error" />
+                        </div>
+
+                        <div class="test-start__field test-start__field--wide">
+                            <label class="test-start__label" for="middleName">По батькові</label>
+                            <input id="middleName"
+                                   class="test-start__input"
+                                   @bind="Model.MiddleName"
+                                   @bind:event="oninput"
+                                   placeholder="Введіть по батькові"
+                                   maxlength="100"
+                                   autocomplete="additional-name" />
+                            <ValidationMessage For="() => Model.MiddleName" class="test-start__error" />
+                        </div>
+
+                        <div class="test-start__field test-start__field--wide">
+                            <label class="test-start__label" for="numberUnit">Вкажіть ваш номер</label>
+                            <input id="numberUnit"
+                                   class="test-start__input"
+                                   value="@(Model.NumberUnit == 0 ? null : Model.NumberUnit)"
+                                   @oninput="OnNumberUnitInput"
+                                   placeholder="Введіть ваш номер"
+                                   type="number"
+                                   min="1"
+                                   inputmode="numeric"
+                                   autocomplete="off" />
+                            <ValidationMessage For="() => Model.NumberUnit" class="test-start__error" />
+                        </div>
+                    </div>
+                </section>
+
+                <div class="test-start__actions">
+                    <button type="submit"
+                            class="test-start__submit @(CanStart && !_isStarting ? "test-start__submit--active" : null)"
+                            disabled="@(!CanStart || _isStarting)">
+                        <span>@(_isStarting ? "Починаємо..." : "Почати тест")</span>
+                        @if (!_isStarting)
+                        {
+                            <span class="test-start__submit-arrow" aria-hidden="true">→</span>
+                        }
+                    </button>
+
+                    <p class="test-start__hint">
+                        Натискаючи «Почати тест», Ви переходите безпосередньо до тестування.
+                    </p>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <p class="test-start__form-error" role="alert">@_errorMessage</p>
+                }
+            </EditForm>
+        }
     </div>
 </div>
 
 @code {
     private RespondentModel Model { get; set; } = new();
+    private readonly List<TestDocument> _availableTests = [];
+    private bool _isLoadingTests = true;
     private bool _isStarting;
+    private bool _isTestMenuOpen;
     private string? _errorMessage;
 
+    private bool HasSelectedTest =>
+        Model.TestDocumentId.HasValue && Model.TestDocumentId.Value != Guid.Empty;
+
+    private string SelectedTestLabel
+    {
+        get
+        {
+            if (!HasSelectedTest)
+            {
+                return "— Оберіть тест —";
+            }
+
+            var selected = _availableTests.FirstOrDefault(d => d.Id == Model.TestDocumentId);
+            return selected is null ? "— Оберіть тест —" : GetTestDisplayName(selected);
+        }
+    }
+
     private bool CanStart =>
+        HasSelectedTest &&
         !string.IsNullOrWhiteSpace(Model.LastName) &&
         !string.IsNullOrWhiteSpace(Model.FirstName) &&
-         Model.NumberUnit > 0 &&
+        Model.NumberUnit > 0 &&
         !string.IsNullOrWhiteSpace(Model.MiddleName);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var documents = await TestDefinitionService.ListAsync();
+            _availableTests.AddRange(
+                documents
+                    .Where(d => d.Questions.Count > 0)
+                    .OrderByDescending(d => d.IsActive)
+                    .ThenByDescending(d => d.UploadedAt));
+
+            var preferred = _availableTests.FirstOrDefault(d => d.IsActive)
+                ?? _availableTests.FirstOrDefault();
+            if (preferred is not null)
+            {
+                Model.TestDocumentId = preferred.Id;
+            }
+        }
+        finally
+        {
+            _isLoadingTests = false;
+        }
+    }
+
+    private void ToggleTestMenu() => _isTestMenuOpen = !_isTestMenuOpen;
+
+    private void CloseTestMenu() => _isTestMenuOpen = false;
+
+    private void SelectTest(Guid testId)
+    {
+        Model.TestDocumentId = testId;
+        _isTestMenuOpen = false;
+    }
+
+    private void OnTestMenuKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "Escape" or "Esc")
+        {
+            _isTestMenuOpen = false;
+        }
+    }
+
+    private void OnNumberUnitInput(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString();
+        Model.NumberUnit = int.TryParse(raw, out var value) ? value : 0;
+    }
+
+    private static string GetTestDisplayName(TestDocument document)
+    {
+        if (!string.IsNullOrWhiteSpace(document.Title))
+        {
+            return document.Title;
+        }
+
+        return string.IsNullOrWhiteSpace(document.OriginalFileName)
+            ? "Тест без назви"
+            : document.OriginalFileName;
+    }
 
     private async Task HandleStartAsync()
     {
@@ -121,13 +304,13 @@
 
         _isStarting = true;
         _errorMessage = null;
+        _isTestMenuOpen = false;
 
         try
         {
             Model.LastName = Model.LastName.Trim();
             Model.FirstName = Model.FirstName.Trim();
             Model.MiddleName = Model.MiddleName.Trim();
-            Model.NumberUnit = Model.NumberUnit;
             var attempt = await TestAttemptService.StartAsync(Model);
             Navigation.NavigateTo($"/test/{attempt.Id}");
         }

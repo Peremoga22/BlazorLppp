@@ -16,14 +16,21 @@ public class TestAttemptService(
         RespondentModel respondent,
         CancellationToken cancellationToken = default)
     {
-        var activeDocument = await testDefinitionService.GetActiveAsync(cancellationToken)
-            ?? throw new InvalidOperationException(
-                "Активний тест ще не завантажено. Зверніться до адміністратора.");
+        if (!respondent.TestDocumentId.HasValue || respondent.TestDocumentId.Value == Guid.Empty)
+        {
+            throw new InvalidOperationException("Оберіть тест для проходження.");
+        }
 
-        if (activeDocument.Questions.Count == 0)
+        var document = await testDefinitionService.GetByIdAsync(
+                respondent.TestDocumentId.Value,
+                cancellationToken)
+            ?? throw new InvalidOperationException(
+                "Обраний тест не знайдено. Зверніться до адміністратора.");
+
+        if (document.Questions.Count == 0)
         {
             throw new InvalidOperationException(
-                "Активний тест не містить питань. Завантажте коректний документ.");
+                "Обраний тест не містить питань. Зверніться до адміністратора.");
         }
 
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -31,7 +38,7 @@ public class TestAttemptService(
         var attempt = new TestAttempt
         {
             Id = Guid.NewGuid(),
-            TestDocumentId = activeDocument.Id,
+            TestDocumentId = document.Id,
             LastName = respondent.LastName.Trim(),
             FirstName = respondent.FirstName.Trim(),
             MiddleName = respondent.MiddleName.Trim(),
