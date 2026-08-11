@@ -65,7 +65,7 @@ public partial class TestDocumentParser : ITestDocumentParser
         var isZbroyaSource =
             IsZbroyaFileName(filePath) ||
             IsZbroyaTitle(parsed.Title) ||
-            LooksLikeIncompleteZbroya(parsed);
+            LooksLikeZbroyaDocument(parsed);
 
         if (isZbroyaSource)
         {
@@ -87,9 +87,27 @@ public partial class TestDocumentParser : ITestDocumentParser
         var validReactive = parsed.Questions.Count(q =>
             q.SortOrder is >= 1 and <= 20 &&
             q.Text.Length >= 8 &&
-            q.Text.Any(char.IsLetter));
+            q.Text.Any(char.IsLetter) &&
+            q.Options.Count >= 4);
 
         return validReactive >= 20 && parsed.Questions.Count >= 24;
+    }
+
+    private static bool LooksLikeZbroyaDocument(ParsedTestDocument parsed)
+    {
+        if (LooksLikeIncompleteZbroya(parsed))
+        {
+            return true;
+        }
+
+        if (parsed.Instruction is not null &&
+            (parsed.Instruction.Contains("ПОЧУВАЄТЕСЯ ЦІЄЇ МИТІ", StringComparison.OrdinalIgnoreCase) ||
+             parsed.Instruction.Contains("Абсолютно правильно", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return parsed.Questions.Any(q => ZbroyaDocumentTemplate.IsKnownReactiveItem(q.Text));
     }
 
     private static bool IsZbroyaFileName(string filePath)
@@ -102,8 +120,13 @@ public partial class TestDocumentParser : ITestDocumentParser
 
     private static bool LooksLikeIncompleteZbroya(ParsedTestDocument parsed)
     {
-        if (!IsZbroyaTitle(parsed.Title) &&
-            !(parsed.Instruction?.Contains("зі зброєю", StringComparison.OrdinalIgnoreCase) ?? false))
+        var looksLikeZbroya =
+            IsZbroyaTitle(parsed.Title) ||
+            (parsed.Instruction?.Contains("зі зброєю", StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (parsed.Instruction?.Contains("ПОЧУВАЄТЕСЯ ЦІЄЇ МИТІ", StringComparison.OrdinalIgnoreCase) ?? false) ||
+            parsed.Questions.Any(q => ZbroyaDocumentTemplate.IsKnownReactiveItem(q.Text));
+
+        if (!looksLikeZbroya)
         {
             return false;
         }
@@ -113,7 +136,27 @@ public partial class TestDocumentParser : ITestDocumentParser
             q.Text.Length >= 8 &&
             q.Text.Any(char.IsLetter));
 
-        return validReactive < 20;
+        return validReactive < 20 || parsed.Questions.Count < 24;
+    }
+
+    private static void EnableZbroyaMode(ParsedTestDocument result, ref bool isZbroya)
+    {
+        isZbroya = true;
+        result.Title = "Тест ЗБРОЯ (готовність до служби зі зброєю)";
+        result.Instruction ??=
+            "Прочитайте уважно кожне речення і оберіть оцінку залежно від того, як ви почуваєтеся цієї миті. " +
+            "1 — Ні, це не так; 2 — Мабуть так; 3 — Правильно; 4 — Абсолютно правильно.";
+    }
+
+    private static bool LooksLikeZbroyaContentLine(string line)
+    {
+        var questionMatch = NumberedQuestion().Match(line);
+        if (questionMatch.Success)
+        {
+            return ZbroyaDocumentTemplate.IsKnownReactiveItem(questionMatch.Groups[2].Value.Trim());
+        }
+
+        return ZbroyaDocumentTemplate.IsKnownReactiveItem(line);
     }
 
     private static void TryDeleteTempFile(string path)
@@ -158,7 +201,10 @@ public partial class TestDocumentParser : ITestDocumentParser
                 "Вам пропонуються твердження. Якщо твердження відповідає Вам — оберіть «Так», якщо ні — «Ні». " +
                 "Над відповідями довго не замислюйтеся; правильних або неправильних відповідей немає.";
         }
-        else if (IsZbroyaTitle(result.Title) || lines.Any(IsZbroyaTitle))
+        else if (IsZbroyaTitle(result.Title) ||
+                 lines.Any(IsZbroyaTitle) ||
+                 lines.Any(IsZbroyaInstructionLine) ||
+                 lines.Any(LooksLikeZbroyaContentLine))
         {
             isZbroya = true;
             result.Title = "Тест ЗБРОЯ (готовність до служби зі зброєю)";
@@ -294,6 +340,13 @@ public partial class TestDocumentParser : ITestDocumentParser
                 var sortOrder = int.Parse(questionMatch.Groups[1].Value);
                 var text = questionMatch.Groups[2].Value.Trim();
 
+                // Увімкнути режим ЗБРОЯ щойно з’явилось перше відоме твердження —
+                // інакше клітинки 1..4 після Q1 обривають розбір.
+                if (!isZbroya && ZbroyaDocumentTemplate.IsKnownReactiveItem(text))
+                {
+                    EnableZbroyaMode(result, ref isZbroya);
+                }
+
                 // Друга копія бланка / службові пункти після 20 питань
                 if (isZbroya && result.Questions.Any(q => q.SortOrder == sortOrder))
                 {
@@ -313,6 +366,11 @@ public partial class TestDocumentParser : ITestDocumentParser
 
             if (pendingNumber.HasValue)
             {
+                if (!isZbroya && ZbroyaDocumentTemplate.IsKnownReactiveItem(line))
+                {
+                    EnableZbroyaMode(result, ref isZbroya);
+                }
+
                 current = CreateQuestion(pendingNumber.Value, line, defaultType);
                 result.Questions.Add(current);
                 pendingNumber = null;

@@ -4,6 +4,7 @@
 @attribute [AllowAnonymous]
 
 @using BlazorLppp.Domain.Entities
+@using BlazorLppp.Domain.Enums
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Routing
@@ -242,7 +243,7 @@
             var documents = await TestDefinitionService.ListAsync();
             _availableTests.AddRange(
                 documents
-                    .Where(d => d.Questions.Count > 0)
+                    .Where(d => d.Questions.Count > 0 && !IsBrokenZbroyaDocument(d))
                     .OrderByDescending(d => d.IsActive)
                     .ThenByDescending(d => d.UploadedAt));
 
@@ -257,6 +258,30 @@
         {
             _isLoadingTests = false;
         }
+    }
+
+    private static bool IsBrokenZbroyaDocument(TestDocument document)
+    {
+        var looksLikeZbroya =
+            document.Title.Contains("ЗБРОЯ", StringComparison.OrdinalIgnoreCase) ||
+            document.Title.Contains("зброя", StringComparison.OrdinalIgnoreCase) ||
+            document.OriginalFileName.Contains("зброя", StringComparison.OrdinalIgnoreCase) ||
+            document.Questions.Any(q =>
+                q.Text.StartsWith("Я спокійний", StringComparison.OrdinalIgnoreCase));
+
+        if (!looksLikeZbroya)
+        {
+            return false;
+        }
+
+        if (document.Questions.Count < 24)
+        {
+            return true;
+        }
+
+        var reactive = document.Questions.Where(q => q.SortOrder is >= 1 and <= 20).ToList();
+        return reactive.Count < 20 ||
+               reactive.Any(q => q.Type != QuestionType.SingleChoice || q.Options.Count < 4);
     }
 
     private void ToggleTestMenu() => _isTestMenuOpen = !_isTestMenuOpen;

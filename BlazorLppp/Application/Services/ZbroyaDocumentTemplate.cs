@@ -29,6 +29,19 @@ public static class ZbroyaDocumentTemplate
         "Мені приємно"
     ];
 
+    public static bool IsKnownReactiveItem(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var normalized = text.Trim();
+        return ReactiveItems.Any(item =>
+            normalized.Equals(item, StringComparison.OrdinalIgnoreCase) ||
+            normalized.StartsWith(item, StringComparison.OrdinalIgnoreCase));
+    }
+
     public static ParsedTestDocument Create()
     {
         var document = new ParsedTestDocument
