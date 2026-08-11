@@ -49,7 +49,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(e => e.UploadedAt)
                 .IsRequired();
 
+            entity.Property(e => e.IsRequired)
+                .HasDefaultValue(false);
+
             entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.IsRequired);
             entity.HasIndex(e => e.RelativePath).IsUnique();
         });
 

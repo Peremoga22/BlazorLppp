@@ -23,6 +23,7 @@ public interface ITestAttemptService
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<TestResultListItem>> GetCompletedResultsAsync(
+        int? numberUnit = null,
         CancellationToken cancellationToken = default);
 
     Task<TestResultDetails?> GetResultDetailsAsync(
@@ -38,6 +39,7 @@ public interface ITestAttemptService
         CancellationToken cancellationToken = default);
 
     Task<TestAttemptStats> GetStatsAsync(
+        int? numberUnit = null,
         CancellationToken cancellationToken = default);
 
     Task DeleteAsync(

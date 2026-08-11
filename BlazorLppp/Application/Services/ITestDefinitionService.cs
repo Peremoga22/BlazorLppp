@@ -18,5 +18,7 @@ public interface ITestDefinitionService
 
     Task SetActiveAsync(Guid documentId, CancellationToken cancellationToken = default);
 
+    Task SetRequiredAsync(Guid documentId, bool isRequired, CancellationToken cancellationToken = default);
+
     Task DeleteAsync(Guid documentId, CancellationToken cancellationToken = default);
 }

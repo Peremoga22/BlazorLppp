@@ -23,7 +23,8 @@
             <div>
                 <h1 class="admin-page__title">Документи тесту</h1>
                 <p class="admin-page__subtitle">
-                    Завантажте .docx/.doc/.txt — система зчитає питання і сформує вебформу для працівників
+                    Завантажте .docx/.doc/.txt — система зчитає питання і сформує вебформу.
+                    Позначте чекбоксом, які тести мають пройти працівники.
                 </p>
             </div>
             <a class="admin-link admin-link--back" href="/admin-home">
@@ -88,6 +89,7 @@
                 <table class="admin-table">
                     <thead>
                         <tr>
+                            <th>Для працівників</th>
                             <th>Назва</th>
                             <th>Файл</th>
                             <th>Питань</th>
@@ -100,6 +102,15 @@
                         @foreach (var doc in _testDocuments)
                         {
                             <tr>
+                                <td>
+                                    <label class="admin-required-check">
+                                        <input type="checkbox"
+                                               checked="@doc.IsRequired"
+                                               disabled="@_isTogglingRequired"
+                                               @onchange="e => ToggleRequiredAsync(doc, e)" />
+                                        <span>Пройти</span>
+                                    </label>
+                                </td>
                                 <td>@doc.Title</td>
                                 <td>@doc.OriginalFileName</td>
                                 <td>@doc.Questions.Count</td>
@@ -205,6 +216,7 @@
     private bool _isLoading = true;
     private bool _isUploading;
     private bool _isDeleting;
+    private bool _isTogglingRequired;
     private bool _canUpload;
     private string? _errorMessage;
     private string? _successMessage;
@@ -273,6 +285,42 @@
         catch (Exception ex)
         {
             _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task ToggleRequiredAsync(TestDocument document, ChangeEventArgs args)
+    {
+        if (_isTogglingRequired)
+        {
+            return;
+        }
+
+        var isRequired = args.Value is bool b
+            ? b
+            : bool.TryParse(args.Value?.ToString(), out var parsed) && parsed;
+
+        _isTogglingRequired = true;
+        _errorMessage = null;
+        _successMessage = null;
+
+        try
+        {
+            await TestDefinitionService.SetRequiredAsync(document.Id, isRequired);
+            document.IsRequired = isRequired;
+            _successMessage = isRequired
+                ? $"Тест «{document.Title}» додано до списку для працівників."
+                : $"Тест «{document.Title}» прибрано зі списку для працівників.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося змінити доступність тесту."
+                : ex.Message;
+            await ReloadListAsync();
+        }
+        finally
+        {
+            _isTogglingRequired = false;
         }
     }
 

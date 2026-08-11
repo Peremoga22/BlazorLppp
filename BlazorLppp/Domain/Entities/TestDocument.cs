@@ -18,5 +18,7 @@ public class TestDocument
 
     public bool IsActive { get; set; }
 
+    public bool IsRequired { get; set; }
+
     public ICollection<TestQuestion> Questions { get; set; } = new List<TestQuestion>();
 }

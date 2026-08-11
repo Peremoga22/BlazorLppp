@@ -82,6 +82,12 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
+    var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
+    await using (var db = await dbFactory.CreateDbContextAsync())
+    {
+        await db.Database.MigrateAsync();
+    }
+
     await IdentityDataSeeder.SeedAsync(scope.ServiceProvider);
     await TestDocumentSeeder.SeedAsync(scope.ServiceProvider);
     await Adaptivity200DocumentSeeder.SeedAsync(scope.ServiceProvider);

@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 
+using BlazorLppp.Domain;
+
 namespace BlazorLppp.Application.Models;
 
 public class RespondentModel : IValidatableObject
@@ -17,7 +19,7 @@ public class RespondentModel : IValidatableObject
     public string MiddleName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Вкажіть номер підрозділу")]
-    [Range(1, int.MaxValue, ErrorMessage = "Номер підрозділу має бути додатним числом")]
+    [Range(UnitNumbers.Min, UnitNumbers.Max, ErrorMessage = "Оберіть підрозділ від 1 до 5")]
     public int NumberUnit { get; set; }
 
     [Required(ErrorMessage = "Оберіть тест")]

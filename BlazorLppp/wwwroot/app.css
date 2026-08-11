@@ -241,6 +241,73 @@ h1:focus {
     gap: 0.85rem;
 }
 
+.admin-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: 0 0 1.35rem;
+    padding: 0.35rem;
+    background: #eef2f6;
+    border: 1px solid #e2e8ef;
+    border-radius: 12px;
+}
+
+.admin-tabs__item {
+    appearance: none;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #445568;
+    font: inherit;
+    font-size: 0.92rem;
+    font-weight: 600;
+    padding: 0.55rem 0.9rem;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-tabs__item:hover {
+    background: rgba(255, 255, 255, 0.7);
+    color: #243447;
+}
+
+.admin-tabs__item--active {
+    background: #fff;
+    color: #243447;
+    border-color: #d7e0ea;
+    box-shadow: 0 1px 4px rgba(35, 52, 72, 0.08);
+}
+
+.admin-required-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    cursor: pointer;
+    user-select: none;
+    color: #243447;
+    font-size: 0.92rem;
+}
+
+.admin-required-check input {
+    width: 1.05rem;
+    height: 1.05rem;
+    accent-color: #3d6d8c;
+    cursor: pointer;
+}
+
+@media (max-width: 720px) {
+    .admin-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .admin-tabs__item {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+}
+
 .admin-stats__item {
     background: #fff;
     border: 1px solid #e2e8ef;
