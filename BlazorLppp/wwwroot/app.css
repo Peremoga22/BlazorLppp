@@ -191,6 +191,34 @@ h1:focus {
     margin: 0 auto 2rem;
 }
 
+.site-footer {
+    margin-top: auto;
+    padding: 1.1rem 1.25rem 1.25rem;
+    border-top: 1px solid rgba(36, 52, 71, 0.1);
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.65) 0%, rgba(238, 242, 246, 0.95) 100%);
+    text-align: center;
+}
+
+.site-footer__text {
+    margin: 0 auto;
+    max-width: 52rem;
+    color: #5a6b7d;
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+.site-footer__text strong {
+    color: #243447;
+    font-weight: 650;
+}
+
+.admin-layout .site-footer {
+    margin-left: -1.5rem;
+    margin-right: -1.5rem;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
+
 .admin-page__header {
     margin-bottom: 1.5rem;
 }
