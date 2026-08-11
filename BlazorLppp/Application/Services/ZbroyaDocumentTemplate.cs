@@ -65,15 +65,9 @@ public static class ZbroyaDocumentTemplate
             document.Questions.Add(question);
         }
 
-        document.Questions.Add(CreateScale(
-            21,
-            "Самопочуття (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)"));
-        document.Questions.Add(CreateScale(
-            22,
-            "Активність (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)"));
-        document.Questions.Add(CreateScale(
-            23,
-            "Настрій (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)"));
+        document.Questions.Add(CreateScale(21, "САМОПОЧУТТЯ"));
+        document.Questions.Add(CreateScale(22, "АКТИВНІСТЬ"));
+        document.Questions.Add(CreateScale(23, "НАСТРІЙ"));
 
         document.Questions.Add(new ParsedTestQuestion
         {
@@ -102,7 +96,7 @@ public static class ZbroyaDocumentTemplate
             Type = QuestionType.Scale,
             ScaleMin = 0,
             ScaleMax = 10,
-            Hint = "0 — 0%, 10 — 100%"
+            Hint = "0% — 50 — 100%"
         };
 
     private static void AddScaleOptions(ParsedTestQuestion question)

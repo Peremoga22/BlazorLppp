@@ -114,6 +114,15 @@ public static class ZbroyaDocumentSeeder
         return reactive.All(q =>
                    q.Type == QuestionType.SingleChoice &&
                    q.Options.Count >= 4)
+               && document.Questions.Any(q =>
+                   q.SortOrder == 21 &&
+                   q.Text.Contains("САМОПОЧУТТЯ", StringComparison.OrdinalIgnoreCase))
+               && document.Questions.Any(q =>
+                   q.SortOrder == 22 &&
+                   q.Text.Contains("АКТИВНІСТЬ", StringComparison.OrdinalIgnoreCase))
+               && document.Questions.Any(q =>
+                   q.SortOrder == 23 &&
+                   q.Text.Contains("НАСТРІЙ", StringComparison.OrdinalIgnoreCase))
                && !string.Equals(document.Title, "Психологічний тест", StringComparison.Ordinal);
     }
 

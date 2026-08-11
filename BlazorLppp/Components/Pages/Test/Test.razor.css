@@ -136,6 +136,87 @@
     color: var(--tp-ink);
 }
 
+.test-form__intro {
+    margin: 0 0 1.15rem;
+    padding: 0.9rem 1rem;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #faf8fd 0%, #f3effa 100%);
+    border: 1px solid rgba(81, 43, 212, 0.1);
+    color: var(--tp-muted);
+    font-size: 0.95rem;
+    line-height: 1.55;
+}
+
+.test-form__statement {
+    text-align: justify;
+    line-height: 1.5;
+}
+
+.test-form__list--san {
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.test-form__question--san {
+    padding: 1rem 1rem 1.1rem;
+}
+
+.test-form__san-title {
+    text-align: center;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--tp-ink);
+    margin-bottom: 0.75rem;
+}
+
+.test-form__analog {
+    display: grid;
+    grid-template-columns: repeat(11, minmax(0, 1fr));
+    gap: 0;
+    border: 1px solid #9aa7b8;
+    border-radius: 6px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #e8edf3 0%, #cfd8e3 100%);
+}
+
+.test-form__analog-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.4rem;
+    padding: 0.35rem 0.1rem;
+    border-right: 1px solid rgba(90, 107, 125, 0.35);
+    cursor: pointer;
+    color: #334155;
+    font-size: 0.78rem;
+    font-weight: 650;
+    text-align: center;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.test-form__analog-item:last-child {
+    border-right: none;
+}
+
+.test-form__analog-item input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.test-form__analog-item:hover,
+.test-form__analog-item.is-selected,
+.test-form__analog-item:has(input:checked) {
+    background: rgba(81, 43, 212, 0.18);
+    color: var(--tp-accent-deep);
+}
+
+.test-form__analog-item.is-selected,
+.test-form__analog-item:has(input:checked) {
+    background: rgba(81, 43, 212, 0.28);
+    box-shadow: inset 0 0 0 2px var(--tp-accent);
+}
+
 .test-form__question {
     padding: 1.1rem 1.15rem;
     border: 1px solid var(--tp-line);
@@ -275,6 +356,16 @@
     .test-form__scale--rating {
         width: 100%;
         justify-content: space-between;
+    }
+
+    .test-form__analog {
+        grid-template-columns: repeat(11, minmax(1.6rem, 1fr));
+        overflow-x: auto;
+    }
+
+    .test-form__analog-item {
+        min-width: 1.6rem;
+        font-size: 0.68rem;
     }
 }
 

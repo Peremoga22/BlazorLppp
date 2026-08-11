@@ -509,26 +509,17 @@ public partial class TestDocumentParser : ITestDocumentParser
     {
         if (!result.Questions.Any(q => q.SortOrder == 21))
         {
-            result.Questions.Add(CreateQuestion(
-                21,
-                "Самопочуття (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)",
-                QuestionType.Scale));
+            result.Questions.Add(CreateQuestion(21, "САМОПОЧУТТЯ", QuestionType.Scale));
         }
 
         if (!result.Questions.Any(q => q.SortOrder == 22))
         {
-            result.Questions.Add(CreateQuestion(
-                22,
-                "Активність (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)",
-                QuestionType.Scale));
+            result.Questions.Add(CreateQuestion(22, "АКТИВНІСТЬ", QuestionType.Scale));
         }
 
         if (!result.Questions.Any(q => q.SortOrder == 23))
         {
-            result.Questions.Add(CreateQuestion(
-                23,
-                "Настрій (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)",
-                QuestionType.Scale));
+            result.Questions.Add(CreateQuestion(23, "НАСТРІЙ", QuestionType.Scale));
         }
 
         if (!result.Questions.Any(q => q.SortOrder == 24))
@@ -547,33 +538,21 @@ public partial class TestDocumentParser : ITestDocumentParser
     {
         if (ContainsIgnoreCase(line, "САМОПОЧУТТЯ") && result.Questions.Count >= 20)
         {
-            current = UpsertZbroyaQuestion(
-                result,
-                21,
-                "Самопочуття (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)",
-                QuestionType.Scale);
+            current = UpsertZbroyaQuestion(result, 21, "САМОПОЧУТТЯ", QuestionType.Scale);
             return true;
         }
 
         if (line.Equals("АКТИВНІСТЬ", StringComparison.OrdinalIgnoreCase) ||
             (ContainsIgnoreCase(line, "АКТИВНІСТЬ") && result.Questions.Count >= 20))
         {
-            current = UpsertZbroyaQuestion(
-                result,
-                22,
-                "Активність (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)",
-                QuestionType.Scale);
+            current = UpsertZbroyaQuestion(result, 22, "АКТИВНІСТЬ", QuestionType.Scale);
             return true;
         }
 
         if (line.Equals("НАСТРІЙ", StringComparison.OrdinalIgnoreCase) ||
             (ContainsIgnoreCase(line, "НАСТРІЙ") && result.Questions.Count >= 20 && !ContainsIgnoreCase(line, "самопочуття")))
         {
-            current = UpsertZbroyaQuestion(
-                result,
-                23,
-                "Настрій (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)",
-                QuestionType.Scale);
+            current = UpsertZbroyaQuestion(result, 23, "НАСТРІЙ", QuestionType.Scale);
             return true;
         }
 

@@ -33,7 +33,7 @@
             <header class="test-form__header">
                 <h1 class="test-page__title">@_form.TestTitle</h1>
                 <p class="test-page__name">@_form.RespondentName</p>
-                @if (!string.IsNullOrWhiteSpace(_form.Instruction))
+                @if (!IsZbroyaForm(_form) && !string.IsNullOrWhiteSpace(_form.Instruction))
                 {
                     <p class="test-page__text test-form__instruction">@_form.Instruction</p>
                 }
@@ -52,13 +52,23 @@
                         var ratingQuestions = isZbroyaForm
                             ? _form.Questions.Where(q => q.SortOrder is >= 1 and <= 20).ToList()
                             : [];
+                        var sanQuestions = isZbroyaForm
+                            ? _form.Questions.Where(q => q.SortOrder is >= 21 and <= 23).ToList()
+                            : [];
                         var otherQuestions = isZbroyaForm
-                            ? _form.Questions.Where(q => q.SortOrder > 20).ToList()
+                            ? _form.Questions.Where(q => q.SortOrder > 23).ToList()
                             : _form.Questions.ToList();
                     }
 
                     @if (isZbroyaForm && ratingQuestions.Count > 0)
                     {
+                        <p class="test-form__intro">
+                            Пропонуємо Вам перевірити свою готовність до несення служби зі зброєю в добовому наряді.
+                            Ваші правдиві і відверті відповіді сприятимуть прийняттю об’єктивного рішення про допуск Вас
+                            до виконання зазначених завдань.
+                        </p>
+
+                        <p class="test-form__section-title">1. Інструкція</p>
                         <div class="test-form__legend" aria-hidden="true">
                             <span><strong>1</strong> — Ні, це не так</span>
                             <span><strong>2</strong> — Мабуть так</span>
@@ -90,7 +100,40 @@
                             }
                         </ol>
 
-                        <p class="test-form__section-title">Поставте позначку на шкалі (0% — 100%):</p>
+                        <p class="test-form__section-title">
+                            2. Поставте позначку на шкалі, яка відповідає інтенсивності вияву зазначених чинників:
+                        </p>
+
+                        <ol class="test-form__list test-form__list--san">
+                            @foreach (var question in sanQuestions)
+                            {
+                                var title = ZbroyaSanTitle(question.SortOrder, question.Text);
+                                <li class="test-form__question test-form__question--san">
+                                    <div class="test-form__san-title">@title</div>
+                                    <div class="test-form__analog" role="radiogroup" aria-label="@title">
+                                        @for (var value = 0; value <= 10; value++)
+                                        {
+                                            var scaleValue = value;
+                                            var label = value switch
+                                            {
+                                                0 => "0%",
+                                                5 => "50",
+                                                10 => "100%",
+                                                _ => $"{value * 10}"
+                                            };
+                                            <label class="test-form__analog-item @(question.ScaleValue == scaleValue ? "is-selected" : null)"
+                                                   title="@($"{value * 10}%")">
+                                                <input type="radio"
+                                                       name="@($"q-scale-{question.Id}")"
+                                                       checked="@(question.ScaleValue == scaleValue)"
+                                                       @onchange="() => question.ScaleValue = scaleValue" />
+                                                <span>@label</span>
+                                            </label>
+                                        }
+                                    </div>
+                                </li>
+                            }
+                        </ol>
                     }
 
                     <ol class="test-form__list">
@@ -102,10 +145,21 @@
                                     {
                                         <span class="test-form__number">@question.SortOrder.</span>
                                     }
-                                    @question.Text
+                                    else if (question.SortOrder == 24)
+                                    {
+                                        <span>Чи згодні Ви із зазначеним висловом?</span>
+                                    }
+                                    else
+                                    {
+                                        @question.Text
+                                    }
                                 </div>
 
-                                @if (!string.IsNullOrWhiteSpace(question.Hint))
+                                @if (isZbroyaForm && question.SortOrder == 24)
+                                {
+                                    <p class="test-form__hint test-form__statement">@question.Text</p>
+                                }
+                                else if (!string.IsNullOrWhiteSpace(question.Hint))
                                 {
                                     <p class="test-form__hint">@question.Hint</p>
                                 }
@@ -136,20 +190,18 @@
                                 {
                                     var min = question.ScaleMin ?? 1;
                                     var max = question.ScaleMax ?? 10;
-                                    var showPercent = isZbroyaForm && min == 0 && max == 10;
-                                    <div class="test-form__scale @(showPercent ? "test-form__scale--percent" : null)"
+                                    <div class="test-form__scale"
                                          role="radiogroup"
                                          aria-label="@question.Text">
                                         @for (var value = min; value <= max; value++)
                                         {
                                             var scaleValue = value;
-                                            var label = showPercent ? $"{scaleValue * 10}%" : scaleValue.ToString();
-                                            <label class="test-form__scale-item" title="@label">
+                                            <label class="test-form__scale-item">
                                                 <input type="radio"
                                                        name="@($"q-scale-{question.Id}")"
                                                        checked="@(question.ScaleValue == scaleValue)"
                                                        @onchange="() => question.ScaleValue = scaleValue" />
-                                                <span>@label</span>
+                                                <span>@scaleValue</span>
                                             </label>
                                         }
                                     </div>
@@ -253,4 +305,12 @@
                    q.SortOrder == 1 &&
                    q.Text.StartsWith("Я спокійний", StringComparison.OrdinalIgnoreCase));
     }
+
+    private static string ZbroyaSanTitle(int sortOrder, string fallback) => sortOrder switch
+    {
+        21 => "САМОПОЧУТТЯ",
+        22 => "АКТИВНІСТЬ",
+        23 => "НАСТРІЙ",
+        _ => fallback
+    };
 }
