@@ -20,18 +20,25 @@ public static class ZbroyaDocumentSeeder
         var dbFactory = services.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
 
         await using var dbContext = await dbFactory.CreateDbContextAsync(cancellationToken);
-        var alreadyImported = await dbContext.TestDocuments
+        var existing = await dbContext.TestDocuments
             .AsNoTracking()
-            .AnyAsync(
+            .Include(d => d.Questions)
+            .FirstOrDefaultAsync(
                 d => d.RelativePath == RelativePath ||
                      d.OriginalFileName == DisplayFileName ||
                      d.OriginalFileName == StoredFileName ||
                      d.Title.Contains("ЗБРОЯ"),
                 cancellationToken);
 
-        if (alreadyImported)
+        // Переімпорт, якщо раніше зчитало неповний бланк.
+        if (existing is not null && existing.Questions.Count >= 24)
         {
             return;
+        }
+
+        if (existing is not null)
+        {
+            await definitionService.DeleteAsync(existing.Id, cancellationToken);
         }
 
         var sourcePath = ResolveSourcePath(environment.ContentRootPath);

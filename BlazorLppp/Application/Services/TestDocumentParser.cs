@@ -32,25 +32,71 @@ public partial class TestDocumentParser : ITestDocumentParser
                 "Автоматичний розбір підтримується для файлів .docx, .doc та .txt.");
         }
 
+        if (IsZbroyaFileName(filePath))
+        {
+            return ZbroyaDocumentTemplate.Create();
+        }
+
+        ParsedTestDocument parsed;
         if (Path.GetExtension(filePath).Equals(".txt", StringComparison.OrdinalIgnoreCase))
         {
-            return ParseLines(ReadTxtLines(filePath));
+            parsed = ParseLines(ReadTxtLines(filePath));
         }
-
-        if (WordDocConverter.IsDocExtension(filePath))
+        else if (WordDocConverter.IsDocExtension(filePath))
         {
-            var convertedPath = WordDocConverter.ConvertToDocx(filePath);
             try
             {
-                return ParseLines(ReadDocxLines(convertedPath));
+                var convertedPath = WordDocConverter.ConvertToDocx(filePath);
+                try
+                {
+                    parsed = ParseLines(ReadDocxLines(convertedPath));
+                }
+                finally
+                {
+                    TryDeleteTempFile(convertedPath);
+                }
             }
-            finally
+            catch (Exception)
             {
-                TryDeleteTempFile(convertedPath);
+                // На Linux / без Word читаємо текст напряму з OLE .doc
+                parsed = ParseLines(DocBinaryTextReader.ReadLines(filePath));
             }
         }
+        else
+        {
+            parsed = ParseLines(ReadDocxLines(filePath));
+        }
 
-        return ParseLines(ReadDocxLines(filePath));
+        if (IsZbroyaTitle(parsed.Title) || LooksLikeIncompleteZbroya(parsed))
+        {
+            return ZbroyaDocumentTemplate.Create();
+        }
+
+        return parsed;
+    }
+
+    private static bool IsZbroyaFileName(string filePath)
+    {
+        var name = Path.GetFileNameWithoutExtension(filePath);
+        return name.Contains("ЗБРОЯ", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("zbroya", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("зброя", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool LooksLikeIncompleteZbroya(ParsedTestDocument parsed)
+    {
+        if (!IsZbroyaTitle(parsed.Title) &&
+            !(parsed.Instruction?.Contains("зі зброєю", StringComparison.OrdinalIgnoreCase) ?? false))
+        {
+            return false;
+        }
+
+        var validReactive = parsed.Questions.Count(q =>
+            q.SortOrder is >= 1 and <= 20 &&
+            q.Text.Length >= 8 &&
+            q.Text.Any(char.IsLetter));
+
+        return validReactive < 20;
     }
 
     private static void TryDeleteTempFile(string path)
@@ -152,6 +198,11 @@ public partial class TestDocumentParser : ITestDocumentParser
                 continue;
             }
 
+            if (isZbroya && IsZbroyaNoiseLine(line))
+            {
+                continue;
+            }
+
             if (IsYesNoHeader(line))
             {
                 if (line.Equals("Так", StringComparison.OrdinalIgnoreCase) ||
@@ -193,25 +244,52 @@ public partial class TestDocumentParser : ITestDocumentParser
             var numberOnly = NumberOnlyQuestion().Match(line);
             if (numberOnly.Success)
             {
-                // У бланку відповідей ідуть лише номери підряд без тексту питань.
-                if (pendingNumber.HasValue && result.Questions.Count > 0)
+                var bareNumber = int.Parse(numberOnly.Groups[1].Value);
+
+                // У тесті ЗБРОЯ після питання йдуть клітинки відповідей 1..4
+                if (isZbroya && current is not null && bareNumber is >= 1 and <= 4 && current.SortOrder <= 20)
+                {
+                    EnsureZbroyaNumericOption(current, bareNumber);
+                    pendingNumber = null;
+                    continue;
+                }
+
+                // У бланку відповідей Адаптивності ідуть лише номери підряд без тексту питань.
+                if (!isZbroya && pendingNumber.HasValue && result.Questions.Count > 0)
                 {
                     break;
                 }
 
-                pendingNumber = int.Parse(numberOnly.Groups[1].Value);
+                pendingNumber = bareNumber;
                 current = null;
+                continue;
+            }
+
+            if (isZbroya && TryParseZbroyaExtraSection(line, result, ref current))
+            {
+                pendingNumber = null;
                 continue;
             }
 
             var questionMatch = NumberedQuestion().Match(line);
             if (questionMatch.Success)
             {
+                var sortOrder = int.Parse(questionMatch.Groups[1].Value);
+                var text = questionMatch.Groups[2].Value.Trim();
+
+                // Друга копія бланка / службові пункти після 20 питань
+                if (isZbroya && result.Questions.Any(q => q.SortOrder == sortOrder))
+                {
+                    if (TryParseZbroyaExtraSection(line, result, ref current))
+                    {
+                        pendingNumber = null;
+                    }
+
+                    continue;
+                }
+
                 pendingNumber = null;
-                current = CreateQuestion(
-                    int.Parse(questionMatch.Groups[1].Value),
-                    questionMatch.Groups[2].Value.Trim(),
-                    defaultType);
+                current = CreateQuestion(sortOrder, text, defaultType);
                 result.Questions.Add(current);
                 continue;
             }
@@ -311,6 +389,8 @@ public partial class TestDocumentParser : ITestDocumentParser
 
     private static void FinalizeZbroyaQuestions(ParsedTestDocument result)
     {
+        EnsureZbroyaSanAndReadiness(result);
+
         foreach (var question in result.Questions.OrderBy(q => q.SortOrder))
         {
             if (question.SortOrder is >= 1 and <= 20)
@@ -318,18 +398,11 @@ public partial class TestDocumentParser : ITestDocumentParser
                 question.Type = QuestionType.SingleChoice;
                 if (question.Options.Count == 0)
                 {
-                    question.Options.Add(new ParsedTestOption { SortOrder = 1, Key = "1", Text = "Ні, це не так" });
-                    question.Options.Add(new ParsedTestOption { SortOrder = 2, Key = "2", Text = "Мабуть так" });
-                    question.Options.Add(new ParsedTestOption { SortOrder = 3, Key = "3", Text = "Правильно" });
-                    question.Options.Add(new ParsedTestOption { SortOrder = 4, Key = "4", Text = "Абсолютно правильно" });
+                    AddDefaultZbroyaOptions(question);
                 }
                 else
                 {
-                    for (var i = 0; i < question.Options.Count; i++)
-                    {
-                        question.Options[i].Key = (i + 1).ToString();
-                        question.Options[i].SortOrder = i + 1;
-                    }
+                    NormalizeZbroyaOptions(question);
                 }
 
                 continue;
@@ -348,12 +421,209 @@ public partial class TestDocumentParser : ITestDocumentParser
             if (question.SortOrder == 24)
             {
                 question.Type = QuestionType.YesNo;
+                question.ScaleMin = null;
+                question.ScaleMax = null;
                 question.Options.Clear();
                 question.Options.Add(new ParsedTestOption { SortOrder = 1, Key = "Так", Text = "Так" });
                 question.Options.Add(new ParsedTestOption { SortOrder = 2, Key = "Ні", Text = "Ні" });
             }
         }
     }
+
+    private static void EnsureZbroyaSanAndReadiness(ParsedTestDocument result)
+    {
+        if (!result.Questions.Any(q => q.SortOrder == 21))
+        {
+            result.Questions.Add(CreateQuestion(
+                21,
+                "Самопочуття (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)",
+                QuestionType.Scale));
+        }
+
+        if (!result.Questions.Any(q => q.SortOrder == 22))
+        {
+            result.Questions.Add(CreateQuestion(
+                22,
+                "Активність (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)",
+                QuestionType.Scale));
+        }
+
+        if (!result.Questions.Any(q => q.SortOrder == 23))
+        {
+            result.Questions.Add(CreateQuestion(
+                23,
+                "Настрій (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)",
+                QuestionType.Scale));
+        }
+
+        if (!result.Questions.Any(q => q.SortOrder == 24))
+        {
+            result.Questions.Add(CreateQuestion(
+                24,
+                "Чи згодні Ви із зазначеним висловом: «Я маю необхідні знання і практичні навички, вивчив функціональні обов’язки, пройшов відповідний інструктаж, його вимоги мені зрозумілі, проблемних питань щодо організації несення служби не маю. Мій стан здоров’я, настрій, самопочуття і активність, морально-психологічний стан дозволяють мені виконувати службові обов’язки із зброєю. Проблемних питань, негативних чинників впливу на мій морально-психологічний стан не маю. Готовий нести службу зі зброєю»?",
+                QuestionType.YesNo));
+        }
+    }
+
+    private static bool TryParseZbroyaExtraSection(
+        string line,
+        ParsedTestDocument result,
+        ref ParsedTestQuestion? current)
+    {
+        if (ContainsIgnoreCase(line, "САМОПОЧУТТЯ") && result.Questions.Count >= 20)
+        {
+            current = UpsertZbroyaQuestion(
+                result,
+                21,
+                "Самопочуття (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)",
+                QuestionType.Scale);
+            return true;
+        }
+
+        if (line.Equals("АКТИВНІСТЬ", StringComparison.OrdinalIgnoreCase) ||
+            (ContainsIgnoreCase(line, "АКТИВНІСТЬ") && result.Questions.Count >= 20))
+        {
+            current = UpsertZbroyaQuestion(
+                result,
+                22,
+                "Активність (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)",
+                QuestionType.Scale);
+            return true;
+        }
+
+        if (line.Equals("НАСТРІЙ", StringComparison.OrdinalIgnoreCase) ||
+            (ContainsIgnoreCase(line, "НАСТРІЙ") && result.Questions.Count >= 20 && !ContainsIgnoreCase(line, "самопочуття")))
+        {
+            current = UpsertZbroyaQuestion(
+                result,
+                23,
+                "Настрій (позначте інтенсивність вияву чинника від 0 до 10, де 0 — 0%, 10 — 100%)",
+                QuestionType.Scale);
+            return true;
+        }
+
+        if (ContainsIgnoreCase(line, "Чи згодні Ви") ||
+            ContainsIgnoreCase(line, "Готовий нести службу зі зброєю"))
+        {
+            var text = line.StartsWith("Чи згодні", StringComparison.OrdinalIgnoreCase)
+                ? line
+                : "Чи згодні Ви із зазначеним висловом: «" + line.Trim('“', '”', '"', '«', '»') + "»?";
+            current = UpsertZbroyaQuestion(result, 24, text, QuestionType.YesNo);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static ParsedTestQuestion UpsertZbroyaQuestion(
+        ParsedTestDocument result,
+        int sortOrder,
+        string text,
+        QuestionType type)
+    {
+        var existing = result.Questions.FirstOrDefault(q => q.SortOrder == sortOrder);
+        if (existing is not null)
+        {
+            if (existing.Text.Length < text.Length)
+            {
+                existing.Text = text;
+            }
+
+            existing.Type = type;
+            return existing;
+        }
+
+        var question = CreateQuestion(sortOrder, text, type);
+        result.Questions.Add(question);
+        return question;
+    }
+
+    private static void EnsureZbroyaNumericOption(ParsedTestQuestion question, int value)
+    {
+        var key = value.ToString();
+        if (question.Options.Any(o => o.Key == key))
+        {
+            return;
+        }
+
+        question.Type = QuestionType.SingleChoice;
+        question.Options.Add(new ParsedTestOption
+        {
+            SortOrder = value,
+            Key = key,
+            Text = ZbroyaOptionLabel(value)
+        });
+    }
+
+    private static void AddDefaultZbroyaOptions(ParsedTestQuestion question)
+    {
+        for (var value = 1; value <= 4; value++)
+        {
+            question.Options.Add(new ParsedTestOption
+            {
+                SortOrder = value,
+                Key = value.ToString(),
+                Text = ZbroyaOptionLabel(value)
+            });
+        }
+    }
+
+    private static void NormalizeZbroyaOptions(ParsedTestQuestion question)
+    {
+        var ordered = question.Options.OrderBy(o => o.SortOrder).ToList();
+        question.Options.Clear();
+        for (var i = 0; i < ordered.Count && i < 4; i++)
+        {
+            var value = i + 1;
+            question.Options.Add(new ParsedTestOption
+            {
+                SortOrder = value,
+                Key = value.ToString(),
+                Text = string.IsNullOrWhiteSpace(ordered[i].Text) || ordered[i].Text.Length <= 2
+                    ? ZbroyaOptionLabel(value)
+                    : ordered[i].Text
+            });
+        }
+
+        if (question.Options.Count < 4)
+        {
+            AddDefaultZbroyaOptions(question);
+            question.Options = question.Options
+                .GroupBy(o => o.Key)
+                .Select(g => g.First())
+                .OrderBy(o => o.SortOrder)
+                .ToList();
+        }
+    }
+
+    private static string ZbroyaOptionLabel(int value) => value switch
+    {
+        1 => "Ні, це не так",
+        2 => "Мабуть так",
+        3 => "Правильно",
+        4 => "Абсолютно правильно",
+        _ => value.ToString()
+    };
+
+    private static bool IsZbroyaNoiseLine(string line)
+        => line.Equals("Ні, це не так", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("Мабуть так", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("Правильно", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("Абсолютно правильно", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("Речення", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("0%", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("50%", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("100%", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("50", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Шановний", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Якщо згодні", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Якщо ні", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Напишіть про Ваші пропозиції", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Обстеження провів", StringComparison.OrdinalIgnoreCase);
+
+    private static bool ContainsIgnoreCase(string? source, string value)
+        => !string.IsNullOrWhiteSpace(source) &&
+           source.Contains(value, StringComparison.OrdinalIgnoreCase);
 
     private static ParsedTestQuestion CreateQuestion(int sortOrder, string text, QuestionType? defaultType)
         => new()
