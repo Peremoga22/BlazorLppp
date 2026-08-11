@@ -18,9 +18,16 @@
 
 main {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
     background:
         radial-gradient(120% 70% at 100% 0%, rgba(81, 43, 212, 0.08), transparent 50%),
         linear-gradient(180deg, #f8f6fc 0%, #f3f0f8 100%);
+}
+
+main > article.content {
+    flex: 1 0 auto;
 }
 
 .sidebar {
