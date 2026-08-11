@@ -415,9 +415,18 @@ public class TestAttemptService(
         var startedToday = await dbContext.TestAttempts
             .CountAsync(a => a.StartedAt >= today, cancellationToken);
 
+        // Унікальні люди, які вже пройшли (завершили) хоча б один тест.
+        var peopleCompleted = await dbContext.TestAttempts
+            .AsNoTracking()
+            .Where(a => a.Status == TestAttemptStatus.Completed)
+            .Select(a => new { a.LastName, a.FirstName, a.MiddleName, a.NumberUnit })
+            .Distinct()
+            .CountAsync(cancellationToken);
+
         return new TestAttemptStats
         {
             Total = total,
+            PeopleCompleted = peopleCompleted,
             InProgress = inProgress,
             Completed = completed,
             StartedToday = startedToday
