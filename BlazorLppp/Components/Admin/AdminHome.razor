@@ -15,8 +15,32 @@
 <div class="admin-page">
     <header class="admin-page__header">
         <h1 class="admin-page__title">Адмін-панель</h1>
-        <p class="admin-page__subtitle">Огляд спроб психологічного тестування</p>
+        <p class="admin-page__subtitle">
+            @(_selectedUnit is null
+                ? "Загальний огляд усіх підрозділів"
+                : $"Підрозділ {_selectedUnit}: спроби та результати працівників")
+        </p>
     </header>
+
+    <div class="admin-tabs" role="tablist" aria-label="Підрозділи">
+        <button type="button"
+                class="admin-tabs__item @(_selectedUnit is null ? "admin-tabs__item--active" : null)"
+                role="tab"
+                aria-selected="@(_selectedUnit is null)"
+                @onclick="() => SelectTabAsync(null)">
+            Адмін
+        </button>
+        @foreach (var unit in UnitNumbers.All)
+        {
+            <button type="button"
+                    class="admin-tabs__item @(_selectedUnit == unit ? "admin-tabs__item--active" : null)"
+                    role="tab"
+                    aria-selected="@(_selectedUnit == unit)"
+                    @onclick="() => SelectTabAsync(unit)">
+                Підрозділ @unit
+            </button>
+        }
+    </div>
 
     @if (_isLoading)
     {
@@ -33,7 +57,9 @@
             <div class="admin-stats">
                 <div class="admin-stats__item">
                     <span class="admin-stats__value">@_stats.PeopleCompleted</span>
-                    <span class="admin-stats__label">Пройшли тести</span>
+                    <span class="admin-stats__label">
+                        @(_selectedUnit is null ? "Пройшли тести (усі)" : "Пройшли тести")
+                    </span>
                 </div>
                 <div class="admin-stats__item">
                     <span class="admin-stats__value">@_stats.InProgress</span>
@@ -56,7 +82,7 @@
                 </a>
                 <a class="admin-btn admin-btn--soft" href="/admin/documents">
                     <span class="admin-btn__icon admin-btn__icon--file" aria-hidden="true"></span>
-                    Документи
+                    Документи / тести
                 </a>
             </div>
         }
@@ -66,7 +92,9 @@
                 <div>
                     <h2 id="results-heading" class="admin-upload__title">Результати тестів</h2>
                     <p class="admin-page__muted">
-                        Завершені тести. Файли: «Прізвище_І_П.docx»
+                        @(_selectedUnit is null
+                            ? "Завершені тести по всіх підрозділах. Файли: «Прізвище_І_П.docx»"
+                            : $"Завершені тести підрозділу {_selectedUnit}. Файли: «Прізвище_І_П.docx»")
                     </p>
                 </div>
             </header>
@@ -159,6 +187,7 @@
 </div>
 
 @code {
+    private int? _selectedUnit;
     private TestAttemptStats? _stats;
     private readonly List<TestResultListItem> _results = [];
     private bool _isLoading = true;
@@ -183,10 +212,39 @@
         }
     }
 
+    private async Task SelectTabAsync(int? unit)
+    {
+        if (_selectedUnit == unit)
+        {
+            return;
+        }
+
+        _selectedUnit = unit;
+        _isLoading = true;
+        _errorMessage = null;
+        _resultsError = null;
+        StateHasChanged();
+
+        try
+        {
+            await RefreshDataAsync();
+        }
+        catch (Exception)
+        {
+            _errorMessage = "Не вдалося завантажити дані вкладки.";
+            _stats = null;
+            _results.Clear();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
     private async Task RefreshDataAsync()
     {
-        var statsTask = TestAttemptService.GetStatsAsync();
-        var resultsTask = TestAttemptService.GetCompletedResultsAsync();
+        var statsTask = TestAttemptService.GetStatsAsync(_selectedUnit);
+        var resultsTask = TestAttemptService.GetCompletedResultsAsync(_selectedUnit);
         await Task.WhenAll(statsTask, resultsTask);
 
         _stats = await statsTask;
@@ -200,7 +258,7 @@
         try
         {
             await TestAttemptService.EnsureResultFileAsync(attemptId);
-            var items = await TestAttemptService.GetCompletedResultsAsync();
+            var items = await TestAttemptService.GetCompletedResultsAsync(_selectedUnit);
             _results.Clear();
             _results.AddRange(items);
             _resultsError = null;

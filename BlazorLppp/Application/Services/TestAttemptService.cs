@@ -1,5 +1,6 @@
 using BlazorLppp.Application.Models;
 using BlazorLppp.Data;
+using BlazorLppp.Domain;
 using BlazorLppp.Domain.Entities;
 using BlazorLppp.Domain.Enums;
 
@@ -33,7 +34,22 @@ public class TestAttemptService(
                 "Обраний тест не містить питань. Зверніться до адміністратора.");
         }
 
+        if (!UnitNumbers.IsValid(respondent.NumberUnit))
+        {
+            throw new InvalidOperationException("Оберіть підрозділ від 1 до 5.");
+        }
+
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var hasRequiredTests = await dbContext.TestDocuments
+            .AsNoTracking()
+            .AnyAsync(d => d.IsRequired && d.Questions.Any(), cancellationToken);
+
+        if (hasRequiredTests && !document.IsRequired)
+        {
+            throw new InvalidOperationException(
+                "Цей тест зараз недоступний. Оберіть тест зі списку, визначеного адміністратором.");
+        }
 
         var attempt = new TestAttempt
         {
@@ -214,14 +230,22 @@ public class TestAttemptService(
     }
 
     public async Task<IReadOnlyList<TestResultListItem>> GetCompletedResultsAsync(
+        int? numberUnit = null,
         CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        var items = await dbContext.TestAttempts
+        var query = dbContext.TestAttempts
             .AsNoTracking()
             .Include(a => a.TestDocument)
-            .Where(a => a.Status == TestAttemptStatus.Completed)
+            .Where(a => a.Status == TestAttemptStatus.Completed);
+
+        if (numberUnit.HasValue)
+        {
+            query = query.Where(a => a.NumberUnit == numberUnit.Value);
+        }
+
+        var items = await query
             .OrderByDescending(a => a.CompletedAt ?? a.StartedAt)
             .ToListAsync(cancellationToken);
 
@@ -401,23 +425,28 @@ public class TestAttemptService(
     }
 
     public async Task<TestAttemptStats> GetStatsAsync(
+        int? numberUnit = null,
         CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var today = DateTime.Today;
+        var attempts = dbContext.TestAttempts.AsNoTracking().AsQueryable();
+        if (numberUnit.HasValue)
+        {
+            attempts = attempts.Where(a => a.NumberUnit == numberUnit.Value);
+        }
 
-        var total = await dbContext.TestAttempts.CountAsync(cancellationToken);
-        var inProgress = await dbContext.TestAttempts
+        var total = await attempts.CountAsync(cancellationToken);
+        var inProgress = await attempts
             .CountAsync(a => a.Status == TestAttemptStatus.InProgress, cancellationToken);
-        var completed = await dbContext.TestAttempts
+        var completed = await attempts
             .CountAsync(a => a.Status == TestAttemptStatus.Completed, cancellationToken);
-        var startedToday = await dbContext.TestAttempts
+        var startedToday = await attempts
             .CountAsync(a => a.StartedAt >= today, cancellationToken);
 
         // Унікальні люди, які вже пройшли (завершили) хоча б один тест.
-        var peopleCompleted = await dbContext.TestAttempts
-            .AsNoTracking()
+        var peopleCompleted = await attempts
             .Where(a => a.Status == TestAttemptStatus.Completed)
             .Select(a => new { a.LastName, a.FirstName, a.MiddleName, a.NumberUnit })
             .Distinct()

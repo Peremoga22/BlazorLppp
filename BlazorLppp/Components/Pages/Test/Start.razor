@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
 
+@using BlazorLppp.Domain
 @using BlazorLppp.Domain.Entities
 @using BlazorLppp.Domain.Enums
 @using Microsoft.AspNetCore.Authorization
@@ -102,7 +103,11 @@
                                                     aria-selected="@isSelected"
                                                     @onclick="() => SelectTest(doc.Id)">
                                                 <span class="test-start__dropdown-option-text">@GetTestDisplayName(doc)</span>
-                                                @if (doc.IsActive)
+                                                @if (doc.IsRequired)
+                                                {
+                                                    <span class="test-start__dropdown-badge">Обов’язковий</span>
+                                                }
+                                                else if (doc.IsActive)
                                                 {
                                                     <span class="test-start__dropdown-badge">Активний</span>
                                                 }
@@ -165,15 +170,16 @@
 
                         <div class="test-start__field test-start__field--wide">
                             <label class="test-start__label" for="numberUnit">Підрозділ</label>
-                            <input id="numberUnit"
-                                   class="test-start__input"
-                                   value="@(Model.NumberUnit == 0 ? null : Model.NumberUnit)"
-                                   @oninput="OnNumberUnitInput"
-                                   placeholder="Введіть номер підрозділу"
-                                   type="number"
-                                   min="1"
-                                   inputmode="numeric"
-                                   autocomplete="off" />
+                            <select id="numberUnit"
+                                    class="test-start__input"
+                                    value="@(Model.NumberUnit == 0 ? "" : Model.NumberUnit.ToString())"
+                                    @onchange="OnNumberUnitChanged">
+                                <option value="">— Оберіть підрозділ —</option>
+                                @foreach (var unit in UnitNumbers.All)
+                                {
+                                    <option value="@unit">Підрозділ @unit</option>
+                                }
+                            </select>
                             <ValidationMessage For="() => Model.NumberUnit" class="test-start__error" />
                         </div>
                     </div>
@@ -233,7 +239,7 @@
         HasSelectedTest &&
         !string.IsNullOrWhiteSpace(Model.LastName) &&
         !string.IsNullOrWhiteSpace(Model.FirstName) &&
-        Model.NumberUnit > 0 &&
+        UnitNumbers.IsValid(Model.NumberUnit) &&
         !string.IsNullOrWhiteSpace(Model.MiddleName);
 
     protected override async Task OnInitializedAsync()
@@ -241,13 +247,20 @@
         try
         {
             var documents = await TestDefinitionService.ListAsync();
+            var withQuestions = documents
+                .Where(d => d.Questions.Count > 0 && !IsBrokenZbroyaDocument(d))
+                .ToList();
+
+            // Якщо адмін позначив обов’язкові тести — показуємо лише їх.
+            var required = withQuestions.Where(d => d.IsRequired).ToList();
             _availableTests.AddRange(
-                documents
-                    .Where(d => d.Questions.Count > 0 && !IsBrokenZbroyaDocument(d))
-                    .OrderByDescending(d => d.IsActive)
+                (required.Count > 0 ? required : withQuestions)
+                    .OrderByDescending(d => d.IsRequired)
+                    .ThenByDescending(d => d.IsActive)
                     .ThenByDescending(d => d.UploadedAt));
 
-            var preferred = _availableTests.FirstOrDefault(d => d.IsActive)
+            var preferred = _availableTests.FirstOrDefault(d => d.IsRequired)
+                ?? _availableTests.FirstOrDefault(d => d.IsActive)
                 ?? _availableTests.FirstOrDefault();
             if (preferred is not null)
             {
@@ -309,10 +322,10 @@
         }
     }
 
-    private void OnNumberUnitInput(ChangeEventArgs e)
+    private void OnNumberUnitChanged(ChangeEventArgs e)
     {
         var raw = e.Value?.ToString();
-        Model.NumberUnit = int.TryParse(raw, out var value) ? value : 0;
+        Model.NumberUnit = int.TryParse(raw, out var value) && UnitNumbers.IsValid(value) ? value : 0;
     }
 
     private static string GetTestDisplayName(TestDocument document)

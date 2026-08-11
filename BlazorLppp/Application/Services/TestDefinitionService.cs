@@ -134,6 +134,21 @@ public class TestDefinitionService(
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task SetRequiredAsync(
+        Guid documentId,
+        bool isRequired,
+        CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var document = await dbContext.TestDocuments
+            .FirstOrDefaultAsync(d => d.Id == documentId, cancellationToken)
+            ?? throw new InvalidOperationException("Документ тесту не знайдено.");
+
+        document.IsRequired = isRequired;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task DeleteAsync(Guid documentId, CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
