@@ -426,6 +426,38 @@
     margin-top: 0.35rem;
 }
 
+.test-start__resume {
+    margin: 0.25rem 0 1rem;
+}
+
+.test-start__resume-card {
+    padding: 1rem 1.1rem 1.15rem;
+    border-radius: 14px;
+    border: 1px solid rgba(47, 84, 112, 0.18);
+    background:
+        radial-gradient(120% 120% at 100% 0%, rgba(90, 143, 184, 0.14), transparent 55%),
+        linear-gradient(180deg, #ffffff 0%, #f3f8fc 100%);
+    box-shadow: 0 8px 20px rgba(36, 52, 71, 0.06);
+}
+
+.test-start__resume-title {
+    margin: 0 0 0.35rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #243447;
+}
+
+.test-start__resume-text {
+    margin: 0 0 0.9rem;
+    color: #5a6b7d;
+    font-size: 0.92rem;
+    line-height: 1.45;
+}
+
+.test-start__submit--resume {
+    margin-top: 0.15rem;
+}
+
 .test-start__submit {
     display: inline-flex;
     align-items: center;

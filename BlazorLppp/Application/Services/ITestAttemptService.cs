@@ -9,6 +9,14 @@ public interface ITestAttemptService
         RespondentModel respondent,
         CancellationToken cancellationToken = default);
 
+    Task<IncompleteAttemptInfo?> FindInProgressAttemptAsync(
+        string lastName,
+        string firstName,
+        string middleName,
+        int? numberUnit = null,
+        Guid? testDocumentId = null,
+        CancellationToken cancellationToken = default);
+
     Task<TestAttempt?> GetByIdAsync(
         Guid id,
         CancellationToken cancellationToken = default);

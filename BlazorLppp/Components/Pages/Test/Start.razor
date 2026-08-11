@@ -13,6 +13,7 @@
 @inject ITestAttemptService TestAttemptService
 @inject ITestDefinitionService TestDefinitionService
 @inject NavigationManager Navigation
+@implements IDisposable
 
 <PageTitle>Початок тестування</PageTitle>
 
@@ -136,8 +137,8 @@
                             <label class="test-start__label" for="lastName">Прізвище</label>
                             <input id="lastName"
                                    class="test-start__input"
-                                   @bind="Model.LastName"
-                                   @bind:event="oninput"
+                                   value="@Model.LastName"
+                                   @oninput="OnLastNameInput"
                                    placeholder="Введіть прізвище"
                                    maxlength="100"
                                    autocomplete="family-name" />
@@ -148,8 +149,8 @@
                             <label class="test-start__label" for="firstName">Ім’я</label>
                             <input id="firstName"
                                    class="test-start__input"
-                                   @bind="Model.FirstName"
-                                   @bind:event="oninput"
+                                   value="@Model.FirstName"
+                                   @oninput="OnFirstNameInput"
                                    placeholder="Введіть ім’я"
                                    maxlength="100"
                                    autocomplete="given-name" />
@@ -160,8 +161,8 @@
                             <label class="test-start__label" for="middleName">По батькові</label>
                             <input id="middleName"
                                    class="test-start__input"
-                                   @bind="Model.MiddleName"
-                                   @bind:event="oninput"
+                                   value="@Model.MiddleName"
+                                   @oninput="OnMiddleNameInput"
                                    placeholder="Введіть по батькові"
                                    maxlength="100"
                                    autocomplete="additional-name" />
@@ -185,10 +186,39 @@
                     </div>
                 </section>
 
+                @if (_incompleteAttempt is not null)
+                {
+                    <section class="test-start__resume" aria-live="polite">
+                        <div class="test-start__resume-card">
+                            <p class="test-start__resume-title">Знайдено незавершений тест</p>
+                            <p class="test-start__resume-text">
+                                У вас є незавершена спроба
+                                «@_incompleteAttempt.TestTitle»
+                                (підрозділ @_incompleteAttempt.NumberUnit,
+                                почато @_incompleteAttempt.StartedAt.ToString("dd.MM.yyyy HH:mm")).
+                            </p>
+                            <button type="button"
+                                    class="test-start__submit test-start__submit--active test-start__submit--resume"
+                                    disabled="@_isResuming"
+                                    @onclick="HandleResumeAsync">
+                                <span>@(_isResuming ? "Відкриваємо..." : "Продовжити тестування")</span>
+                                @if (!_isResuming)
+                                {
+                                    <span class="test-start__submit-arrow" aria-hidden="true">→</span>
+                                }
+                            </button>
+                        </div>
+                    </section>
+                }
+                else if (_isCheckingIncomplete)
+                {
+                    <p class="test-start__hint" role="status">Перевіряємо незавершені спроби...</p>
+                }
+
                 <div class="test-start__actions">
                     <button type="submit"
                             class="test-start__submit @(CanStart && !_isStarting ? "test-start__submit--active" : null)"
-                            disabled="@(!CanStart || _isStarting)">
+                            disabled="@(!CanStart || _isStarting || _isResuming)">
                         <span>@(_isStarting ? "Починаємо..." : "Почати тест")</span>
                         @if (!_isStarting)
                         {
@@ -197,7 +227,9 @@
                     </button>
 
                     <p class="test-start__hint">
-                        Натискаючи «Почати тест», Ви переходите безпосередньо до тестування.
+                        @(_incompleteAttempt is null
+                            ? "Натискаючи «Почати тест», Ви переходите безпосередньо до тестування."
+                            : "Можна продовжити незавершений тест або почати нову спробу з обраними даними.")
                     </p>
                 </div>
 
@@ -213,10 +245,14 @@
 @code {
     private RespondentModel Model { get; set; } = new();
     private readonly List<TestDocument> _availableTests = [];
+    private IncompleteAttemptInfo? _incompleteAttempt;
     private bool _isLoadingTests = true;
     private bool _isStarting;
+    private bool _isResuming;
+    private bool _isCheckingIncomplete;
     private bool _isTestMenuOpen;
     private string? _errorMessage;
+    private CancellationTokenSource? _incompleteLookupCts;
 
     private bool HasSelectedTest =>
         Model.TestDocumentId.HasValue && Model.TestDocumentId.Value != Guid.Empty;
@@ -241,6 +277,11 @@
         !string.IsNullOrWhiteSpace(Model.FirstName) &&
         UnitNumbers.IsValid(Model.NumberUnit) &&
         !string.IsNullOrWhiteSpace(Model.MiddleName);
+
+    private bool CanCheckIncomplete =>
+        Model.LastName.Trim().Length >= 2 &&
+        Model.FirstName.Trim().Length >= 2 &&
+        Model.MiddleName.Trim().Length >= 2;
 
     protected override async Task OnInitializedAsync()
     {
@@ -271,6 +312,12 @@
         {
             _isLoadingTests = false;
         }
+    }
+
+    public void Dispose()
+    {
+        _incompleteLookupCts?.Cancel();
+        _incompleteLookupCts?.Dispose();
     }
 
     private static bool IsBrokenZbroyaDocument(TestDocument document)
@@ -308,10 +355,11 @@
 
     private void CloseTestMenu() => _isTestMenuOpen = false;
 
-    private void SelectTest(Guid testId)
+    private async Task SelectTest(Guid testId)
     {
         Model.TestDocumentId = testId;
         _isTestMenuOpen = false;
+        await ScheduleIncompleteCheckAsync();
     }
 
     private void OnTestMenuKeyDown(KeyboardEventArgs e)
@@ -322,10 +370,101 @@
         }
     }
 
-    private void OnNumberUnitChanged(ChangeEventArgs e)
+    private async Task OnLastNameInput(ChangeEventArgs e)
+    {
+        Model.LastName = e.Value?.ToString() ?? string.Empty;
+        await ScheduleIncompleteCheckAsync();
+    }
+
+    private async Task OnFirstNameInput(ChangeEventArgs e)
+    {
+        Model.FirstName = e.Value?.ToString() ?? string.Empty;
+        await ScheduleIncompleteCheckAsync();
+    }
+
+    private async Task OnMiddleNameInput(ChangeEventArgs e)
+    {
+        Model.MiddleName = e.Value?.ToString() ?? string.Empty;
+        await ScheduleIncompleteCheckAsync();
+    }
+
+    private async Task OnNumberUnitChanged(ChangeEventArgs e)
     {
         var raw = e.Value?.ToString();
         Model.NumberUnit = int.TryParse(raw, out var value) && UnitNumbers.IsValid(value) ? value : 0;
+        await ScheduleIncompleteCheckAsync();
+    }
+
+    private async Task ScheduleIncompleteCheckAsync()
+    {
+        _incompleteLookupCts?.Cancel();
+        _incompleteLookupCts?.Dispose();
+        _incompleteLookupCts = new CancellationTokenSource();
+        var token = _incompleteLookupCts.Token;
+
+        if (!CanCheckIncomplete)
+        {
+            _incompleteAttempt = null;
+            _isCheckingIncomplete = false;
+            return;
+        }
+
+        _isCheckingIncomplete = true;
+
+        try
+        {
+            await Task.Delay(450, token);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            var found = await TestAttemptService.FindInProgressAttemptAsync(
+                Model.LastName,
+                Model.FirstName,
+                Model.MiddleName,
+                UnitNumbers.IsValid(Model.NumberUnit) ? Model.NumberUnit : null,
+                Model.TestDocumentId,
+                token);
+
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            _incompleteAttempt = found;
+            if (found is not null)
+            {
+                if (found.TestDocumentId.HasValue &&
+                    _availableTests.Any(d => d.Id == found.TestDocumentId.Value))
+                {
+                    Model.TestDocumentId = found.TestDocumentId;
+                }
+
+                if (UnitNumbers.IsValid(found.NumberUnit))
+                {
+                    Model.NumberUnit = found.NumberUnit;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Новий ввід скасував попередній запит.
+        }
+        catch
+        {
+            if (!token.IsCancellationRequested)
+            {
+                _incompleteAttempt = null;
+            }
+        }
+        finally
+        {
+            if (!token.IsCancellationRequested)
+            {
+                _isCheckingIncomplete = false;
+            }
+        }
     }
 
     private static string GetTestDisplayName(TestDocument document)
@@ -338,6 +477,32 @@
         return string.IsNullOrWhiteSpace(document.OriginalFileName)
             ? "Тест без назви"
             : document.OriginalFileName;
+    }
+
+    private void HandleResumeAsync()
+    {
+        if (_incompleteAttempt is null || _isResuming)
+        {
+            return;
+        }
+
+        _isResuming = true;
+        _errorMessage = null;
+        try
+        {
+            Navigation.NavigateTo($"/test/{_incompleteAttempt.AttemptId}");
+        }
+        catch (NavigationException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося продовжити тестування."
+                : ex.Message;
+            _isResuming = false;
+        }
     }
 
     private async Task HandleStartAsync()
