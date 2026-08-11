@@ -65,7 +65,9 @@ public static class SuicideRiskScoring
             ContainsIgnoreCase(document.Title, "СР-45") ||
             ContainsIgnoreCase(document.Title, "CP-45");
 
-        if (!looksLikeSuicideTest)
+        if (!looksLikeSuicideTest ||
+            ContainsIgnoreCase(document.Title, "Горськ") ||
+            ContainsIgnoreCase(document.OriginalFileName, "горськ"))
         {
             return false;
         }
