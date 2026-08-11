@@ -567,8 +567,8 @@ public partial class TestResultDocumentService(
 
         AppendBodyParagraph(
             body,
-            $"Σ1 (пункти 3, 4, 6, 7, 9, 12, 13, 14, 17, 18) = {scoring.SumDirect}; " +
-            $"Σ2 (пункти 1, 2, 5, 8, 10, 11, 15, 16, 19, 20) = {scoring.SumCalm}; " +
+            $"Σ1 (пункти 3, 4, 6, 7, 12, 13, 14, 17, 18) = {scoring.SumDirect}; " +
+            $"Σ2 (пункти 1, 2, 5, 10, 11, 15, 16, 19, 20) = {scoring.SumCalm}; " +
             $"РТ = {scoring.ReactiveAnxiety} ({scoring.AnxietyLevelName} реактивна тривожність).");
 
         AppendBodyParagraph(
@@ -578,11 +578,11 @@ public partial class TestResultDocumentService(
         AppendEmptyParagraph(body);
         AppendBodyParagraph(
             body,
-            $"Індекс САН = (С + А + Н) / 3 = ({scoring.WellBeingPercent}% + {scoring.ActivityPercent}% + {scoring.MoodPercent}%) / 3 " +
+            $"Індекс САН = (С + А + Н) / 3 × 100% = ({scoring.WellBeingPercent}% + {scoring.ActivityPercent}% + {scoring.MoodPercent}%) / 3 " +
             $"= {scoring.SanIndex:0.#}% ({scoring.SanLevelName} рівень).");
         AppendBodyParagraph(
             body,
-            "Орієнтири САН: низький — [0; 20]; середній — (20; 60]; високий — (60; 100].");
+            "Орієнтири САН: низький — [0; 20]; середній — ]20; 60]; високий — ]60; 100].");
 
         AppendEmptyParagraph(body);
         var readiness = scoring.ReadyForWeaponDuty switch

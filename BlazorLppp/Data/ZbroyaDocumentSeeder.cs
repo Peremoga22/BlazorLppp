@@ -9,9 +9,9 @@ namespace BlazorLppp.Data;
 public static class ZbroyaDocumentSeeder
 {
     private const string FolderName = "Тест-ЗБРОЯ";
-    private const string StoredFileName = "Тест-ЗБРОЯ.txt";
+    private const string StoredFileName = "Тест_зброя.docx";
     private const string RelativePath = $"{FolderName}/{StoredFileName}";
-    private const string DisplayFileName = "Тест ЗБРОЯ.doc";
+    private const string DisplayFileName = "Тест_зброя.docx";
 
     public static async Task SeedAsync(IServiceProvider services, CancellationToken cancellationToken = default)
     {
@@ -26,12 +26,25 @@ public static class ZbroyaDocumentSeeder
             .FirstOrDefaultAsync(
                 d => d.RelativePath == RelativePath ||
                      d.OriginalFileName == DisplayFileName ||
-                     d.OriginalFileName == StoredFileName ||
+                     d.OriginalFileName == "Тест ЗБРОЯ.doc" ||
+                     d.OriginalFileName == "Тест-ЗБРОЯ.txt" ||
                      d.Title.Contains("ЗБРОЯ"),
                 cancellationToken);
 
-        // Переімпорт, якщо раніше зчитало неповний бланк.
-        if (existing is not null && existing.Questions.Count >= 24)
+        var sourcePath = ResolveSourcePath(environment.ContentRootPath);
+        if (sourcePath is null)
+        {
+            return;
+        }
+
+        // Переімпорт, якщо бланк старий (.txt/.doc) або неповний — беремо Тест_зброя.docx.
+        var needsReimport =
+            existing is null ||
+            existing.Questions.Count < 24 ||
+            !string.Equals(existing.OriginalFileName, DisplayFileName, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(existing.RelativePath, RelativePath, StringComparison.OrdinalIgnoreCase);
+
+        if (!needsReimport)
         {
             return;
         }
@@ -39,12 +52,6 @@ public static class ZbroyaDocumentSeeder
         if (existing is not null)
         {
             await definitionService.DeleteAsync(existing.Id, cancellationToken);
-        }
-
-        var sourcePath = ResolveSourcePath(environment.ContentRootPath);
-        if (sourcePath is null)
-        {
-            return;
         }
 
         var documentsRoot = Path.Combine(environment.ContentRootPath, "App_Data", "Documents", FolderName);
@@ -70,7 +77,9 @@ public static class ZbroyaDocumentSeeder
         var candidates = new[]
         {
             Path.Combine(contentRootPath, "SeedDocuments", StoredFileName),
-            Path.Combine(contentRootPath, "SeedDocuments", "Тест ЗБРОЯ.txt"),
+            Path.Combine(contentRootPath, "SeedDocuments", "Тест ЗБРОЯ.docx"),
+            Path.Combine(contentRootPath, "SeedDocuments", "Тест-ЗБРОЯ.txt"),
+            Path.Combine(contentRootPath, "SeedDocuments", "Тест ЗБРОЯ.doc"),
             Path.Combine(contentRootPath, "App_Data", "Documents", FolderName, StoredFileName)
         };
 

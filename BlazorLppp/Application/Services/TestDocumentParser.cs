@@ -32,11 +32,6 @@ public partial class TestDocumentParser : ITestDocumentParser
                 "Автоматичний розбір підтримується для файлів .docx, .doc та .txt.");
         }
 
-        if (IsZbroyaFileName(filePath))
-        {
-            return ZbroyaDocumentTemplate.Create();
-        }
-
         ParsedTestDocument parsed;
         if (Path.GetExtension(filePath).Equals(".txt", StringComparison.OrdinalIgnoreCase))
         {
@@ -67,12 +62,34 @@ public partial class TestDocumentParser : ITestDocumentParser
             parsed = ParseLines(ReadDocxLines(filePath));
         }
 
-        if (IsZbroyaTitle(parsed.Title) || LooksLikeIncompleteZbroya(parsed))
+        var isZbroyaSource =
+            IsZbroyaFileName(filePath) ||
+            IsZbroyaTitle(parsed.Title) ||
+            LooksLikeIncompleteZbroya(parsed);
+
+        if (isZbroyaSource)
         {
+            // Беремо розібраний бланк (наприклад Тест_зброя.docx); шаблон — лише якщо неповний.
+            if (IsCompleteZbroyaDocument(parsed))
+            {
+                parsed.Title = "Тест ЗБРОЯ (готовність до служби зі зброєю)";
+                return parsed;
+            }
+
             return ZbroyaDocumentTemplate.Create();
         }
 
         return parsed;
+    }
+
+    private static bool IsCompleteZbroyaDocument(ParsedTestDocument parsed)
+    {
+        var validReactive = parsed.Questions.Count(q =>
+            q.SortOrder is >= 1 and <= 20 &&
+            q.Text.Length >= 8 &&
+            q.Text.Any(char.IsLetter));
+
+        return validReactive >= 20 && parsed.Questions.Count >= 24;
     }
 
     private static bool IsZbroyaFileName(string filePath)
@@ -505,10 +522,13 @@ public partial class TestDocumentParser : ITestDocumentParser
         if (ContainsIgnoreCase(line, "Чи згодні Ви") ||
             ContainsIgnoreCase(line, "Готовий нести службу зі зброєю"))
         {
-            var text = line.StartsWith("Чи згодні", StringComparison.OrdinalIgnoreCase)
-                ? line
-                : "Чи згодні Ви із зазначеним висловом: «" + line.Trim('“', '”', '"', '«', '»') + "»?";
-            current = UpsertZbroyaQuestion(result, 24, text, QuestionType.YesNo);
+            // У бланку декларація розбита на кілька абзаців — підставляємо повний текст.
+            const string readinessText =
+                "Чи згодні Ви із зазначеним висловом: «Я маю необхідні знання і практичні навички, вивчив функціональні обов’язки, " +
+                "пройшов відповідний інструктаж, його вимоги мені зрозумілі, проблемних питань щодо організації несення служби не маю. " +
+                "Мій стан здоров’я, настрій, самопочуття і активність, морально-психологічний стан дозволяють мені виконувати службові обов’язки із зброєю. " +
+                "Проблемних питань, негативних чинників впливу на мій морально-психологічний стан не маю. Готовий нести службу зі зброєю»?";
+            current = UpsertZbroyaQuestion(result, 24, readinessText, QuestionType.YesNo);
             return true;
         }
 
@@ -608,6 +628,8 @@ public partial class TestDocumentParser : ITestDocumentParser
     private static bool IsZbroyaNoiseLine(string line)
         => line.Equals("Ні, це не так", StringComparison.OrdinalIgnoreCase)
            || line.Equals("Мабуть так", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("Мабуть", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("так", StringComparison.OrdinalIgnoreCase)
            || line.Equals("Правильно", StringComparison.OrdinalIgnoreCase)
            || line.Equals("Абсолютно правильно", StringComparison.OrdinalIgnoreCase)
            || line.Equals("Речення", StringComparison.OrdinalIgnoreCase)
@@ -616,9 +638,14 @@ public partial class TestDocumentParser : ITestDocumentParser
            || line.Equals("100%", StringComparison.OrdinalIgnoreCase)
            || line.Equals("50", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Шановний", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Пропонуємо Вам перевірити", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Ваші правдиві", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Поставте позначку на шкалі", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("2. Поставте позначку", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Якщо згодні", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Якщо ні", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Напишіть про Ваші пропозиції", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("4. Напишіть про Ваші пропозиції", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Обстеження провів", StringComparison.OrdinalIgnoreCase);
 
     private static bool ContainsIgnoreCase(string? source, string value)
@@ -875,7 +902,7 @@ public partial class TestDocumentParser : ITestDocumentParser
     [GeneratedRegex(@"^Відповідь\s*:", RegexOptions.IgnoreCase)]
     private static partial Regex AnswerBlank();
 
-    [GeneratedRegex(@"^(Інструкція|Инструкция)\s*:\s*", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(Інструкція|Инструкция)\s*[:.\-–—]?\s*", RegexOptions.IgnoreCase)]
     private static partial Regex InstructionPrefix();
 
     [GeneratedRegex(@"^_{5,}$")]

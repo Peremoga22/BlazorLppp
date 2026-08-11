@@ -30,10 +30,10 @@ public sealed class ZbroyaScoringResult
 
 public static class ZbroyaScoring
 {
-    // За бланком: Σ1 (тривожні пункти) та Σ2 (решта). Пункти 8 і 9 додано за стандартною
-    // розстановкою шкали (у бланку між 7→12 та 5→10 вони пропущені через форматування).
-    private static readonly HashSet<int> DirectItems = [3, 4, 6, 7, 9, 12, 13, 14, 17, 18];
-    private static readonly HashSet<int> CalmItems = [1, 2, 5, 8, 10, 11, 15, 16, 19, 20];
+    // Ключ з бланка «Тест_зброя.docx»:
+    // Σ1 — №3, 4, 6, 7, 12, 13, 14, 17, 18; Σ2 — №1, 2, 5, 10, 11, 15, 16, 19, 20.
+    private static readonly HashSet<int> DirectItems = [3, 4, 6, 7, 12, 13, 14, 17, 18];
+    private static readonly HashSet<int> CalmItems = [1, 2, 5, 10, 11, 15, 16, 19, 20];
 
     private const int ReactiveAnxietyOffset = 35;
     private const int WellBeingSortOrder = 21;
