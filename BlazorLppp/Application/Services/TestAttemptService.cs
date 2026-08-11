@@ -51,13 +51,33 @@ public class TestAttemptService(
                 "Цей тест зараз недоступний. Оберіть тест зі списку, визначеного адміністратором.");
         }
 
+        var lastName = respondent.LastName.Trim();
+        var firstName = respondent.FirstName.Trim();
+        var middleName = respondent.MiddleName.Trim();
+
+        // Якщо є незавершена спроба цього ж працівника з тим самим тестом — продовжуємо її.
+        var existingInProgress = await dbContext.TestAttempts
+            .FirstOrDefaultAsync(
+                a => a.Status == TestAttemptStatus.InProgress &&
+                     a.TestDocumentId == document.Id &&
+                     a.NumberUnit == respondent.NumberUnit &&
+                     a.LastName == lastName &&
+                     a.FirstName == firstName &&
+                     a.MiddleName == middleName,
+                cancellationToken);
+
+        if (existingInProgress is not null)
+        {
+            return existingInProgress;
+        }
+
         var attempt = new TestAttempt
         {
             Id = Guid.NewGuid(),
             TestDocumentId = document.Id,
-            LastName = respondent.LastName.Trim(),
-            FirstName = respondent.FirstName.Trim(),
-            MiddleName = respondent.MiddleName.Trim(),
+            LastName = lastName,
+            FirstName = firstName,
+            MiddleName = middleName,
             NumberUnit = respondent.NumberUnit,
             StartedAt = DateTime.Now,
             CompletedAt = null,
@@ -68,6 +88,86 @@ public class TestAttemptService(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return attempt;
+    }
+
+    public async Task<IncompleteAttemptInfo?> FindInProgressAttemptAsync(
+        string lastName,
+        string firstName,
+        string middleName,
+        int? numberUnit = null,
+        Guid? testDocumentId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var ln = lastName.Trim();
+        var fn = firstName.Trim();
+        var mn = middleName.Trim();
+
+        if (ln.Length < 2 || fn.Length < 2 || mn.Length < 2)
+        {
+            return null;
+        }
+
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var query = dbContext.TestAttempts
+            .AsNoTracking()
+            .Include(a => a.TestDocument)
+            .Where(a => a.Status == TestAttemptStatus.InProgress);
+
+        // Порівняння без урахування регістру через нормалізацію в пам’яті після фільтра по статусу
+        // (SQL Server CI collation зазвичай і так case-insensitive для nvarchar).
+        if (numberUnit is int unit && UnitNumbers.IsValid(unit))
+        {
+            query = query.Where(a => a.NumberUnit == unit);
+        }
+
+        if (testDocumentId is Guid testId && testId != Guid.Empty)
+        {
+            query = query.Where(a => a.TestDocumentId == testId);
+        }
+
+        var candidates = await query
+            .OrderByDescending(a => a.StartedAt)
+            .Take(50)
+            .ToListAsync(cancellationToken);
+
+        var match = candidates.FirstOrDefault(a =>
+            string.Equals(a.LastName.Trim(), ln, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(a.FirstName.Trim(), fn, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(a.MiddleName.Trim(), mn, StringComparison.OrdinalIgnoreCase));
+
+        if (match is null && (numberUnit.HasValue || testDocumentId.HasValue))
+        {
+            // Якщо з фільтром не знайшли — шукаємо лише за ПІБ.
+            candidates = await dbContext.TestAttempts
+                .AsNoTracking()
+                .Include(a => a.TestDocument)
+                .Where(a => a.Status == TestAttemptStatus.InProgress)
+                .OrderByDescending(a => a.StartedAt)
+                .Take(50)
+                .ToListAsync(cancellationToken);
+
+            match = candidates.FirstOrDefault(a =>
+                string.Equals(a.LastName.Trim(), ln, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(a.FirstName.Trim(), fn, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(a.MiddleName.Trim(), mn, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (match is null)
+        {
+            return null;
+        }
+
+        return new IncompleteAttemptInfo
+        {
+            AttemptId = match.Id,
+            TestDocumentId = match.TestDocumentId,
+            TestTitle = match.TestDocument?.Title
+                        ?? match.TestDocument?.OriginalFileName
+                        ?? "Незавершений тест",
+            NumberUnit = match.NumberUnit,
+            StartedAt = match.StartedAt
+        };
     }
 
     public async Task<TestAttempt?> GetByIdAsync(
