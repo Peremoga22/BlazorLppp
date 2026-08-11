@@ -113,6 +113,7 @@ public class TestDefinitionService(
         return await dbContext.TestDocuments
             .AsNoTracking()
             .Include(d => d.Questions)
+            .ThenInclude(q => q.Options)
             .OrderByDescending(d => d.UploadedAt)
             .ToListAsync(cancellationToken);
     }

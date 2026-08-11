@@ -109,10 +109,12 @@ public static class ZbroyaDocumentSeeder
             return false;
         }
 
-        // Типовий зламаний імпорт: одне питання зі шкалою 1–10 замість 1–4.
+        // Типовий зламаний імпорт: одне питання зі шкалою 1–10 замість 1–4,
+        // або заголовок за замовчуванням «Психологічний тест».
         return reactive.All(q =>
-            q.Type == QuestionType.SingleChoice &&
-            q.Options.Count >= 4);
+                   q.Type == QuestionType.SingleChoice &&
+                   q.Options.Count >= 4)
+               && !string.Equals(document.Title, "Психологічний тест", StringComparison.Ordinal);
     }
 
     private static string? ResolveSourcePath(string contentRootPath)

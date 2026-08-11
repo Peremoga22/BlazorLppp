@@ -280,8 +280,15 @@
         }
 
         var reactive = document.Questions.Where(q => q.SortOrder is >= 1 and <= 20).ToList();
-        return reactive.Count < 20 ||
-               reactive.Any(q => q.Type != QuestionType.SingleChoice || q.Options.Count < 4);
+        if (reactive.Count < 20)
+        {
+            return true;
+        }
+
+        // Зламаний імпорт: питання зі шкалою 1–10 замість варіантів 1–4.
+        return reactive.Any(q =>
+            q.Type == QuestionType.Scale ||
+            (q.Options.Count > 0 && q.Options.Count < 4));
     }
 
     private void ToggleTestMenu() => _isTestMenuOpen = !_isTestMenuOpen;
