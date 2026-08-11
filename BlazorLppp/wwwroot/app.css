@@ -219,6 +219,15 @@ h1:focus {
     padding-right: 1.5rem;
 }
 
+@media (max-width: 900px) {
+    .admin-layout .site-footer {
+        margin-left: -1rem;
+        margin-right: -1rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}
+
 .admin-page__header {
     margin-bottom: 1.5rem;
 }
