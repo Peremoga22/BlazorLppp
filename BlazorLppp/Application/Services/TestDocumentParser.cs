@@ -190,6 +190,7 @@ public partial class TestDocumentParser : ITestDocumentParser
         var seenNo = false;
         var isAdaptivity200 = false;
         var isZbroya = false;
+        var isHorska = false;
 
         TryAssignTitleFromDocument(lines, result);
         if (IsAdaptivity200Title(result.Title) || lines.Any(IsAdaptivity200Title))
@@ -212,6 +213,15 @@ public partial class TestDocumentParser : ITestDocumentParser
                 "Прочитайте уважно кожне речення і оберіть оцінку залежно від того, як ви почуваєтеся цієї миті. " +
                 "1 — Ні, це не так; 2 — Мабуть так; 3 — Правильно; 4 — Абсолютно правильно.";
         }
+        else if (IsHorskaTitle(result.Title) || lines.Any(IsHorskaTitle))
+        {
+            isHorska = true;
+            result.Title = "Методика вивчення схильності до суїцидальної поведінки (М.В. Горська)";
+            defaultType = QuestionType.Scale;
+            result.Instruction ??=
+                "Проти кожного твердження поставте оцінку за таким принципом: якщо твердження вам підходить — ставте оцінку 2, " +
+                "якщо не зовсім підходить — ставте оцінку 1, якщо зовсім не підходить — ставте 0.";
+        }
 
         foreach (var line in lines)
         {
@@ -228,6 +238,17 @@ public partial class TestDocumentParser : ITestDocumentParser
             if (isZbroya && result.Questions.Count >= 24)
             {
                 break;
+            }
+
+            if (isHorska && result.Questions.Count >= 40)
+            {
+                break;
+            }
+
+            if (IsHorskaInstructionLine(line))
+            {
+                result.Instruction = CleanHorskaInstruction(line);
+                continue;
             }
 
             if (IsZbroyaInstructionLine(line))
@@ -291,6 +312,10 @@ public partial class TestDocumentParser : ITestDocumentParser
                 if (isZbroya)
                 {
                     result.Title = "Тест ЗБРОЯ (готовність до служби зі зброєю)";
+                }
+                else if (isHorska)
+                {
+                    result.Title = "Методика вивчення схильності до суїцидальної поведінки (М.В. Горська)";
                 }
                 else if (isAdaptivity200)
                 {
@@ -360,6 +385,11 @@ public partial class TestDocumentParser : ITestDocumentParser
 
                 pendingNumber = null;
                 current = CreateQuestion(sortOrder, text, defaultType);
+                if (isHorska)
+                {
+                    ApplyHorskaScale(current);
+                }
+
                 result.Questions.Add(current);
                 continue;
             }
@@ -372,6 +402,11 @@ public partial class TestDocumentParser : ITestDocumentParser
                 }
 
                 current = CreateQuestion(pendingNumber.Value, line, defaultType);
+                if (isHorska)
+                {
+                    ApplyHorskaScale(current);
+                }
+
                 result.Questions.Add(current);
                 pendingNumber = null;
                 continue;
@@ -379,6 +414,24 @@ public partial class TestDocumentParser : ITestDocumentParser
 
             if (current is null)
             {
+                if (isHorska && IsHorskaStatementLine(line))
+                {
+                    current = CreateQuestion(result.Questions.Count + 1, line, QuestionType.Scale);
+                    ApplyHorskaScale(current);
+                    result.Questions.Add(current);
+                }
+
+                continue;
+            }
+
+            if (isHorska && IsHorskaStatementLine(line) &&
+                !LetterOption().IsMatch(line) &&
+                !YesNoOption().IsMatch(line) &&
+                !ScaleHint().IsMatch(line))
+            {
+                current = CreateQuestion(result.Questions.Count + 1, line, QuestionType.Scale);
+                ApplyHorskaScale(current);
+                result.Questions.Add(current);
                 continue;
             }
 
@@ -447,7 +500,7 @@ public partial class TestDocumentParser : ITestDocumentParser
             current.Text = $"{current.Text} {line}".Trim();
         }
 
-        FinalizeQuestions(result, defaultType);
+        FinalizeQuestions(result, defaultType, isHorska);
         if (isZbroya)
         {
             FinalizeZbroyaQuestions(result);
@@ -689,6 +742,15 @@ public partial class TestDocumentParser : ITestDocumentParser
         => !string.IsNullOrWhiteSpace(source) &&
            source.Contains(value, StringComparison.OrdinalIgnoreCase);
 
+    private static void ApplyHorskaScale(ParsedTestQuestion question)
+    {
+        question.Type = QuestionType.Scale;
+        question.ScaleMin = 0;
+        question.ScaleMax = 2;
+        question.Hint = "0 — не підходить; 1 — не зовсім підходить; 2 — підходить";
+        question.Options.Clear();
+    }
+
     private static ParsedTestQuestion CreateQuestion(int sortOrder, string text, QuestionType? defaultType)
         => new()
         {
@@ -697,10 +759,16 @@ public partial class TestDocumentParser : ITestDocumentParser
             Type = defaultType ?? default
         };
 
-    private static void FinalizeQuestions(ParsedTestDocument result, QuestionType? defaultType)
+    private static void FinalizeQuestions(ParsedTestDocument result, QuestionType? defaultType, bool isHorska)
     {
         foreach (var question in result.Questions)
         {
+            if (isHorska)
+            {
+                ApplyHorskaScale(question);
+                continue;
+            }
+
             if (question.Type == default && defaultType.HasValue)
             {
                 question.Type = defaultType.Value;
@@ -757,6 +825,12 @@ public partial class TestDocumentParser : ITestDocumentParser
                 return;
             }
 
+            if (IsHorskaTitle(line))
+            {
+                result.Title = "Методика вивчення схильності до суїцидальної поведінки (М.В. Горська)";
+                return;
+            }
+
             if (IsAdaptivity200Title(line))
             {
                 result.Title = "Адаптивність-200 (БОО)";
@@ -805,6 +879,32 @@ public partial class TestDocumentParser : ITestDocumentParser
         var cleaned = InstructionPrefix().Replace(line, string.Empty).Trim();
         return string.IsNullOrWhiteSpace(cleaned) ? line.Trim() : cleaned;
     }
+
+    internal static bool IsHorskaTitle(string? value)
+        => !string.IsNullOrWhiteSpace(value) &&
+           (value.Contains("Горськ", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("М.В. Горська", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("вивчення схильності до суїцидальної поведінки", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsHorskaInstructionLine(string line)
+        => line.Contains("якщо твердження вам підходить", StringComparison.OrdinalIgnoreCase) ||
+           line.Contains("ставте оцінку", StringComparison.OrdinalIgnoreCase);
+
+    private static string CleanHorskaInstruction(string line)
+    {
+        var cleaned = InstructionPrefix().Replace(line, string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(cleaned) ? line.Trim() : cleaned;
+    }
+
+    private static bool IsHorskaStatementLine(string line)
+        => line.Length >= 12 &&
+           !IsMetadataLine(line) &&
+           !IsEndOfQuestionsSection(line) &&
+           !IsYesNoHeader(line) &&
+           !IsHorskaTitle(line) &&
+           !line.StartsWith("Бланк", StringComparison.OrdinalIgnoreCase) &&
+           !NumberOnlyQuestion().IsMatch(line);
+
 
     private static IReadOnlyList<string> ReadTxtLines(string filePath)
         => File.ReadAllLines(filePath, Encoding.UTF8);
@@ -897,7 +997,8 @@ public partial class TestDocumentParser : ITestDocumentParser
         => line.Contains("ТЕСТ", StringComparison.OrdinalIgnoreCase)
            || line.Contains("Самооцінка", StringComparison.OrdinalIgnoreCase)
            || IsAdaptivity200Title(line)
-           || IsZbroyaTitle(line);
+           || IsZbroyaTitle(line)
+           || IsHorskaTitle(line);
 
     private static string CleanTitle(string line)
     {

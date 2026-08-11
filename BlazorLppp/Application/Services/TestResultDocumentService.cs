@@ -113,9 +113,17 @@ public partial class TestResultDocumentService(
                 AppendInstructionParagraph(body, instruction);
                 AppendEmptyParagraph(body);
 
-                body.AppendChild(BuildAnswersTable(questions, answersByQuestion));
+                var isHorska = HorskaScoring.CanScore(document, questions);
+                body.AppendChild(isHorska
+                    ? BuildScaleAnswersTable(questions, answersByQuestion)
+                    : BuildAnswersTable(questions, answersByQuestion));
 
-                if (SuicideRiskScoring.CanScore(document, questions))
+                if (isHorska)
+                {
+                    var scoring = HorskaScoring.Evaluate(questions, answersByQuestion);
+                    AppendHorskaScoringSection(body, scoring);
+                }
+                else if (SuicideRiskScoring.CanScore(document, questions))
                 {
                     var scoring = SuicideRiskScoring.Evaluate(questions, answersByQuestion);
                     AppendScoringSection(body, scoring);
@@ -698,6 +706,47 @@ public partial class TestResultDocumentService(
             paragraph);
     }
 
+    private static Table BuildScaleAnswersTable(
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
+    {
+        var table = new Table();
+        table.AppendChild(new TableProperties(
+            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct },
+            new TableBorders(
+                CreateBorder<TopBorder>(),
+                CreateBorder<LeftBorder>(),
+                CreateBorder<BottomBorder>(),
+                CreateBorder<RightBorder>(),
+                CreateBorder<InsideHorizontalBorder>(),
+                CreateBorder<InsideVerticalBorder>()),
+            new TableLayout { Type = TableLayoutValues.Fixed }));
+
+        table.AppendChild(new TableGrid(
+            new GridColumn { Width = "700" },
+            new GridColumn { Width = "7800" },
+            new GridColumn { Width = "1200" }));
+
+        var header = new TableRow();
+        header.AppendChild(CreateCell("№з/п", bold: true, center: true, width: "700"));
+        header.AppendChild(CreateCell("Питання і твердження", bold: true, center: true, width: "7800"));
+        header.AppendChild(CreateCell("Бал", bold: true, center: true, width: "1200"));
+        table.AppendChild(header);
+
+        foreach (var question in questions)
+        {
+            answersByQuestion.TryGetValue(question.Id, out var answer);
+            var mark = answer?.ScaleValue?.ToString() ?? string.Empty;
+            var row = new TableRow();
+            row.AppendChild(CreateCell(question.SortOrder.ToString(), center: true, width: "700"));
+            row.AppendChild(CreateCell(question.Text, width: "7800"));
+            row.AppendChild(CreateCell(mark, center: true, bold: !string.IsNullOrWhiteSpace(mark), width: "1200"));
+            table.AppendChild(row);
+        }
+
+        return table;
+    }
+
     private static Table BuildAnswersTable(
         IReadOnlyList<TestQuestion> questions,
         IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
@@ -845,6 +894,48 @@ public partial class TestResultDocumentService(
             Space = 0,
             Color = "000000"
         };
+
+    private static void AppendHorskaScoringSection(Body body, HorskaScoringResult scoring)
+    {
+        AppendEmptyParagraph(body);
+        AppendCenteredParagraph(body, "Оцінка результатів", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            "Обробка виконана за методикою вивчення схильності до суїцидальної поведінки (М.В. Горська). " +
+            "Для кожної шкали можлива кількість балів від 0 до 20.");
+
+        AppendScaleScoreParagraph(body, scoring.Anxiety);
+        AppendScaleScoreParagraph(body, scoring.Frustration);
+        AppendScaleScoreParagraph(body, scoring.Aggression);
+        AppendScaleScoreParagraph(body, scoring.Rigidity);
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(
+            body,
+            $"Сумарний показник схильності до суїцидальної поведінки: {scoring.TotalPoints} балів " +
+            $"(рівень — {scoring.RiskLevelName}).",
+            bold: true);
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Психологічний висновок", bold: true);
+        AppendBodyParagraph(body, scoring.Conclusion);
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Орієнтири інтерпретації сумарного показника", bold: true);
+        AppendBodyParagraph(body, "0–38 балів — рівень схильності до суїцидальної поведінки низький;");
+        AppendBodyParagraph(body, "39–45 балів — рівень схильності до суїцидальної поведінки знаходиться в нормі;");
+        AppendBodyParagraph(body, "46 балів і більше — рівень схильності до суїцидальної поведінки високий, потрібна корекційна робота.");
+    }
+
+    private static void AppendScaleScoreParagraph(Body body, HorskaScaleScore scale)
+    {
+        AppendBodyParagraph(
+            body,
+            $"{scale.Name}: {scale.Points} балів — {scale.LevelName}. {scale.Description}" +
+            (string.IsNullOrWhiteSpace(scale.Note) ? string.Empty : $" {scale.Note}"));
+    }
 
     private static void AppendScoringSection(Body body, SuicideRiskScoringResult scoring)
     {
