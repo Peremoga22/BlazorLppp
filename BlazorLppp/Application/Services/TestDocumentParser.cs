@@ -15,6 +15,7 @@ public partial class TestDocumentParser : ITestDocumentParser
     {
         var extension = Path.GetExtension(filePath);
         return extension.Equals(".docx", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".doc", StringComparison.OrdinalIgnoreCase)
             || extension.Equals(".txt", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -28,14 +29,44 @@ public partial class TestDocumentParser : ITestDocumentParser
         if (!CanParse(filePath))
         {
             throw new InvalidOperationException(
-                "Автоматичний розбір підтримується для файлів .docx та .txt.");
+                "Автоматичний розбір підтримується для файлів .docx, .doc та .txt.");
         }
 
-        var lines = Path.GetExtension(filePath).Equals(".txt", StringComparison.OrdinalIgnoreCase)
-            ? ReadTxtLines(filePath)
-            : ReadDocxLines(filePath);
+        if (Path.GetExtension(filePath).Equals(".txt", StringComparison.OrdinalIgnoreCase))
+        {
+            return ParseLines(ReadTxtLines(filePath));
+        }
 
-        return ParseLines(lines);
+        if (WordDocConverter.IsDocExtension(filePath))
+        {
+            var convertedPath = WordDocConverter.ConvertToDocx(filePath);
+            try
+            {
+                return ParseLines(ReadDocxLines(convertedPath));
+            }
+            finally
+            {
+                TryDeleteTempFile(convertedPath);
+            }
+        }
+
+        return ParseLines(ReadDocxLines(filePath));
+    }
+
+    private static void TryDeleteTempFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path) &&
+                path.StartsWith(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+            // ignored
+        }
     }
 
     internal static ParsedTestDocument ParseLines(IReadOnlyList<string> rawLines)
@@ -51,8 +82,18 @@ public partial class TestDocumentParser : ITestDocumentParser
         int? pendingNumber = null;
         var seenYes = false;
         var seenNo = false;
+        var isAdaptivity200 = false;
 
         TryAssignTitleFromDocument(lines, result);
+        if (IsAdaptivity200Title(result.Title) || lines.Any(IsAdaptivity200Title))
+        {
+            isAdaptivity200 = true;
+            result.Title = "Адаптивність-200 (БОО)";
+            defaultType = QuestionType.YesNo;
+            result.Instruction ??=
+                "Вам пропонуються твердження. Якщо твердження відповідає Вам — оберіть «Так», якщо ні — «Ні». " +
+                "Над відповідями довго не замислюйтеся; правильних або неправильних відповідей немає.";
+        }
 
         foreach (var line in lines)
         {
@@ -61,8 +102,18 @@ public partial class TestDocumentParser : ITestDocumentParser
                 break;
             }
 
+            if (isAdaptivity200 && result.Questions.Count >= 200)
+            {
+                break;
+            }
+
             if (IsMetadataLine(line))
             {
+                if (result.Questions.Count > 0 && IsPersonalHeaderLine(line))
+                {
+                    break;
+                }
+
                 if (line.StartsWith("Інструкція", StringComparison.OrdinalIgnoreCase) ||
                     line.StartsWith("Инструкция", StringComparison.OrdinalIgnoreCase))
                 {
@@ -98,13 +149,19 @@ public partial class TestDocumentParser : ITestDocumentParser
 
             if (IsTitleCandidate(line) && result.Questions.Count == 0 && current is null && pendingNumber is null)
             {
-                result.Title = CleanTitle(line);
+                result.Title = isAdaptivity200 ? "Адаптивність-200 (БОО)" : CleanTitle(line);
                 continue;
             }
 
             var numberOnly = NumberOnlyQuestion().Match(line);
             if (numberOnly.Success)
             {
+                // У бланку відповідей ідуть лише номери підряд без тексту питань.
+                if (pendingNumber.HasValue && result.Questions.Count > 0)
+                {
+                    break;
+                }
+
                 pendingNumber = int.Parse(numberOnly.Groups[1].Value);
                 current = null;
                 continue;
@@ -273,6 +330,12 @@ public partial class TestDocumentParser : ITestDocumentParser
     {
         foreach (var line in lines)
         {
+            if (IsAdaptivity200Title(line))
+            {
+                result.Title = "Адаптивність-200 (БОО)";
+                return;
+            }
+
             if (line.Contains("Методика виявлення схильності до суїцидальних", StringComparison.OrdinalIgnoreCase) ||
                 line.Contains("Методика выявления склонности к суицидальным", StringComparison.OrdinalIgnoreCase))
             {
@@ -288,6 +351,16 @@ public partial class TestDocumentParser : ITestDocumentParser
             }
         }
     }
+
+    internal static bool IsAdaptivity200Title(string? value)
+        => !string.IsNullOrWhiteSpace(value) &&
+           (value.Contains("АДАПТИВІСТЬ-200", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("Адаптивність-200", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("Адаптивність 200", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("АДАПТИВНІСТЬ-200", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("АДАПТИВНІСТЬ 200", StringComparison.OrdinalIgnoreCase) ||
+            (value.Contains("БОО", StringComparison.OrdinalIgnoreCase) &&
+             value.Contains("Адаптив", StringComparison.OrdinalIgnoreCase)));
 
     private static IReadOnlyList<string> ReadTxtLines(string filePath)
         => File.ReadAllLines(filePath, Encoding.UTF8);
@@ -324,14 +397,10 @@ public partial class TestDocumentParser : ITestDocumentParser
     }
 
     private static bool IsMetadataLine(string line)
-        => line.StartsWith("Прізвище", StringComparison.OrdinalIgnoreCase)
-           || line.StartsWith("П.І.Б", StringComparison.OrdinalIgnoreCase)
-           || line.StartsWith("П.I.Б", StringComparison.OrdinalIgnoreCase)
-           || line.StartsWith("ПІБ", StringComparison.OrdinalIgnoreCase)
-           || line.StartsWith("Ім’я", StringComparison.OrdinalIgnoreCase)
-           || line.StartsWith("Ім'я", StringComparison.OrdinalIgnoreCase)
-           || line.StartsWith("Имя", StringComparison.OrdinalIgnoreCase)
-           || line.StartsWith("По батькові", StringComparison.OrdinalIgnoreCase)
+        => IsPersonalHeaderLine(line)
+           || line.Equals("№", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("N", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("Питання", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Посада", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Підрозділ", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Спеціальність", StringComparison.OrdinalIgnoreCase)
@@ -340,8 +409,20 @@ public partial class TestDocumentParser : ITestDocumentParser
            || line.StartsWith("№з/п", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Питання і твердження", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Дата", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Вік", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Інструкція", StringComparison.OrdinalIgnoreCase)
-           || line.StartsWith("Инструкция", StringComparison.OrdinalIgnoreCase);
+           || line.StartsWith("Инструкция", StringComparison.OrdinalIgnoreCase)
+           || ScaleFooter().IsMatch(line);
+
+    private static bool IsPersonalHeaderLine(string line)
+        => line.StartsWith("Прізвище", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("П.І.Б", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("П.I.Б", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("ПІБ", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Ім’я", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Ім'я", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Имя", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("По батькові", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsYesNoHeader(string line)
         => line.Equals("Так", StringComparison.OrdinalIgnoreCase)
@@ -351,17 +432,24 @@ public partial class TestDocumentParser : ITestDocumentParser
 
     private static bool IsEndOfQuestionsSection(string line)
         => UnderscoreLine().IsMatch(line)
+           || IsPersonalHeaderLine(line)
+           || ScaleFooter().IsMatch(line)
            || line.StartsWith("Методика", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Ключ", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Обробка", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Шкала", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Інтерпретація", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Интерпретация", StringComparison.OrdinalIgnoreCase)
-           || line.StartsWith("Мета", StringComparison.OrdinalIgnoreCase);
+           || line.StartsWith("Мета", StringComparison.OrdinalIgnoreCase)
+           || (line.Contains("Адаптивність 200", StringComparison.OrdinalIgnoreCase) &&
+               (line.Contains("П.І.Б", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("Вік", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("Дата", StringComparison.OrdinalIgnoreCase)));
 
     private static bool IsTitleCandidate(string line)
         => line.Contains("ТЕСТ", StringComparison.OrdinalIgnoreCase)
-           || line.Contains("Самооцінка", StringComparison.OrdinalIgnoreCase);
+           || line.Contains("Самооцінка", StringComparison.OrdinalIgnoreCase)
+           || IsAdaptivity200Title(line);
 
     private static string CleanTitle(string line)
     {
@@ -382,8 +470,11 @@ public partial class TestDocumentParser : ITestDocumentParser
     [GeneratedRegex(@"^(\d+)\.\s+(.*)$")]
     private static partial Regex NumberedQuestion();
 
-    [GeneratedRegex(@"^(\d+)\.\s*$")]
+    [GeneratedRegex(@"^(\d+)\.?\s*$")]
     private static partial Regex NumberOnlyQuestion();
+
+    [GeneratedRegex(@"^\s*Д_{2,}.*ПР", RegexOptions.IgnoreCase)]
+    private static partial Regex ScaleFooter();
 
     [GeneratedRegex(@"^☐?\s*([A-Za-zА-Яа-яІіЇїЄє])\.\s*(.+)$")]
     private static partial Regex LetterOption();

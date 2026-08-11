@@ -15,6 +15,8 @@ public class TestResultListItem
 
     public string DisplayName { get; init; } = string.Empty;
 
+    public string? TestTitle { get; init; }
+
     public string FileBaseName { get; init; } = string.Empty;
 
     public string? ResultRelativePath { get; init; }

@@ -86,6 +86,7 @@
                         <thead>
                             <tr>
                                 <th>Працівник</th>
+                                <th>Тест</th>
                                 <th>Підрозділ</th>
                                 <th>Файл</th>
                                 <th>Завершено</th>
@@ -97,6 +98,7 @@
                             {
                                 <tr>
                                     <td>@item.DisplayName</td>
+                                    <td>@(string.IsNullOrWhiteSpace(item.TestTitle) ? "—" : item.TestTitle)</td>
                                     <td>@item.NumberUnit</td>
                                     <td>
                                         @if (item.HasResultFile)

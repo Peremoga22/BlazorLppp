@@ -72,40 +72,48 @@ public partial class TestResultDocumentService(
             mainPart.Document = new Document(new Body());
             var body = mainPart.Document.Body!;
 
-            AppendCenteredParagraph(body, "Реєстраційний бланк", bold: true, fontSize: TitleFontSize);
-            AppendEmptyParagraph(body);
-
             var fullName = $"{attempt.LastName} {attempt.FirstName} {attempt.MiddleName}".Trim();
             var examDate = (attempt.CompletedAt ?? attempt.StartedAt).ToString("dd.MM.yyyy");
+            var isAdaptivity200 = Adaptivity200Document.IsAdaptivity200(document, questions);
 
-            AppendFieldLine(body, [("П.І.Б. (повністю)", fullName)]);
-            AppendFieldLine(body,
-            [
-                ("Дата обстеження", examDate),
-                ("Вік", string.Empty),
-                ("Стать", string.Empty)
-            ]);
-            AppendFieldLine(body, [("Посада (підрозділ)", attempt.NumberUnit.ToString())]);
-            AppendFieldLine(body,
-            [
-                ("Спеціальність", string.Empty),
-                ("Військове звання", string.Empty)
-            ]);
-            AppendEmptyParagraph(body);
-
-            var instruction = !string.IsNullOrWhiteSpace(document?.Instruction)
-                ? document.Instruction
-                : "Вам будуть запропоновані твердження, які стосуються Вашого здоров’я та характеру. Якщо Ви згодні з твердженням, поставте знак “+” у графі “Так” в реєстраційному бланку, якщо ні – поставте знак “-” у графі “Ні”. Над відповідями намагайтеся довго не замислюватися, правильних або неправильних відповідей немає.";
-
-            AppendInstructionParagraph(body, instruction);
-            AppendEmptyParagraph(body);
-
-            body.AppendChild(BuildAnswersTable(questions, answersByQuestion));
-
-            if (SuicideRiskScoring.CanScore(document, questions))
+            if (isAdaptivity200)
             {
-                var scoring = SuicideRiskScoring.Evaluate(questions, answersByQuestion);
-                AppendScoringSection(body, scoring);
+                AppendAdaptivity200Blank(body, attempt, fullName, examDate, questions, answersByQuestion);
+            }
+            else
+            {
+                AppendCenteredParagraph(body, "Реєстраційний бланк", bold: true, fontSize: TitleFontSize);
+                AppendEmptyParagraph(body);
+
+                AppendFieldLine(body, [("П.І.Б. (повністю)", fullName)]);
+                AppendFieldLine(body,
+                [
+                    ("Дата обстеження", examDate),
+                    ("Вік", string.Empty),
+                    ("Стать", string.Empty)
+                ]);
+                AppendFieldLine(body, [("Посада (підрозділ)", attempt.NumberUnit.ToString())]);
+                AppendFieldLine(body,
+                [
+                    ("Спеціальність", string.Empty),
+                    ("Військове звання", string.Empty)
+                ]);
+                AppendEmptyParagraph(body);
+
+                var instruction = !string.IsNullOrWhiteSpace(document?.Instruction)
+                    ? document.Instruction
+                    : "Вам будуть запропоновані твердження, які стосуються Вашого здоров’я та характеру. Якщо Ви згодні з твердженням, поставте знак “+” у графі “Так” в реєстраційному бланку, якщо ні – поставте знак “-” у графі “Ні”. Над відповідями намагайтеся довго не замислюватися, правильних або неправильних відповідей немає.";
+
+                AppendInstructionParagraph(body, instruction);
+                AppendEmptyParagraph(body);
+
+                body.AppendChild(BuildAnswersTable(questions, answersByQuestion));
+
+                if (SuicideRiskScoring.CanScore(document, questions))
+                {
+                    var scoring = SuicideRiskScoring.Evaluate(questions, answersByQuestion);
+                    AppendScoringSection(body, scoring);
+                }
             }
 
             body.AppendChild(CreateSectionProperties());
@@ -210,6 +218,120 @@ public partial class TestResultDocumentService(
                 Header = 360,
                 Footer = 360
             });
+
+    private static void AppendAdaptivity200Blank(
+        Body body,
+        TestAttempt attempt,
+        string fullName,
+        string examDate,
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
+    {
+        AppendFieldLine(body,
+        [
+            ("П.І.Б.", string.IsNullOrWhiteSpace(fullName) ? string.Empty : fullName),
+            ("Підрозділ", attempt.NumberUnit.ToString()),
+            ("Дата", examDate)
+        ]);
+
+        var titleParagraph = new Paragraph(
+            new ParagraphProperties(
+                new Justification { Val = JustificationValues.Right },
+                new SpacingBetweenLines { After = "120" }),
+            CreateRun("Адаптивність 200", bold: true, TitleFontSize));
+        body.AppendChild(titleParagraph);
+        AppendEmptyParagraph(body);
+
+        body.AppendChild(BuildAdaptivityAnswerGrid(questions, answersByQuestion));
+        AppendEmptyParagraph(body);
+
+        AppendFieldLine(body,
+        [
+            ("Д", string.Empty),
+            ("ПР", string.Empty),
+            ("КП", string.Empty),
+            ("МН", string.Empty),
+            ("ВПС", string.Empty),
+            ("ДАП", string.Empty),
+            ("СР", string.Empty)
+        ]);
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(
+            body,
+            "Позначення: «+» — відповідь «Так», «−» — відповідь «Ні».");
+
+        AppendEmptyParagraph(body);
+        AppendCenteredParagraph(body, "Відповіді за питаннями", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+        body.AppendChild(BuildAnswersTable(questions, answersByQuestion));
+    }
+
+    private static Table BuildAdaptivityAnswerGrid(
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
+    {
+        var marksByOrder = questions.ToDictionary(
+            q => q.SortOrder,
+            q =>
+            {
+                answersByQuestion.TryGetValue(q.Id, out var answer);
+                var (yesMark, noMark, _) = ResolveMarks(q, answer);
+                if (!string.IsNullOrWhiteSpace(yesMark))
+                {
+                    return "+";
+                }
+
+                if (!string.IsNullOrWhiteSpace(noMark))
+                {
+                    return "−";
+                }
+
+                return string.Empty;
+            });
+
+        var table = new Table();
+        table.AppendChild(new TableProperties(
+            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct },
+            new TableBorders(
+                CreateBorder<TopBorder>(),
+                CreateBorder<LeftBorder>(),
+                CreateBorder<BottomBorder>(),
+                CreateBorder<RightBorder>(),
+                CreateBorder<InsideHorizontalBorder>(),
+                CreateBorder<InsideVerticalBorder>()),
+            new TableLayout { Type = TableLayoutValues.Fixed }));
+
+        const int columns = 20;
+        const int rows = 10;
+        const string cellWidth = "480";
+
+        var grid = new TableGrid();
+        for (var c = 0; c < columns; c++)
+        {
+            grid.AppendChild(new GridColumn { Width = cellWidth });
+        }
+
+        table.AppendChild(grid);
+
+        for (var row = 0; row < rows; row++)
+        {
+            var tableRow = new TableRow();
+            for (var col = 0; col < columns; col++)
+            {
+                var number = row * columns + col + 1;
+                marksByOrder.TryGetValue(number, out var mark);
+                var text = string.IsNullOrWhiteSpace(mark)
+                    ? number.ToString()
+                    : $"{number} {mark}";
+                tableRow.AppendChild(CreateCell(text, center: true, bold: !string.IsNullOrWhiteSpace(mark), width: cellWidth));
+            }
+
+            table.AppendChild(tableRow);
+        }
+
+        return table;
+    }
 
     private static Table BuildAnswersTable(
         IReadOnlyList<TestQuestion> questions,

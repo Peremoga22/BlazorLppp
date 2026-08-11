@@ -220,6 +220,7 @@ public class TestAttemptService(
 
         var items = await dbContext.TestAttempts
             .AsNoTracking()
+            .Include(a => a.TestDocument)
             .Where(a => a.Status == TestAttemptStatus.Completed)
             .OrderByDescending(a => a.CompletedAt ?? a.StartedAt)
             .ToListAsync(cancellationToken);
@@ -237,6 +238,7 @@ public class TestAttemptService(
                 FirstName = a.FirstName,
                 MiddleName = a.MiddleName,
                 DisplayName = $"{a.LastName} {a.FirstName} {a.MiddleName}".Trim(),
+                TestTitle = a.TestDocument?.Title,
                 FileBaseName = baseName,
                 ResultRelativePath = a.ResultRelativePath,
                 ResultFileName = a.ResultFileName ?? (hasFile ? Path.GetFileName(a.ResultRelativePath) : null),
