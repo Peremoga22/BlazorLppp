@@ -75,10 +75,16 @@ public partial class TestResultDocumentService(
             var fullName = $"{attempt.LastName} {attempt.FirstName} {attempt.MiddleName}".Trim();
             var examDate = (attempt.CompletedAt ?? attempt.StartedAt).ToString("dd.MM.yyyy");
             var isAdaptivity200 = Adaptivity200Document.IsAdaptivity200(document, questions);
+            var isZbroya = ZbroyaScoring.CanScore(document, questions);
 
             if (isAdaptivity200)
             {
                 AppendAdaptivity200Blank(body, attempt, fullName, examDate, questions, answersByQuestion);
+            }
+            else if (isZbroya)
+            {
+                var scoring = ZbroyaScoring.Evaluate(questions, answersByQuestion);
+                AppendZbroyaBlank(body, attempt, fullName, examDate, questions, answersByQuestion, scoring);
             }
             else
             {
@@ -339,6 +345,365 @@ public partial class TestResultDocumentService(
         }
 
         return table;
+    }
+
+    private static void AppendZbroyaBlank(
+        Body body,
+        TestAttempt attempt,
+        string fullName,
+        string examDate,
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion,
+        ZbroyaScoringResult scoring)
+    {
+        var nameLine = string.IsNullOrWhiteSpace(fullName)
+            ? "Шановний________________________________________________________________"
+            : $"Шановний {fullName}";
+        AppendBodyParagraph(body, nameLine, bold: true);
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            "Пропонуємо Вам перевірити свою готовність до несення служби зі зброєю в добовому наряді. " +
+            "Ваші правдиві і відверті відповіді сприятимуть прийняттю об’єктивного рішення про допуск Вас до виконання зазначених завдань.");
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(body, "1. Інструкція.", bold: true);
+        AppendBodyParagraph(
+            body,
+            "Прочитайте уважно кожне з наведених нижче речень і обведіть відповідну цифру праворуч залежно від того, " +
+            "ЯК ВИ ПОЧУВАЄТЕСЯ ЦІЄЇ МИТІ. Над запитаннями довго не замислюйтеся, тому що правильних чи неправильних відповідей немає.");
+        AppendEmptyParagraph(body);
+
+        body.AppendChild(BuildZbroyaRatingTable(questions, answersByQuestion));
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            "2. Поставте позначку на шкалі, яка відповідає інтенсивності вияву зазначених чинників:",
+            bold: true);
+        AppendEmptyParagraph(body);
+
+        body.AppendChild(BuildZbroyaSanScaleTable(questions, answersByQuestion));
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(body, "Чи згодні Ви із зазначеним висловом?:", bold: true);
+        AppendBodyParagraph(
+            body,
+            "“Я маю необхідні знання і практичні навички, вивчив функціональні обов’язки, пройшов відповідний інструктаж, " +
+            "його вимоги мені зрозумілі, проблемних питань щодо організації несення служби не маю. " +
+            "Мій стан здоров’я, настрій, самопочуття і активність, морально-психологічний стан дозволяють мені виконувати " +
+            "службові обов’язки із зброєю. Проблемних питань, негативних чинників впливу на мій морально-психологічний стан не маю. " +
+            "Готовий нести службу зі зброєю”.");
+        AppendEmptyParagraph(body);
+
+        var readinessMark = scoring.ReadyForWeaponDuty switch
+        {
+            true => "Так",
+            false => "Ні",
+            null => "____"
+        };
+        AppendBodyParagraph(body, $"Відповідь: {readinessMark}", bold: true);
+        AppendBodyParagraph(body, "Якщо згодні поставте свій підпис і дату:");
+        AppendBodyParagraph(
+            body,
+            "_______________________________________________________________________________________________________ (посада, в/звання, прізвище та ініціали)");
+        AppendBodyParagraph(
+            body,
+            string.IsNullOrWhiteSpace(fullName)
+                ? "_______________________________________________________________________________________________________"
+                : fullName);
+        AppendBodyParagraph(body, FormatUkrainianDateLine(examDate));
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Якщо ні, то зазначте причини:_____________________________________________________________________________");
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(body, "4. Напишіть про Ваші пропозиції щодо покращення умов служби:_______________________________________________________________________________________________________________________________________________________________________________________________________");
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(body, "Обстеження провів:");
+        AppendBodyParagraph(
+            body,
+            "______________________________________________________________________________________________________");
+        AppendBodyParagraph(body, "(посада, в/звання, прізвище та ініціали)");
+        AppendBodyParagraph(body, FormatUkrainianDateLine(examDate));
+        AppendEmptyParagraph(body);
+
+        AppendCenteredParagraph(body, "РЕЗУЛЬТАТИ ОБСТЕЖЕННЯ", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            $"Реактивна тривожність. 1. РТ = Σ1 {scoring.SumDirect} − Σ2 {scoring.SumCalm} + 35 = {scoring.ReactiveAnxiety} " +
+            $"({scoring.AnxietyLevelName}).");
+        AppendBodyParagraph(
+            body,
+            "Σ1 – сума відповідей по пунктам шкали (№3, 4, 6, 7, 12, 13, 14, 17, 18)");
+        AppendBodyParagraph(
+            body,
+            "Σ2 – сума решти відповідей (№ 1, 2, 5, 10, 11, 15, 16, 19, 20)");
+        AppendBodyParagraph(
+            body,
+            "(Низька – до 30; помірна – від 31 до 45; висока – понад 46;)");
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            $"2. Індекс САН = (С + А + Н) / 3 × 100% = ({scoring.WellBeingPercent}% + {scoring.ActivityPercent}% + {scoring.MoodPercent}%) / 3 " +
+            $"= {scoring.SanIndex:0.#}% ({scoring.SanLevelName} рівень).");
+        AppendBodyParagraph(
+            body,
+            "(Низький – [0;20]; середній – ]20;60]; високий – ]60;100])");
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            "3. Наявність негативних чинників впливу на МПС ________________________________________________________________________________________________________________________________________________________________________________________________________________");
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(body, "ВИСНОВКИ:", bold: true);
+        AppendBodyParagraph(body, scoring.Conclusion);
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(
+            body,
+            $"Підрозділ: {attempt.NumberUnit}. Дата обстеження: {examDate}.");
+    }
+
+    private static string FormatUkrainianDateLine(string examDate)
+    {
+        // examDate expected as dd.MM.yyyy
+        var parts = examDate.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 3)
+        {
+            return $"“{parts[0]}” __________________ 20{parts[2][^2..]} р.";
+        }
+
+        return $"“_______” __________________ 20______ р. ({examDate})";
+    }
+
+    private static Table BuildZbroyaRatingTable(
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
+    {
+        var table = new Table();
+        table.AppendChild(new TableProperties(
+            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct },
+            new TableBorders(
+                CreateBorder<TopBorder>(),
+                CreateBorder<LeftBorder>(),
+                CreateBorder<BottomBorder>(),
+                CreateBorder<RightBorder>(),
+                CreateBorder<InsideHorizontalBorder>(),
+                CreateBorder<InsideVerticalBorder>()),
+            new TableLayout { Type = TableLayoutValues.Fixed }));
+
+        const string statementWidth = "5200";
+        const string optionWidth = "1100";
+        table.AppendChild(new TableGrid(
+            new GridColumn { Width = statementWidth },
+            new GridColumn { Width = optionWidth },
+            new GridColumn { Width = optionWidth },
+            new GridColumn { Width = optionWidth },
+            new GridColumn { Width = optionWidth }));
+
+        var header = new TableRow();
+        header.AppendChild(CreateCell("Речення", bold: true, center: true, width: statementWidth));
+        header.AppendChild(CreateCell("Ні, це не так", bold: true, center: true, width: optionWidth));
+        header.AppendChild(CreateCell("Мабуть так", bold: true, center: true, width: optionWidth));
+        header.AppendChild(CreateCell("Правильно", bold: true, center: true, width: optionWidth));
+        header.AppendChild(CreateCell("Абсолютно правильно", bold: true, center: true, width: optionWidth));
+        table.AppendChild(header);
+
+        foreach (var question in questions.Where(q => q.SortOrder is >= 1 and <= 20).OrderBy(q => q.SortOrder))
+        {
+            answersByQuestion.TryGetValue(question.Id, out var answer);
+            var selected = ResolveZbroyaRating(question, answer);
+
+            var row = new TableRow();
+            row.AppendChild(CreateCell($"{question.SortOrder}. {question.Text}", width: statementWidth));
+            for (var value = 1; value <= 4; value++)
+            {
+                var isSelected = selected == value;
+                var text = isSelected ? $"({value})" : value.ToString();
+                row.AppendChild(CreateMarkedCell(text, isSelected, optionWidth));
+            }
+
+            table.AppendChild(row);
+        }
+
+        return table;
+    }
+
+    private static Table BuildZbroyaSanScaleTable(
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
+    {
+        var table = new Table();
+        table.AppendChild(new TableProperties(
+            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct },
+            new TableBorders(
+                CreateBorder<TopBorder>(),
+                CreateBorder<LeftBorder>(),
+                CreateBorder<BottomBorder>(),
+                CreateBorder<RightBorder>(),
+                CreateBorder<InsideHorizontalBorder>(),
+                CreateBorder<InsideVerticalBorder>()),
+            new TableLayout { Type = TableLayoutValues.Fixed }));
+
+        const string cellWidth = "880";
+        var grid = new TableGrid();
+        for (var i = 0; i < 11; i++)
+        {
+            grid.AppendChild(new GridColumn { Width = cellWidth });
+        }
+
+        table.AppendChild(grid);
+
+        AppendSanScaleBlock(table, "САМОПОЧУТТЯ", ResolveSanPercent(questions, answersByQuestion, 21), cellWidth);
+        AppendSanScaleBlock(table, "АКТИВНІСТЬ", ResolveSanPercent(questions, answersByQuestion, 22), cellWidth);
+        AppendSanScaleBlock(table, "НАСТРІЙ", ResolveSanPercent(questions, answersByQuestion, 23), cellWidth);
+
+        return table;
+    }
+
+    private static void AppendSanScaleBlock(Table table, string title, int? percent, string cellWidth)
+    {
+        var titleRow = new TableRow();
+        titleRow.AppendChild(CreateSpannedCell(title, bold: true, center: true, width: cellWidth, span: 11));
+        table.AppendChild(titleRow);
+
+        var scaleRow = new TableRow();
+        for (var step = 0; step <= 10; step++)
+        {
+            var value = step * 10;
+            var label = step switch
+            {
+                0 => "0%",
+                5 => "50",
+                10 => "100%",
+                _ => $"{value}"
+            };
+            var isSelected = percent == value;
+            var text = isSelected ? $"[{label}]" : label;
+            scaleRow.AppendChild(CreateMarkedCell(text, isSelected, cellWidth));
+        }
+
+        table.AppendChild(scaleRow);
+    }
+
+    private static int? ResolveSanPercent(
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion,
+        int sortOrder)
+    {
+        var question = questions.FirstOrDefault(q => q.SortOrder == sortOrder);
+        if (question is null)
+        {
+            return null;
+        }
+
+        answersByQuestion.TryGetValue(question.Id, out var answer);
+        if (answer?.ScaleValue is null)
+        {
+            return null;
+        }
+
+        return Math.Clamp(answer.ScaleValue.Value, 0, 10) * 10;
+    }
+
+    private static int? ResolveZbroyaRating(TestQuestion question, TestAnswer? answer)
+    {
+        if (answer is null)
+        {
+            return null;
+        }
+
+        var key = answer.SelectedOption?.Key?.Trim();
+        if (int.TryParse(key, out var fromKey) && fromKey is >= 1 and <= 4)
+        {
+            return fromKey;
+        }
+
+        var text = answer.SelectedOption?.Text?.Trim() ?? string.Empty;
+        if (text.StartsWith("Ні", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("не так", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        if (text.Contains("Мабуть", StringComparison.OrdinalIgnoreCase))
+        {
+            return 2;
+        }
+
+        if (text.Equals("Правильно", StringComparison.OrdinalIgnoreCase))
+        {
+            return 3;
+        }
+
+        if (text.Contains("Абсолютно", StringComparison.OrdinalIgnoreCase))
+        {
+            return 4;
+        }
+
+        if (!string.IsNullOrWhiteSpace(key) && key.Length == 1)
+        {
+            var letter = char.ToUpperInvariant(key[0]);
+            return letter switch
+            {
+                'A' or 'А' => 1,
+                'B' or 'Б' => 2,
+                'C' or 'В' => 3,
+                'D' or 'Г' => 4,
+                _ => null
+            };
+        }
+
+        return null;
+    }
+
+    private static TableCell CreateMarkedCell(string text, bool selected, string width)
+    {
+        var paragraph = new Paragraph(
+            new ParagraphProperties(
+                new SpacingBetweenLines { Before = "40", After = "40", Line = "240", LineRule = LineSpacingRuleValues.Auto },
+                new Justification { Val = JustificationValues.Center }),
+            CreateRun(text, bold: selected, BodyFontSize));
+
+        var properties = new TableCellProperties(
+            new TableCellWidth { Type = TableWidthUnitValues.Dxa, Width = width },
+            new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center });
+
+        if (selected)
+        {
+            properties.AppendChild(new Shading
+            {
+                Val = ShadingPatternValues.Clear,
+                Color = "auto",
+                Fill = "D9D9D9"
+            });
+        }
+
+        return new TableCell(properties, paragraph);
+    }
+
+    private static TableCell CreateSpannedCell(string text, bool bold, bool center, string width, int span)
+    {
+        var paragraph = new Paragraph(
+            new ParagraphProperties(
+                new SpacingBetweenLines { Before = "40", After = "40", Line = "240", LineRule = LineSpacingRuleValues.Auto },
+                new Justification
+                {
+                    Val = center ? JustificationValues.Center : JustificationValues.Left
+                }),
+            CreateRun(text, bold, BodyFontSize));
+
+        return new TableCell(
+            new TableCellProperties(
+                new TableCellWidth { Type = TableWidthUnitValues.Dxa, Width = width },
+                new GridSpan { Val = span },
+                new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center }),
+            paragraph);
     }
 
     private static Table BuildScaleAnswersTable(
