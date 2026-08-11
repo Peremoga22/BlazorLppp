@@ -33,6 +33,8 @@ public class TestAttemptStats
 {
     public int Total { get; init; }
 
+    public int PeopleCompleted { get; init; }
+
     public int InProgress { get; init; }
 
     public int Completed { get; init; }
