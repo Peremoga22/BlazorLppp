@@ -13,22 +13,34 @@
 <PageTitle>Адмін-панель</PageTitle>
 
 <div class="admin-page">
-    <header class="admin-page__header">
-        <h1 class="admin-page__title">Адмін-панель</h1>
-        <p class="admin-page__subtitle">
-            @(_selectedUnit is null
-                ? "Загальний огляд усіх підрозділів"
-                : $"Підрозділ {_selectedUnit}: спроби та результати працівників")
-        </p>
+    <header class="admin-page__header admin-page__header--hero">
+        <div class="admin-page__hero-copy">
+            <p class="admin-page__eyebrow">Психологічне тестування</p>
+            <h1 class="admin-page__title">Адмін-панель</h1>
+            <p class="admin-page__subtitle">
+                @(_selectedUnit is null
+                    ? "Загальний огляд усіх підрозділів"
+                    : $"Підрозділ {_selectedUnit}: спроби та результати працівників")
+            </p>
+        </div>
+        <div class="admin-page__hero-meta" aria-hidden="true">
+            <span class="admin-page__hero-chip">
+                @(_selectedUnit is null ? "Усі відділи" : $"Відділ {_selectedUnit}")
+            </span>
+        </div>
     </header>
 
     <div class="admin-tabs" role="tablist" aria-label="Підрозділи">
         <button type="button"
-                class="admin-tabs__item @(_selectedUnit is null ? "admin-tabs__item--active" : null)"
+                class="admin-tabs__item admin-tabs__item--admin @(_selectedUnit is null ? "admin-tabs__item--active" : null)"
                 role="tab"
                 aria-selected="@(_selectedUnit is null)"
                 @onclick="() => SelectTabAsync(null)">
-            Адмін
+            <span class="admin-tabs__icon" aria-hidden="true">◆</span>
+            <span class="admin-tabs__text">
+                <span class="admin-tabs__label">Адмін</span>
+                <span class="admin-tabs__hint">загальний огляд</span>
+            </span>
         </button>
         @foreach (var unit in UnitNumbers.All)
         {
@@ -37,7 +49,11 @@
                     role="tab"
                     aria-selected="@(_selectedUnit == unit)"
                     @onclick="() => SelectTabAsync(unit)">
-                Підрозділ @unit
+                <span class="admin-tabs__num" aria-hidden="true">@unit</span>
+                <span class="admin-tabs__text">
+                    <span class="admin-tabs__label">Підрозділ</span>
+                    <span class="admin-tabs__hint">відділ @unit</span>
+                </span>
             </button>
         }
     </div>
@@ -55,7 +71,7 @@
         @if (_stats is not null)
         {
             <div class="admin-stats">
-                <div class="admin-stats__item">
+                <div class="admin-stats__item admin-stats__item--accent">
                     <span class="admin-stats__value">@_stats.PeopleCompleted</span>
                     <span class="admin-stats__label">
                         @(_selectedUnit is null ? "Пройшли тести (усі)" : "Пройшли тести")
