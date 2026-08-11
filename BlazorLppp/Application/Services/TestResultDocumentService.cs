@@ -107,9 +107,17 @@ public partial class TestResultDocumentService(
                 AppendInstructionParagraph(body, instruction);
                 AppendEmptyParagraph(body);
 
-                body.AppendChild(BuildAnswersTable(questions, answersByQuestion));
+                var isZbroya = ZbroyaScoring.CanScore(document, questions);
+                body.AppendChild(isZbroya
+                    ? BuildZbroyaAnswersTable(questions, answersByQuestion)
+                    : BuildAnswersTable(questions, answersByQuestion));
 
-                if (SuicideRiskScoring.CanScore(document, questions))
+                if (isZbroya)
+                {
+                    var scoring = ZbroyaScoring.Evaluate(questions, answersByQuestion);
+                    AppendZbroyaScoringSection(body, scoring);
+                }
+                else if (SuicideRiskScoring.CanScore(document, questions))
                 {
                     var scoring = SuicideRiskScoring.Evaluate(questions, answersByQuestion);
                     AppendScoringSection(body, scoring);
@@ -333,6 +341,71 @@ public partial class TestResultDocumentService(
         return table;
     }
 
+    private static Table BuildZbroyaAnswersTable(
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
+    {
+        var table = new Table();
+        table.AppendChild(new TableProperties(
+            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct },
+            new TableBorders(
+                CreateBorder<TopBorder>(),
+                CreateBorder<LeftBorder>(),
+                CreateBorder<BottomBorder>(),
+                CreateBorder<RightBorder>(),
+                CreateBorder<InsideHorizontalBorder>(),
+                CreateBorder<InsideVerticalBorder>()),
+            new TableLayout { Type = TableLayoutValues.Fixed }));
+
+        table.AppendChild(new TableGrid(
+            new GridColumn { Width = "700" },
+            new GridColumn { Width = "7800" },
+            new GridColumn { Width = "1200" }));
+
+        var header = new TableRow();
+        header.AppendChild(CreateCell("№з/п", bold: true, center: true, width: "700"));
+        header.AppendChild(CreateCell("Питання і твердження", bold: true, center: true, width: "7800"));
+        header.AppendChild(CreateCell("Відповідь", bold: true, center: true, width: "1200"));
+        table.AppendChild(header);
+
+        foreach (var question in questions)
+        {
+            answersByQuestion.TryGetValue(question.Id, out var answer);
+            var mark = FormatZbroyaAnswer(question, answer);
+            var row = new TableRow();
+            row.AppendChild(CreateCell(question.SortOrder.ToString(), center: true, width: "700"));
+            row.AppendChild(CreateCell(question.Text, width: "7800"));
+            row.AppendChild(CreateCell(mark, center: true, bold: !string.IsNullOrWhiteSpace(mark), width: "1200"));
+            table.AppendChild(row);
+        }
+
+        return table;
+    }
+
+    private static string FormatZbroyaAnswer(TestQuestion question, TestAnswer? answer)
+    {
+        if (answer is null)
+        {
+            return string.Empty;
+        }
+
+        if (question.Type == QuestionType.Scale && answer.ScaleValue.HasValue)
+        {
+            return $"{answer.ScaleValue.Value * 10}%";
+        }
+
+        if (question.Type == QuestionType.YesNo)
+        {
+            return answer.SelectedOption?.Text
+                   ?? answer.SelectedOption?.Key
+                   ?? string.Empty;
+        }
+
+        return answer.SelectedOption?.Key
+               ?? answer.SelectedOption?.Text
+               ?? string.Empty;
+    }
+
     private static Table BuildAnswersTable(
         IReadOnlyList<TestQuestion> questions,
         IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
@@ -480,6 +553,50 @@ public partial class TestResultDocumentService(
             Space = 0,
             Color = "000000"
         };
+
+    private static void AppendZbroyaScoringSection(Body body, ZbroyaScoringResult scoring)
+    {
+        AppendEmptyParagraph(body);
+        AppendCenteredParagraph(body, "Результати обстеження", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            "Обробка виконана за бланком тесту готовності до несення служби зі зброєю. " +
+            "Реактивна тривожність: РТ = Σ1 − Σ2 + 35.");
+
+        AppendBodyParagraph(
+            body,
+            $"Σ1 (пункти 3, 4, 6, 7, 9, 12, 13, 14, 17, 18) = {scoring.SumDirect}; " +
+            $"Σ2 (пункти 1, 2, 5, 8, 10, 11, 15, 16, 19, 20) = {scoring.SumCalm}; " +
+            $"РТ = {scoring.ReactiveAnxiety} ({scoring.AnxietyLevelName} реактивна тривожність).");
+
+        AppendBodyParagraph(
+            body,
+            "Орієнтири РТ: низька — до 30; помірна — від 31 до 45; висока — понад 46.");
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(
+            body,
+            $"Індекс САН = (С + А + Н) / 3 = ({scoring.WellBeingPercent}% + {scoring.ActivityPercent}% + {scoring.MoodPercent}%) / 3 " +
+            $"= {scoring.SanIndex:0.#}% ({scoring.SanLevelName} рівень).");
+        AppendBodyParagraph(
+            body,
+            "Орієнтири САН: низький — [0; 20]; середній — (20; 60]; високий — (60; 100].");
+
+        AppendEmptyParagraph(body);
+        var readiness = scoring.ReadyForWeaponDuty switch
+        {
+            true => "Так (підтвердив готовність)",
+            false => "Ні (не підтвердив готовність)",
+            null => "не зазначено"
+        };
+        AppendBodyParagraph(body, $"Готовність нести службу зі зброєю: {readiness}.");
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Висновки", bold: true);
+        AppendBodyParagraph(body, scoring.Conclusion);
+    }
 
     private static void AppendScoringSection(Body body, SuicideRiskScoringResult scoring)
     {

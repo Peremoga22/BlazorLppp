@@ -83,6 +83,7 @@ public partial class TestDocumentParser : ITestDocumentParser
         var seenYes = false;
         var seenNo = false;
         var isAdaptivity200 = false;
+        var isZbroya = false;
 
         TryAssignTitleFromDocument(lines, result);
         if (IsAdaptivity200Title(result.Title) || lines.Any(IsAdaptivity200Title))
@@ -93,6 +94,14 @@ public partial class TestDocumentParser : ITestDocumentParser
             result.Instruction ??=
                 "Вам пропонуються твердження. Якщо твердження відповідає Вам — оберіть «Так», якщо ні — «Ні». " +
                 "Над відповідями довго не замислюйтеся; правильних або неправильних відповідей немає.";
+        }
+        else if (IsZbroyaTitle(result.Title) || lines.Any(IsZbroyaTitle))
+        {
+            isZbroya = true;
+            result.Title = "Тест ЗБРОЯ (готовність до служби зі зброєю)";
+            result.Instruction ??=
+                "Прочитайте уважно кожне речення і оберіть оцінку залежно від того, як ви почуваєтеся цієї миті. " +
+                "1 — Ні, це не так; 2 — Мабуть так; 3 — Правильно; 4 — Абсолютно правильно.";
         }
 
         foreach (var line in lines)
@@ -105,6 +114,22 @@ public partial class TestDocumentParser : ITestDocumentParser
             if (isAdaptivity200 && result.Questions.Count >= 200)
             {
                 break;
+            }
+
+            if (isZbroya && result.Questions.Count >= 24)
+            {
+                break;
+            }
+
+            if (IsZbroyaInstructionLine(line))
+            {
+                if (string.IsNullOrWhiteSpace(result.Instruction) ||
+                    result.Instruction.Length < line.Length)
+                {
+                    result.Instruction = CleanZbroyaInstruction(line);
+                }
+
+                continue;
             }
 
             if (IsMetadataLine(line))
@@ -149,7 +174,19 @@ public partial class TestDocumentParser : ITestDocumentParser
 
             if (IsTitleCandidate(line) && result.Questions.Count == 0 && current is null && pendingNumber is null)
             {
-                result.Title = isAdaptivity200 ? "Адаптивність-200 (БОО)" : CleanTitle(line);
+                if (isZbroya)
+                {
+                    result.Title = "Тест ЗБРОЯ (готовність до служби зі зброєю)";
+                }
+                else if (isAdaptivity200)
+                {
+                    result.Title = "Адаптивність-200 (БОО)";
+                }
+                else
+                {
+                    result.Title = CleanTitle(line);
+                }
+
                 continue;
             }
 
@@ -258,6 +295,10 @@ public partial class TestDocumentParser : ITestDocumentParser
         }
 
         FinalizeQuestions(result, defaultType);
+        if (isZbroya)
+        {
+            FinalizeZbroyaQuestions(result);
+        }
 
         if (result.Questions.Count == 0)
         {
@@ -266,6 +307,52 @@ public partial class TestDocumentParser : ITestDocumentParser
         }
 
         return result;
+    }
+
+    private static void FinalizeZbroyaQuestions(ParsedTestDocument result)
+    {
+        foreach (var question in result.Questions.OrderBy(q => q.SortOrder))
+        {
+            if (question.SortOrder is >= 1 and <= 20)
+            {
+                question.Type = QuestionType.SingleChoice;
+                if (question.Options.Count == 0)
+                {
+                    question.Options.Add(new ParsedTestOption { SortOrder = 1, Key = "1", Text = "Ні, це не так" });
+                    question.Options.Add(new ParsedTestOption { SortOrder = 2, Key = "2", Text = "Мабуть так" });
+                    question.Options.Add(new ParsedTestOption { SortOrder = 3, Key = "3", Text = "Правильно" });
+                    question.Options.Add(new ParsedTestOption { SortOrder = 4, Key = "4", Text = "Абсолютно правильно" });
+                }
+                else
+                {
+                    for (var i = 0; i < question.Options.Count; i++)
+                    {
+                        question.Options[i].Key = (i + 1).ToString();
+                        question.Options[i].SortOrder = i + 1;
+                    }
+                }
+
+                continue;
+            }
+
+            if (question.SortOrder is >= 21 and <= 23)
+            {
+                question.Type = QuestionType.Scale;
+                question.ScaleMin = 0;
+                question.ScaleMax = 10;
+                question.Hint ??= "0 — 0%, 10 — 100%";
+                question.Options.Clear();
+                continue;
+            }
+
+            if (question.SortOrder == 24)
+            {
+                question.Type = QuestionType.YesNo;
+                question.Options.Clear();
+                question.Options.Add(new ParsedTestOption { SortOrder = 1, Key = "Так", Text = "Так" });
+                question.Options.Add(new ParsedTestOption { SortOrder = 2, Key = "Ні", Text = "Ні" });
+            }
+        }
     }
 
     private static ParsedTestQuestion CreateQuestion(int sortOrder, string text, QuestionType? defaultType)
@@ -330,6 +417,12 @@ public partial class TestDocumentParser : ITestDocumentParser
     {
         foreach (var line in lines)
         {
+            if (IsZbroyaTitle(line))
+            {
+                result.Title = "Тест ЗБРОЯ (готовність до служби зі зброєю)";
+                return;
+            }
+
             if (IsAdaptivity200Title(line))
             {
                 result.Title = "Адаптивність-200 (БОО)";
@@ -361,6 +454,23 @@ public partial class TestDocumentParser : ITestDocumentParser
             value.Contains("АДАПТИВНІСТЬ 200", StringComparison.OrdinalIgnoreCase) ||
             (value.Contains("БОО", StringComparison.OrdinalIgnoreCase) &&
              value.Contains("Адаптив", StringComparison.OrdinalIgnoreCase)));
+
+    internal static bool IsZbroyaTitle(string? value)
+        => !string.IsNullOrWhiteSpace(value) &&
+           (value.Contains("ЗБРОЯ", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("зі зброєю", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("готовність до несення служби зі зброєю", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsZbroyaInstructionLine(string line)
+        => line.Contains("ЯК ВИ ПОЧУВАЄТЕСЯ", StringComparison.OrdinalIgnoreCase) ||
+           (line.Contains("Прочитайте уважно кожне", StringComparison.OrdinalIgnoreCase) &&
+            line.Contains("речен", StringComparison.OrdinalIgnoreCase));
+
+    private static string CleanZbroyaInstruction(string line)
+    {
+        var cleaned = InstructionPrefix().Replace(line, string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(cleaned) ? line.Trim() : cleaned;
+    }
 
     private static IReadOnlyList<string> ReadTxtLines(string filePath)
         => File.ReadAllLines(filePath, Encoding.UTF8);
@@ -441,6 +551,9 @@ public partial class TestDocumentParser : ITestDocumentParser
            || line.StartsWith("Інтерпретація", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Интерпретация", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Мета", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("РЕЗУЛЬТАТИ ОБСТЕЖЕННЯ", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("ВИСНОВКИ", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Обстеження провів", StringComparison.OrdinalIgnoreCase)
            || (line.Contains("Адаптивність 200", StringComparison.OrdinalIgnoreCase) &&
                (line.Contains("П.І.Б", StringComparison.OrdinalIgnoreCase) ||
                 line.Contains("Вік", StringComparison.OrdinalIgnoreCase) ||
@@ -449,7 +562,8 @@ public partial class TestDocumentParser : ITestDocumentParser
     private static bool IsTitleCandidate(string line)
         => line.Contains("ТЕСТ", StringComparison.OrdinalIgnoreCase)
            || line.Contains("Самооцінка", StringComparison.OrdinalIgnoreCase)
-           || IsAdaptivity200Title(line);
+           || IsAdaptivity200Title(line)
+           || IsZbroyaTitle(line);
 
     private static string CleanTitle(string line)
     {
