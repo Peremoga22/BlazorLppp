@@ -75,20 +75,9 @@
         </section>
 
         <section class="admin-panel">
-            <div class="admin-form-row" style="justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
-                <h2 class="admin-upload__title" style="margin:0">
-                    @(_selectedTestTitle ?? "Історія проходжень")
-                </h2>
-                @if (_selectedTestId.HasValue && _card.Sessions.Count > 0)
-                {
-                    <button type="button"
-                            class="admin-btn admin-btn--danger"
-                            disabled="@_isDeleting"
-                            @onclick="DeleteSelectedTestAsync">
-                        Видалити тест
-                    </button>
-                }
-            </div>
+            <h2 class="admin-upload__title">
+                @(_selectedTestTitle ?? "Історія проходжень")
+            </h2>
 
             @if (_card.Sessions.Count == 0)
             {
@@ -227,43 +216,6 @@
         {
             _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
                 ? "Не вдалося видалити працівника."
-                : ex.Message;
-        }
-        finally
-        {
-            _isDeleting = false;
-        }
-    }
-
-    private async Task DeleteSelectedTestAsync()
-    {
-        if (_isDeleting || _card is null || !_selectedTestId.HasValue)
-        {
-            return;
-        }
-
-        var title = _selectedTestTitle ?? "тест";
-        var confirmed = await JsRuntime.InvokeAsync<bool>(
-            "confirm",
-            $"Видалити тест «{title}» для цього працівника разом з усіма проходженнями та файлами результатів?");
-
-        if (!confirmed)
-        {
-            return;
-        }
-
-        _isDeleting = true;
-        _errorMessage = null;
-
-        try
-        {
-            await OrganizationService.DeleteEmployeeTestSessionsAsync(EmployeeId, _selectedTestId.Value);
-            await ReloadAsync(null);
-        }
-        catch (Exception ex)
-        {
-            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
-                ? "Не вдалося видалити тест."
                 : ex.Message;
         }
         finally
