@@ -261,16 +261,7 @@ public partial class TestResultDocumentService(
         body.AppendChild(BuildAdaptivityAnswerGrid(questions, answersByQuestion));
         AppendEmptyParagraph(body);
 
-        AppendFieldLine(body,
-        [
-            ("Д", scoring.ReliabilityD.ToString()),
-            ("ПР", scoring.BehavioralRegulationPr.ToString()),
-            ("КП", scoring.CommunicativePotentialKp.ToString()),
-            ("МН", scoring.MoralNormativityMn.ToString()),
-            ("ВПС", scoring.MilitaryOrientationVps.ToString()),
-            ("ДАП", scoring.DeviantPropensityDap.ToString()),
-            ("СР", scoring.SuicidalRiskSr.ToString())
-        ]);
+        AppendAdaptivityScaleScoresLine(body, scoring);
 
         AppendEmptyParagraph(body);
         AppendBodyParagraph(
@@ -338,6 +329,29 @@ public partial class TestResultDocumentService(
         AppendEmptyParagraph(body);
         AppendBodyParagraph(body, "Психологічний висновок", bold: true);
         AppendBodyParagraph(body, scoring.Conclusion);
+    }
+
+    /// <summary>
+    /// Формат бланка: «Д4  ПР53  КП16  МН15  ВПС19  ДАП24  СР11»
+    /// (без пробілу між літерою і числом, два пробіли між шкалами).
+    /// </summary>
+    private static void AppendAdaptivityScaleScoresLine(Body body, Adaptivity200ScoringResult scoring)
+    {
+        var parts = new[]
+        {
+            $"Д{scoring.ReliabilityD}",
+            $"ПР{scoring.BehavioralRegulationPr}",
+            $"КП{scoring.CommunicativePotentialKp}",
+            $"МН{scoring.MoralNormativityMn}",
+            $"ВПС{scoring.MilitaryOrientationVps}",
+            $"ДАП{scoring.DeviantPropensityDap}",
+            $"СР{scoring.SuicidalRiskSr}"
+        };
+
+        body.AppendChild(new Paragraph(
+            new ParagraphProperties(
+                new SpacingBetweenLines { After = "80", Line = "276", LineRule = LineSpacingRuleValues.Auto }),
+            CreateRun(string.Join("  ", parts), bold: false, BodyFontSize)));
     }
 
     private static Table BuildAdaptivityAnswerGrid(
