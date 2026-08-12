@@ -141,18 +141,17 @@
                         {
                             <li class="test-form__question">
                                 <div class="test-form__question-text">
-                                    @if (!isZbroyaForm)
-                                    {
-                                        <span class="test-form__number">@question.SortOrder.</span>
-                                        @question.Text
-                                    }
-                                    else if (question.SortOrder == 24)
+                                    @if (isZbroyaForm && question.SortOrder == 24)
                                     {
                                         <span>Чи згодні Ви із зазначеним висловом?</span>
                                     }
                                     else
                                     {
-                                        @question.Text
+                                        @if (!isZbroyaForm)
+                                        {
+                                            <span class="test-form__number">@question.SortOrder.</span>
+                                        }
+                                        <span class="test-form__statement-text">@question.Text</span>
                                     }
                                 </div>
 

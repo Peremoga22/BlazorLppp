@@ -916,16 +916,78 @@ public partial class TestDocumentParser : ITestDocumentParser
             ?? throw new InvalidOperationException("Документ Word не містить тексту.");
 
         var lines = new List<string>();
-        foreach (var paragraph in body.Descendants<Paragraph>())
+        foreach (var child in body.ChildElements)
         {
-            var text = string.Concat(paragraph.Descendants<Text>().Select(t => t.Text));
-            if (!string.IsNullOrWhiteSpace(text))
+            if (child is Table table)
             {
-                lines.Add(text);
+                AppendTableLines(table, lines);
+                continue;
+            }
+
+            if (child is Paragraph paragraph)
+            {
+                AppendParagraphLine(paragraph, lines);
+            }
+        }
+
+        // Фолбек для вкладених таблиць / нестандартної розмітки.
+        if (lines.Count == 0)
+        {
+            foreach (var paragraph in body.Descendants<Paragraph>())
+            {
+                AppendParagraphLine(paragraph, lines);
             }
         }
 
         return lines;
+    }
+
+    private static void AppendTableLines(Table table, List<string> lines)
+    {
+        foreach (var row in table.Elements<TableRow>())
+        {
+            var cells = row.Elements<TableCell>()
+                .Select(GetCellText)
+                .ToList();
+
+            if (cells.Count == 0 || cells.All(string.IsNullOrWhiteSpace))
+            {
+                continue;
+            }
+
+            // Бланк СР-45: «1.» | текст твердження | Так | Ні — зливаємо номер і текст.
+            if (cells.Count >= 2 &&
+                NumberOnlyQuestion().IsMatch(cells[0].Trim()) &&
+                !string.IsNullOrWhiteSpace(cells[1]) &&
+                !NumberOnlyQuestion().IsMatch(cells[1].Trim()))
+            {
+                var number = cells[0].Trim().TrimEnd('.');
+                lines.Add($"{number}. {cells[1].Trim()}");
+                continue;
+            }
+
+            foreach (var cell in cells.Where(c => !string.IsNullOrWhiteSpace(c)))
+            {
+                lines.Add(cell);
+            }
+        }
+    }
+
+    private static string GetCellText(TableCell cell)
+        => string.Join(
+                " ",
+                cell.Elements<Paragraph>()
+                    .Select(p => string.Concat(p.Descendants<Text>().Select(t => t.Text)).Trim())
+                    .Where(t => !string.IsNullOrWhiteSpace(t)))
+            .Trim();
+
+    private static void AppendParagraphLine(Paragraph paragraph, List<string> lines)
+    {
+        var text = string.Concat(paragraph.Descendants<Text>().Select(t => t.Text));
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            lines.Add(text);
+        }
     }
 
     private static string NormalizeLine(string line)
