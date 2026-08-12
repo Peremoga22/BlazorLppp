@@ -8,8 +8,11 @@
 @using BlazorLppp.Domain.Entities
 @using Microsoft.AspNetCore.Authorization
 
+@using Microsoft.JSInterop
+
 @inject IOrganizationService OrganizationService
 @inject NavigationManager Navigation
+@inject IJSRuntime JsRuntime
 
 <PageTitle>@_department?.Name ?? "Підрозділ"</PageTitle>
 
@@ -90,7 +93,15 @@
                                 }
                             </p>
                         </div>
-                        <a class="admin-btn admin-btn--soft" href="@($"/admin/employees/{employee.Id}")">Відкрити</a>
+                        <div class="admin-page__actions admin-actions">
+                            <a class="admin-btn admin-btn--soft" href="@($"/admin/employees/{employee.Id}")">Відкрити</a>
+                            <button type="button"
+                                    class="admin-btn admin-btn--danger"
+                                    disabled="@_isDeleting"
+                                    @onclick="() => DeleteEmployeeAsync(employee)">
+                                Видалити
+                            </button>
+                        </div>
                     </article>
                 }
             </div>
@@ -105,6 +116,7 @@
     private readonly List<EmployeeListItem> _employees = [];
     private bool _isLoading = true;
     private bool _isSaving;
+    private bool _isDeleting;
     private string? _errorMessage;
     private string? _formMessage;
     private bool _formIsError;
@@ -192,6 +204,42 @@
         finally
         {
             _isSaving = false;
+        }
+    }
+
+    private async Task DeleteEmployeeAsync(EmployeeListItem employee)
+    {
+        if (_isDeleting)
+        {
+            return;
+        }
+
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Видалити працівника «{employee.DisplayName}» разом з усіма тестами та файлами результатів?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+        _errorMessage = null;
+
+        try
+        {
+            await OrganizationService.DeleteEmployeeAsync(employee.Id);
+            await ReloadEmployeesAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося видалити працівника."
+                : ex.Message;
+        }
+        finally
+        {
+            _isDeleting = false;
         }
     }
 }

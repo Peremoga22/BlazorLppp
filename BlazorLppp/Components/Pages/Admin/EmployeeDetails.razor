@@ -6,8 +6,12 @@
 @using BlazorLppp.Application.Models
 @using BlazorLppp.Domain
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
 
 @inject IOrganizationService OrganizationService
+@inject ITestAttemptService TestAttemptService
+@inject NavigationManager Navigation
+@inject IJSRuntime JsRuntime
 
 <PageTitle>@_card?.Employee.DisplayName ?? "Працівник"</PageTitle>
 
@@ -33,7 +37,20 @@
                 <h1 class="admin-page__title">@_card.Employee.DisplayName</h1>
                 <p class="admin-page__subtitle">Підрозділ: @_card.Department.Name</p>
             </div>
+            <div class="admin-page__actions admin-actions">
+                <button type="button"
+                        class="admin-btn admin-btn--danger"
+                        disabled="@_isDeleting"
+                        @onclick="DeleteEmployeeAsync">
+                    Видалити працівника
+                </button>
+            </div>
         </header>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <p class="admin-page__error">@_errorMessage</p>
+        }
 
         <section class="admin-panel">
             <h2 class="admin-upload__title">Психологічні тести</h2>
@@ -58,9 +75,20 @@
         </section>
 
         <section class="admin-panel">
-            <h2 class="admin-upload__title">
-                @(_selectedTestTitle ?? "Історія проходжень")
-            </h2>
+            <div class="admin-form-row" style="justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap">
+                <h2 class="admin-upload__title" style="margin:0">
+                    @(_selectedTestTitle ?? "Історія проходжень")
+                </h2>
+                @if (_selectedTestId.HasValue && _card.Sessions.Count > 0)
+                {
+                    <button type="button"
+                            class="admin-btn admin-btn--danger"
+                            disabled="@_isDeleting"
+                            @onclick="DeleteSelectedTestAsync">
+                        Видалити тест
+                    </button>
+                }
+            </div>
 
             @if (_card.Sessions.Count == 0)
             {
@@ -89,6 +117,14 @@
                                         {
                                             <a class="admin-link" href="@($"/admin/results/{session.AttemptId}/download")">Документ</a>
                                         }
+                                        <button type="button"
+                                                class="admin-icon-btn admin-icon-btn--danger"
+                                                title="Видалити проходження"
+                                                aria-label="Видалити проходження"
+                                                disabled="@_isDeleting"
+                                                @onclick="() => DeleteSessionAsync(session)">
+                                            <span class="admin-btn__icon admin-btn__icon--trash" aria-hidden="true"></span>
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -120,6 +156,8 @@
     private Guid? _selectedTestId;
     private string? _selectedTestTitle;
     private bool _isLoading = true;
+    private bool _isDeleting;
+    private string? _errorMessage;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -158,5 +196,116 @@
     private async Task SelectTestAsync(Guid testDocumentId)
     {
         await ReloadAsync(testDocumentId);
+    }
+
+    private async Task DeleteEmployeeAsync()
+    {
+        if (_isDeleting || _card is null)
+        {
+            return;
+        }
+
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Видалити працівника «{_card.Employee.DisplayName}» разом з усіма тестами та файлами результатів?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+        _errorMessage = null;
+        var departmentId = _card.Department.Id;
+
+        try
+        {
+            await OrganizationService.DeleteEmployeeAsync(EmployeeId);
+            Navigation.NavigateTo($"/admin/departments/{departmentId}");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося видалити працівника."
+                : ex.Message;
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
+    }
+
+    private async Task DeleteSelectedTestAsync()
+    {
+        if (_isDeleting || _card is null || !_selectedTestId.HasValue)
+        {
+            return;
+        }
+
+        var title = _selectedTestTitle ?? "тест";
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Видалити тест «{title}» для цього працівника разом з усіма проходженнями та файлами результатів?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+        _errorMessage = null;
+
+        try
+        {
+            await OrganizationService.DeleteEmployeeTestSessionsAsync(EmployeeId, _selectedTestId.Value);
+            await ReloadAsync(null);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося видалити тест."
+                : ex.Message;
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
+    }
+
+    private async Task DeleteSessionAsync(EmployeeTestSessionItem session)
+    {
+        if (_isDeleting)
+        {
+            return;
+        }
+
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Видалити проходження від {(session.CompletedAt ?? session.StartedAt):dd.MM.yyyy HH:mm}" +
+            $"{(session.IsCompleted ? " разом із файлом результату" : "")}?");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+        _errorMessage = null;
+
+        try
+        {
+            await TestAttemptService.DeleteAsync(session.AttemptId);
+            await ReloadAsync(_selectedTestId);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося видалити проходження."
+                : ex.Message;
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
     }
 }

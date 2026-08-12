@@ -393,4 +393,94 @@ public class OrganizationService(
         await db.SaveChangesAsync(cancellationToken);
         return employee;
     }
+
+    public async Task DeleteEmployeeAsync(
+        Guid employeeId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var employee = await db.Employees
+            .Include(e => e.Department)
+            .FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken)
+            ?? throw new InvalidOperationException("Працівника не знайдено.");
+
+        if (employee.Department is null)
+        {
+            throw new InvalidOperationException("Підрозділ працівника не знайдено.");
+        }
+
+        var departmentNumber = employee.Department.Number;
+        var attempts = await db.TestAttempts
+            .Where(a => a.EmployeeId == employeeId ||
+                        (a.NumberUnit == departmentNumber &&
+                         a.LastName == employee.LastName &&
+                         a.FirstName == employee.FirstName &&
+                         a.MiddleName == employee.MiddleName))
+            .ToListAsync(cancellationToken);
+
+        var resultPaths = attempts
+            .Select(a => a.ResultRelativePath)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (attempts.Count > 0)
+        {
+            db.TestAttempts.RemoveRange(attempts);
+        }
+
+        db.Employees.Remove(employee);
+        await db.SaveChangesAsync(cancellationToken);
+
+        foreach (var path in resultPaths)
+        {
+            await resultDocumentService.DeleteAsync(path!, cancellationToken);
+        }
+    }
+
+    public async Task DeleteEmployeeTestSessionsAsync(
+        Guid employeeId,
+        Guid testDocumentId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var employee = await db.Employees
+            .AsNoTracking()
+            .Include(e => e.Department)
+            .FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken)
+            ?? throw new InvalidOperationException("Працівника не знайдено.");
+
+        if (employee.Department is null)
+        {
+            throw new InvalidOperationException("Підрозділ працівника не знайдено.");
+        }
+
+        var attempts = await db.TestAttempts
+            .Where(a => a.TestDocumentId == testDocumentId &&
+                        (a.EmployeeId == employeeId ||
+                         (a.NumberUnit == employee.Department.Number &&
+                          a.LastName == employee.LastName &&
+                          a.FirstName == employee.FirstName &&
+                          a.MiddleName == employee.MiddleName)))
+            .ToListAsync(cancellationToken);
+
+        if (attempts.Count == 0)
+        {
+            return;
+        }
+
+        var resultPaths = attempts
+            .Select(a => a.ResultRelativePath)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        db.TestAttempts.RemoveRange(attempts);
+        await db.SaveChangesAsync(cancellationToken);
+
+        foreach (var path in resultPaths)
+        {
+            await resultDocumentService.DeleteAsync(path!, cancellationToken);
+        }
+    }
 }

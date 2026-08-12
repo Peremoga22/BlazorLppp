@@ -42,4 +42,11 @@ public interface IOrganizationService
     Task EnsureDefaultDepartmentsAsync(CancellationToken cancellationToken = default);
 
     Task BackfillEmployeesFromAttemptsAsync(CancellationToken cancellationToken = default);
+
+    Task DeleteEmployeeAsync(Guid employeeId, CancellationToken cancellationToken = default);
+
+    Task DeleteEmployeeTestSessionsAsync(
+        Guid employeeId,
+        Guid testDocumentId,
+        CancellationToken cancellationToken = default);
 }
