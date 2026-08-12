@@ -8,9 +8,6 @@
 @using Microsoft.AspNetCore.Authorization
 
 @inject IOrganizationService OrganizationService
-@inject ITestDefinitionService TestDefinitionService
-@inject ITestAttemptService TestAttemptService
-@inject NavigationManager Navigation
 
 <PageTitle>@_card?.Employee.DisplayName ?? "Працівник"</PageTitle>
 
@@ -100,21 +97,15 @@
                 </div>
             }
 
-            @if (_selectedTestId.HasValue)
-            {
-                <div class="admin-page__actions" style="margin-top:1rem">
-                    <button type="button"
-                            class="admin-btn"
-                            disabled="@_isStarting"
-                            @onclick="StartRetakeAsync">
-                        Пройти тест повторно
-                    </button>
-                </div>
-                @if (!string.IsNullOrEmpty(_retakeMessage))
-                {
-                    <p class="admin-page__error">@_retakeMessage</p>
-                }
-            }
+            <div class="admin-page__actions admin-actions" style="margin-top:1rem">
+                <a class="admin-btn admin-btn--soft"
+                   href="@($"/admin/departments/{_card.Department.Id}")">
+                    ← Назад на один крок
+                </a>
+                <a class="admin-btn admin-btn--soft" href="/admin/departments">
+                    ←← Ще на крок назад
+                </a>
+            </div>
         </section>
     }
 </div>
@@ -129,8 +120,6 @@
     private Guid? _selectedTestId;
     private string? _selectedTestTitle;
     private bool _isLoading = true;
-    private bool _isStarting;
-    private string? _retakeMessage;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -169,39 +158,5 @@
     private async Task SelectTestAsync(Guid testDocumentId)
     {
         await ReloadAsync(testDocumentId);
-    }
-
-    private async Task StartRetakeAsync()
-    {
-        if (_card is null || !_selectedTestId.HasValue)
-        {
-            return;
-        }
-
-        _isStarting = true;
-        _retakeMessage = null;
-        try
-        {
-            // Нове проходження: спочатку завершуємо «залипання» на in-progress через новий attempt
-            // лише якщо немає відкритої спроби — StartAsync сам продовжить існуючу.
-            var attempt = await TestAttemptService.StartAsync(new RespondentModel
-            {
-                LastName = _card.Employee.LastName,
-                FirstName = _card.Employee.FirstName,
-                MiddleName = _card.Employee.MiddleName,
-                NumberUnit = _card.Department.Number,
-                TestDocumentId = _selectedTestId
-            });
-
-            Navigation.NavigateTo($"/test/{attempt.Id}");
-        }
-        catch (Exception ex)
-        {
-            _retakeMessage = ex.Message;
-        }
-        finally
-        {
-            _isStarting = false;
-        }
     }
 }
