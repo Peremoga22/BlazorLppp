@@ -181,6 +181,110 @@ public partial class TestResultDocumentService(
         return Task.CompletedTask;
     }
 
+    public Task<(string AbsolutePath, string DownloadFileName)> CombineResultDocumentsAsync(
+        IReadOnlyList<string> resultRelativePaths,
+        string? fileNameHint = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (resultRelativePaths is null || resultRelativePaths.Count == 0)
+        {
+            throw new InvalidOperationException("Немає файлів результатів для об'єднання.");
+        }
+
+        var sourcePaths = new List<string>(resultRelativePaths.Count);
+        foreach (var relative in resultRelativePaths)
+        {
+            if (string.IsNullOrWhiteSpace(relative))
+            {
+                continue;
+            }
+
+            var absolute = GetAbsolutePath(relative);
+            if (File.Exists(absolute))
+            {
+                sourcePaths.Add(absolute);
+            }
+        }
+
+        if (sourcePaths.Count == 0)
+        {
+            throw new InvalidOperationException("Файли результатів не знайдено на диску.");
+        }
+
+        var exportRoot = Path.Combine(ResolveResultsRoot(), "_exports");
+        Directory.CreateDirectory(exportRoot);
+
+        var safeHint = SanitizeFileName(string.IsNullOrWhiteSpace(fileNameHint)
+            ? "Результати"
+            : fileNameHint.Trim());
+        var downloadFileName = $"{safeHint}_{DateTime.Now:yyyyMMdd-HHmmss}.docx";
+        var absolutePath = Path.Combine(exportRoot, downloadFileName);
+
+        using (var stream = new FileStream(
+            absolutePath,
+            FileMode.Create,
+            FileAccess.ReadWrite,
+            FileShare.None,
+            bufferSize: 81920,
+            useAsync: false))
+        {
+            using var word = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document);
+            var mainPart = word.AddMainDocumentPart();
+            mainPart.Document = new Document(new Body());
+            var body = mainPart.Document.Body!;
+
+            var isFirst = true;
+            foreach (var sourcePath in sourcePaths)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (!isFirst)
+                {
+                    body.AppendChild(new Paragraph(new Run(new Break { Type = BreakValues.Page })));
+                }
+
+                isFirst = false;
+
+                using var source = WordprocessingDocument.Open(sourcePath, false);
+                var sourceBody = source.MainDocumentPart?.Document?.Body;
+                if (sourceBody is null)
+                {
+                    continue;
+                }
+
+                foreach (var element in sourceBody.Elements())
+                {
+                    if (element is SectionProperties)
+                    {
+                        continue;
+                    }
+
+                    body.AppendChild(element.CloneNode(true));
+                }
+            }
+
+            if (isFirst)
+            {
+                throw new InvalidOperationException("Не вдалося прочитати жодного файлу результату.");
+            }
+
+            body.AppendChild(CreateSectionProperties());
+            mainPart.Document.Save();
+        }
+
+        return Task.FromResult((absolutePath, downloadFileName));
+    }
+
+    private static string SanitizeFileName(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var chars = value.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray();
+        var cleaned = new string(chars).Trim('.', ' ', '_');
+        return string.IsNullOrWhiteSpace(cleaned) ? "Результати" : cleaned;
+    }
+
     public string BuildFileBaseName(string lastName, string firstName, string middleName)
     {
         var surname = SanitizeSegment(lastName);

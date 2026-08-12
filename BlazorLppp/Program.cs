@@ -125,6 +125,52 @@ app.MapRazorComponents<App>()
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();
 
+app.MapGet("/admin/results/download-all", async (
+    int? numberUnit,
+    ITestAttemptService attemptService,
+    ITestResultDocumentService resultDocumentService,
+    CancellationToken cancellationToken) =>
+{
+    var results = await attemptService.GetCompletedResultsAsync(numberUnit, cancellationToken);
+    if (results.Count == 0)
+    {
+        return Results.NotFound();
+    }
+
+    foreach (var item in results)
+    {
+        await attemptService.EnsureResultFileAsync(item.AttemptId, cancellationToken);
+    }
+
+    results = await attemptService.GetCompletedResultsAsync(numberUnit, cancellationToken);
+    var paths = results
+        .OrderBy(r => r.CompletedAt ?? r.StartedAt)
+        .Select(r => r.ResultRelativePath)
+        .Where(p => !string.IsNullOrWhiteSpace(p))
+        .Cast<string>()
+        .ToList();
+
+    if (paths.Count == 0)
+    {
+        return Results.NotFound();
+    }
+
+    var hint = numberUnit is null
+        ? "Результати_усі"
+        : $"Результати_підрозділ_{numberUnit.Value}";
+
+    var (absolutePath, downloadName) = await resultDocumentService.CombineResultDocumentsAsync(
+        paths,
+        hint,
+        cancellationToken);
+
+    return Results.File(
+        absolutePath,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        downloadName);
+})
+.RequireAuthorization(policy => policy.RequireRole(AppRoles.Admin));
+
 app.MapGet("/admin/results/{attemptId:guid}/download", async (
     Guid attemptId,
     ITestAttemptService attemptService,

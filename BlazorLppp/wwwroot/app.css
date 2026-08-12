@@ -1092,6 +1092,11 @@ h1:focus {
 }
 
 .admin-home-results__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
     margin-bottom: 1rem;
 }
 

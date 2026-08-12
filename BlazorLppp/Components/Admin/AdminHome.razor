@@ -113,6 +113,15 @@
                             : $"Завершені тести підрозділу {_selectedUnit}. Файли: «Прізвище_І_П.docx»")
                     </p>
                 </div>
+                @if (_results.Count > 0)
+                {
+                    <a class="admin-btn"
+                       href="@DownloadAllHref"
+                       title="Зібрати всі результати в один Word-документ і завантажити">
+                        <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
+                        Завантажити всі в один документ
+                    </a>
+                }
             </header>
 
             @if (!string.IsNullOrEmpty(_resultsError))
@@ -210,6 +219,11 @@
     private bool _isDeleting;
     private string? _errorMessage;
     private string? _resultsError;
+
+    private string DownloadAllHref =>
+        _selectedUnit is null
+            ? "/admin/results/download-all"
+            : $"/admin/results/download-all?numberUnit={_selectedUnit.Value}";
 
     protected override async Task OnInitializedAsync()
     {
