@@ -79,7 +79,8 @@ public partial class TestResultDocumentService(
 
             if (isAdaptivity200)
             {
-                AppendAdaptivity200Blank(body, attempt, fullName, examDate, questions, answersByQuestion);
+                var scoring = Adaptivity200Scoring.Evaluate(questions, answersByQuestion);
+                AppendAdaptivity200Blank(body, attempt, fullName, examDate, questions, answersByQuestion, scoring);
             }
             else if (isZbroya)
             {
@@ -239,7 +240,8 @@ public partial class TestResultDocumentService(
         string fullName,
         string examDate,
         IReadOnlyList<TestQuestion> questions,
-        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion,
+        Adaptivity200ScoringResult scoring)
     {
         AppendFieldLine(body,
         [
@@ -261,13 +263,13 @@ public partial class TestResultDocumentService(
 
         AppendFieldLine(body,
         [
-            ("Д", string.Empty),
-            ("ПР", string.Empty),
-            ("КП", string.Empty),
-            ("МН", string.Empty),
-            ("ВПС", string.Empty),
-            ("ДАП", string.Empty),
-            ("СР", string.Empty)
+            ("Д", scoring.ReliabilityD.ToString()),
+            ("ПР", scoring.BehavioralRegulationPr.ToString()),
+            ("КП", scoring.CommunicativePotentialKp.ToString()),
+            ("МН", scoring.MoralNormativityMn.ToString()),
+            ("ВПС", scoring.MilitaryOrientationVps.ToString()),
+            ("ДАП", scoring.DeviantPropensityDap.ToString()),
+            ("СР", scoring.SuicidalRiskSr.ToString())
         ]);
 
         AppendEmptyParagraph(body);
@@ -275,10 +277,67 @@ public partial class TestResultDocumentService(
             body,
             "Позначення: «+» — відповідь «Так», «−» — відповідь «Ні».");
 
+        AppendAdaptivity200ScoringSection(body, scoring);
+
         AppendEmptyParagraph(body);
         AppendCenteredParagraph(body, "Відповіді за питаннями", bold: true, fontSize: TitleFontSize);
         AppendEmptyParagraph(body);
         body.AppendChild(BuildAnswersTable(questions, answersByQuestion));
+    }
+
+    private static void AppendAdaptivity200ScoringSection(Body body, Adaptivity200ScoringResult scoring)
+    {
+        AppendEmptyParagraph(body);
+        AppendCenteredParagraph(body, "Оцінка результатів", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            "Обробка виконана за ключем методики «Адаптивність-200» (БОО). " +
+            "Кожний збіг відповіді з ключем шкали = 1 бал.");
+
+        AppendBodyParagraph(
+            body,
+            $"Д (достовірність) = {scoring.ReliabilityD} — {scoring.ReliabilityLevelName}.",
+            bold: true);
+
+        if (scoring.IsResultUnreliable)
+        {
+            AppendEmptyParagraph(body);
+            AppendBodyParagraph(body, "Психологічний висновок", bold: true);
+            AppendBodyParagraph(body, scoring.Conclusion);
+            return;
+        }
+
+        AppendBodyParagraph(
+            body,
+            $"ПР = {scoring.BehavioralRegulationPr} ({scoring.StenPr} стенів); " +
+            $"КП = {scoring.CommunicativePotentialKp} ({scoring.StenKp} стенів); " +
+            $"МН = {scoring.MoralNormativityMn} ({scoring.StenMn} стенів).");
+
+        AppendBodyParagraph(
+            body,
+            $"ОАП = ПР + КП + МН = {scoring.PersonalAdaptationPotentialOap} " +
+            $"({scoring.StenOap} стенів).",
+            bold: true);
+
+        AppendBodyParagraph(
+            body,
+            $"ВПС = {scoring.MilitaryOrientationVps} ({scoring.StenVps} стенів); " +
+            $"ДАП = {scoring.DeviantPropensityDap} ({scoring.StenDap} стенів); " +
+            $"СР = {scoring.SuicidalRiskSr} ({scoring.StenSrDisplay} стенів).");
+
+        if (scoring.StenSr is null)
+        {
+            AppendBodyParagraph(
+                body,
+                "Примітка: для СР = 0 у джерельній таблиці стенів зазначено і 9, і 10 — " +
+                "однозначне переведення потребує уточнення методики.");
+        }
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Психологічний висновок", bold: true);
+        AppendBodyParagraph(body, scoring.Conclusion);
     }
 
     private static Table BuildAdaptivityAnswerGrid(
