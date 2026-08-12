@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
 
+@using BlazorLppp.Application.Models
 @using BlazorLppp.Domain
 @using BlazorLppp.Domain.Entities
 @using BlazorLppp.Domain.Enums
@@ -12,6 +13,7 @@
 
 @inject ITestAttemptService TestAttemptService
 @inject ITestDefinitionService TestDefinitionService
+@inject IOrganizationService OrganizationService
 @inject NavigationManager Navigation
 @implements IDisposable
 
@@ -176,9 +178,9 @@
                                     value="@(Model.NumberUnit == 0 ? "" : Model.NumberUnit.ToString())"
                                     @onchange="OnNumberUnitChanged">
                                 <option value="">— Оберіть підрозділ —</option>
-                                @foreach (var unit in UnitNumbers.All)
+                                @foreach (var dept in _departments)
                                 {
-                                    <option value="@unit">Підрозділ @unit</option>
+                                    <option value="@dept.Number">@dept.Name</option>
                                 }
                             </select>
                             <ValidationMessage For="() => Model.NumberUnit" class="test-start__error" />
@@ -245,6 +247,7 @@
 @code {
     private RespondentModel Model { get; set; } = new();
     private readonly List<TestDocument> _availableTests = [];
+    private readonly List<DepartmentListItem> _departments = [];
     private IncompleteAttemptInfo? _incompleteAttempt;
     private bool _isLoadingTests = true;
     private bool _isStarting;
@@ -287,6 +290,10 @@
     {
         try
         {
+            await OrganizationService.EnsureDefaultDepartmentsAsync();
+            _departments.Clear();
+            _departments.AddRange(await OrganizationService.ListDepartmentsAsync());
+
             var documents = await TestDefinitionService.ListAsync();
             var withQuestions = documents
                 .Where(d => d.Questions.Count > 0 && !IsBrokenZbroyaDocument(d))
@@ -391,7 +398,10 @@
     private async Task OnNumberUnitChanged(ChangeEventArgs e)
     {
         var raw = e.Value?.ToString();
-        Model.NumberUnit = int.TryParse(raw, out var value) && UnitNumbers.IsValid(value) ? value : 0;
+        Model.NumberUnit = int.TryParse(raw, out var value) &&
+                           _departments.Any(d => d.Number == value)
+            ? value
+            : 0;
         await ScheduleIncompleteCheckAsync();
     }
 

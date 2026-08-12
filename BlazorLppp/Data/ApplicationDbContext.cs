@@ -8,6 +8,10 @@ namespace BlazorLppp.Data;
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
     : IdentityDbContext<ApplicationUser>(options)
 {
+    public DbSet<Department> Departments => Set<Department>();
+
+    public DbSet<Employee> Employees => Set<Employee>();
+
     public DbSet<TestAttempt> TestAttempts => Set<TestAttempt>();
 
     public DbSet<TestDocument> TestDocuments => Set<TestDocument>();
@@ -18,9 +22,79 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<TestAnswer> TestAnswers => Set<TestAnswer>();
 
+    public DbSet<TestScaleResult> TestScaleResults => Set<TestScaleResult>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<Department>(entity =>
+        {
+            entity.ToTable("Departments");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(e => e.Number)
+                .IsRequired();
+
+            entity.Property(e => e.CreatedAt)
+                .IsRequired();
+
+            entity.HasIndex(e => e.Number).IsUnique();
+            entity.HasIndex(e => e.Name);
+        });
+
+        builder.Entity<Employee>(entity =>
+        {
+            entity.ToTable("Employees");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.LastName)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(e => e.FirstName)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(e => e.MiddleName)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(e => e.CreatedAt)
+                .IsRequired();
+
+            entity.HasOne(e => e.Department)
+                .WithMany(d => d.Employees)
+                .HasForeignKey(e => e.DepartmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(e => new { e.DepartmentId, e.LastName, e.FirstName, e.MiddleName })
+                .IsUnique();
+        });
+
+        builder.Entity<TestScaleResult>(entity =>
+        {
+            entity.ToTable("TestScaleResults");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.ScaleCode)
+                .IsRequired()
+                .HasMaxLength(40);
+
+            entity.Property(e => e.Interpretation)
+                .HasMaxLength(1000);
+
+            entity.HasOne(e => e.TestAttempt)
+                .WithMany(a => a.ScaleResults)
+                .HasForeignKey(e => e.TestAttemptId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => new { e.TestAttemptId, e.ScaleCode }).IsUnique();
+        });
 
         builder.Entity<TestDocument>(entity =>
         {
@@ -164,7 +238,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasForeignKey(e => e.TestDocumentId)
                 .OnDelete(DeleteBehavior.SetNull);
 
+            entity.HasOne(e => e.Employee)
+                .WithMany(emp => emp.Attempts)
+                .HasForeignKey(e => e.EmployeeId)
+                .OnDelete(DeleteBehavior.SetNull);
+
             entity.HasIndex(e => e.StartedAt);
+            entity.HasIndex(e => e.EmployeeId);
         });
     }
 }

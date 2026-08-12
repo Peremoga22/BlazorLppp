@@ -19,7 +19,7 @@ public class RespondentModel : IValidatableObject
     public string MiddleName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Вкажіть номер підрозділу")]
-    [Range(UnitNumbers.Min, UnitNumbers.Max, ErrorMessage = "Оберіть підрозділ від 1 до 5")]
+    [Range(1, 9999, ErrorMessage = "Оберіть підрозділ")]
     public int NumberUnit { get; set; }
 
     [Required(ErrorMessage = "Оберіть тест")]

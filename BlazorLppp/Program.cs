@@ -45,6 +45,7 @@ builder.Services.AddScoped<IDocumentStorageService, DocumentStorageService>();
 builder.Services.AddSingleton<ITestDocumentParser, TestDocumentParser>();
 builder.Services.AddScoped<ITestDefinitionService, TestDefinitionService>();
 builder.Services.AddScoped<ITestResultDocumentService, TestResultDocumentService>();
+builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 
 builder.Services.AddAuthentication(options =>
     {
@@ -89,6 +90,9 @@ using (var scope = app.Services.CreateScope())
     }
 
     await IdentityDataSeeder.SeedAsync(scope.ServiceProvider);
+    var organizationService = scope.ServiceProvider.GetRequiredService<IOrganizationService>();
+    await organizationService.EnsureDefaultDepartmentsAsync();
+    await organizationService.BackfillEmployeesFromAttemptsAsync();
     await TestDocumentSeeder.SeedAsync(scope.ServiceProvider);
     await Adaptivity200DocumentSeeder.SeedAsync(scope.ServiceProvider);
     await ZbroyaDocumentSeeder.SeedAsync(scope.ServiceProvider);

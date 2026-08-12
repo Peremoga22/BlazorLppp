@@ -1,0 +1,207 @@
+@page "/admin/employees/{EmployeeId:guid}"
+@layout AdminLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = AppRoles.Admin)]
+
+@using BlazorLppp.Application.Models
+@using BlazorLppp.Domain
+@using Microsoft.AspNetCore.Authorization
+
+@inject IOrganizationService OrganizationService
+@inject ITestDefinitionService TestDefinitionService
+@inject ITestAttemptService TestAttemptService
+@inject NavigationManager Navigation
+
+<PageTitle>@_card?.Employee.DisplayName ?? "Працівник"</PageTitle>
+
+<div class="admin-page">
+    @if (_isLoading)
+    {
+        <p class="admin-page__muted">Завантаження...</p>
+    }
+    else if (_card is null)
+    {
+        <p class="admin-page__error">Працівника не знайдено.</p>
+        <a class="admin-page__link" href="/admin/departments">До підрозділів</a>
+    }
+    else
+    {
+        <header class="admin-page__header admin-page__header--hero">
+            <div class="admin-page__hero-copy">
+                <p class="admin-page__eyebrow">
+                    <a href="/admin/departments">Підрозділи</a>
+                    ·
+                    <a href="@($"/admin/departments/{_card.Department.Id}")">@_card.Department.Name</a>
+                </p>
+                <h1 class="admin-page__title">@_card.Employee.DisplayName</h1>
+                <p class="admin-page__subtitle">Підрозділ: @_card.Department.Name</p>
+            </div>
+        </header>
+
+        <section class="admin-panel">
+            <h2 class="admin-upload__title">Психологічні тести</h2>
+            @if (_card.TestTabs.Count == 0)
+            {
+                <p class="admin-page__muted">Цей працівник ще не проходив тести.</p>
+            }
+            else
+            {
+                <div class="test-tabs" role="tablist">
+                    @foreach (var tab in _card.TestTabs)
+                    {
+                        <button type="button"
+                                class="test-tabs__item @(_selectedTestId == tab.TestDocumentId ? "test-tabs__item--active" : null)"
+                                @onclick="() => SelectTestAsync(tab.TestDocumentId)">
+                            @tab.TestTitle
+                            <span class="test-tabs__count">@tab.SessionCount</span>
+                        </button>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="admin-panel">
+            <h2 class="admin-upload__title">
+                @(_selectedTestTitle ?? "Історія проходжень")
+            </h2>
+
+            @if (_card.Sessions.Count == 0)
+            {
+                <p class="admin-page__muted">Немає проходжень для обраного тесту.</p>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Результат</th>
+                                <th>Дії</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var session in _card.Sessions)
+                            {
+                                <tr>
+                                    <td>@((session.CompletedAt ?? session.StartedAt).ToString("dd.MM.yyyy HH:mm"))</td>
+                                    <td>@session.StatusName</td>
+                                    <td class="admin-table__actions">
+                                        <a class="admin-link" href="@($"/admin/results/{session.AttemptId}")">Відкрити</a>
+                                        @if (session.IsCompleted)
+                                        {
+                                            <a class="admin-link" href="@($"/admin/results/{session.AttemptId}/download")">Документ</a>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (_selectedTestId.HasValue)
+            {
+                <div class="admin-page__actions" style="margin-top:1rem">
+                    <button type="button"
+                            class="admin-btn"
+                            disabled="@_isStarting"
+                            @onclick="StartRetakeAsync">
+                        Пройти тест повторно
+                    </button>
+                </div>
+                @if (!string.IsNullOrEmpty(_retakeMessage))
+                {
+                    <p class="admin-page__error">@_retakeMessage</p>
+                }
+            }
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid EmployeeId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "test")]
+    public Guid? TestQuery { get; set; }
+
+    private EmployeeCardModel? _card;
+    private Guid? _selectedTestId;
+    private string? _selectedTestTitle;
+    private bool _isLoading = true;
+    private bool _isStarting;
+    private string? _retakeMessage;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await ReloadAsync(TestQuery);
+    }
+
+    private async Task ReloadAsync(Guid? selectedTestId)
+    {
+        _isLoading = true;
+        try
+        {
+            _card = await OrganizationService.GetEmployeeCardAsync(EmployeeId, selectedTestId);
+            if (_card is null)
+            {
+                return;
+            }
+
+            _selectedTestId = selectedTestId
+                ?? _card.TestTabs.FirstOrDefault()?.TestDocumentId;
+            _selectedTestTitle = _card.TestTabs
+                .FirstOrDefault(t => t.TestDocumentId == _selectedTestId)?.TestTitle;
+
+            if (_selectedTestId.HasValue && selectedTestId != _selectedTestId)
+            {
+                _card = await OrganizationService.GetEmployeeCardAsync(EmployeeId, _selectedTestId);
+                _selectedTestTitle = _card?.TestTabs
+                    .FirstOrDefault(t => t.TestDocumentId == _selectedTestId)?.TestTitle;
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SelectTestAsync(Guid testDocumentId)
+    {
+        await ReloadAsync(testDocumentId);
+    }
+
+    private async Task StartRetakeAsync()
+    {
+        if (_card is null || !_selectedTestId.HasValue)
+        {
+            return;
+        }
+
+        _isStarting = true;
+        _retakeMessage = null;
+        try
+        {
+            // Нове проходження: спочатку завершуємо «залипання» на in-progress через новий attempt
+            // лише якщо немає відкритої спроби — StartAsync сам продовжить існуючу.
+            var attempt = await TestAttemptService.StartAsync(new RespondentModel
+            {
+                LastName = _card.Employee.LastName,
+                FirstName = _card.Employee.FirstName,
+                MiddleName = _card.Employee.MiddleName,
+                NumberUnit = _card.Department.Number,
+                TestDocumentId = _selectedTestId
+            });
+
+            Navigation.NavigateTo($"/test/{attempt.Id}");
+        }
+        catch (Exception ex)
+        {
+            _retakeMessage = ex.Message;
+        }
+        finally
+        {
+            _isStarting = false;
+        }
+    }
+}

@@ -24,7 +24,8 @@
             </label>
         </div>
         <nav class="admin-layout__nav">
-            <NavLink class="admin-layout__link" href="/admin-home" Match="NavLinkMatch.All" @attributes="CloseMenuAttrs">Головна</NavLink>
+            <NavLink class="admin-layout__link" href="/admin/departments" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">Підрозділи</NavLink>
+            <NavLink class="admin-layout__link" href="/admin-home" Match="NavLinkMatch.All" @attributes="CloseMenuAttrs">Огляд</NavLink>
             <NavLink class="admin-layout__link" href="/admin/attempts" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">Спроби</NavLink>
             <NavLink class="admin-layout__link" href="/admin/documents" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">Документи</NavLink>
             <NavLink class="admin-layout__link" href="/" Match="NavLinkMatch.All" @attributes="CloseMenuAttrs">До тесту</NavLink>

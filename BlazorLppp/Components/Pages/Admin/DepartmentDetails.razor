@@ -1,0 +1,197 @@
+@page "/admin/departments/{DepartmentId:guid}"
+@layout AdminLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = AppRoles.Admin)]
+
+@using BlazorLppp.Application.Models
+@using BlazorLppp.Domain
+@using BlazorLppp.Domain.Entities
+@using Microsoft.AspNetCore.Authorization
+
+@inject IOrganizationService OrganizationService
+@inject NavigationManager Navigation
+
+<PageTitle>@_department?.Name ?? "Підрозділ"</PageTitle>
+
+<div class="admin-page">
+    <header class="admin-page__header admin-page__header--hero">
+        <div class="admin-page__hero-copy">
+            <p class="admin-page__eyebrow">
+                <a href="/admin/departments">Підрозділи</a>
+            </p>
+            <h1 class="admin-page__title">@(_department?.Name ?? "Підрозділ")</h1>
+            <p class="admin-page__subtitle">Працівники цього підрозділу</p>
+        </div>
+    </header>
+
+    @if (_department is not null)
+    {
+        <section class="admin-panel">
+            <h2 class="admin-upload__title">Редагувати назву</h2>
+            <div class="admin-form-row">
+                <input class="admin-input" @bind="_editName" />
+                <button type="button" class="admin-btn admin-btn--soft" disabled="@_isSaving" @onclick="RenameAsync">
+                    Зберегти
+                </button>
+            </div>
+        </section>
+
+        <section class="admin-panel">
+            <h2 class="admin-upload__title">Додати працівника</h2>
+            <div class="admin-form-grid">
+                <input class="admin-input" @bind="_newLastName" placeholder="Прізвище" />
+                <input class="admin-input" @bind="_newFirstName" placeholder="Ім’я" />
+                <input class="admin-input" @bind="_newMiddleName" placeholder="По батькові" />
+                <button type="button" class="admin-btn" disabled="@_isSaving" @onclick="AddEmployeeAsync">
+                    Додати
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(_formMessage))
+            {
+                <p class="@(_formIsError ? "admin-page__error" : "admin-page__muted")">@_formMessage</p>
+            }
+        </section>
+    }
+
+    <section class="admin-panel">
+        <div class="admin-form-row">
+            <input class="admin-input"
+                   @bind="_search"
+                   @bind:event="oninput"
+                   @bind:after="ReloadEmployeesAsync"
+                   placeholder="Пошук працівника" />
+        </div>
+
+        @if (_isLoading)
+        {
+            <p class="admin-page__muted">Завантаження...</p>
+        }
+        else if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <p class="admin-page__error">@_errorMessage</p>
+        }
+        else if (_employees.Count == 0)
+        {
+            <p class="admin-page__muted">Працівників у цьому підрозділі ще немає.</p>
+        }
+        else
+        {
+            <div class="employee-list">
+                @foreach (var employee in _employees)
+                {
+                    <article class="employee-card">
+                        <div>
+                            <strong>@employee.DisplayName</strong>
+                            <p class="admin-page__muted">
+                                Пройдено тестів: @employee.CompletedTestsCount
+                                @if (employee.LastCompletedAt is not null)
+                                {
+                                    <span> · Останнє: @employee.LastCompletedAt.Value.ToString("dd.MM.yyyy")</span>
+                                }
+                            </p>
+                        </div>
+                        <a class="admin-btn admin-btn--soft" href="@($"/admin/employees/{employee.Id}")">Відкрити</a>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter] public Guid DepartmentId { get; set; }
+
+    private Department? _department;
+    private readonly List<EmployeeListItem> _employees = [];
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private string? _errorMessage;
+    private string? _formMessage;
+    private bool _formIsError;
+    private string _editName = string.Empty;
+    private string _search = string.Empty;
+    private string _newLastName = string.Empty;
+    private string _newFirstName = string.Empty;
+    private string _newMiddleName = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _department = await OrganizationService.GetDepartmentAsync(DepartmentId);
+        if (_department is null)
+        {
+            _errorMessage = "Підрозділ не знайдено.";
+            _isLoading = false;
+            return;
+        }
+
+        _editName = _department.Name;
+        await ReloadEmployeesAsync();
+    }
+
+    private async Task ReloadEmployeesAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _employees.Clear();
+            _employees.AddRange(await OrganizationService.ListEmployeesAsync(DepartmentId, _search));
+            _errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task RenameAsync()
+    {
+        _isSaving = true;
+        try
+        {
+            await OrganizationService.RenameDepartmentAsync(DepartmentId, _editName);
+            _department = await OrganizationService.GetDepartmentAsync(DepartmentId);
+            _formIsError = false;
+            _formMessage = "Назву оновлено.";
+        }
+        catch (Exception ex)
+        {
+            _formIsError = true;
+            _formMessage = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task AddEmployeeAsync()
+    {
+        _isSaving = true;
+        try
+        {
+            var employee = await OrganizationService.AddEmployeeAsync(
+                DepartmentId,
+                _newLastName,
+                _newFirstName,
+                _newMiddleName);
+            _newLastName = _newFirstName = _newMiddleName = string.Empty;
+            _formIsError = false;
+            _formMessage = "Працівника додано.";
+            await ReloadEmployeesAsync();
+            Navigation.NavigateTo($"/admin/employees/{employee.Id}");
+        }
+        catch (Exception ex)
+        {
+            _formIsError = true;
+            _formMessage = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

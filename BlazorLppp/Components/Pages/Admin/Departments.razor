@@ -1,0 +1,128 @@
+@page "/admin/departments"
+@layout AdminLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = AppRoles.Admin)]
+
+@using BlazorLppp.Application.Models
+@using BlazorLppp.Domain
+@using Microsoft.AspNetCore.Authorization
+
+@inject IOrganizationService OrganizationService
+
+<PageTitle>Підрозділи</PageTitle>
+
+<div class="admin-page">
+    <header class="admin-page__header admin-page__header--hero">
+        <div class="admin-page__hero-copy">
+            <p class="admin-page__eyebrow">Структура організації</p>
+            <h1 class="admin-page__title">Підрозділи</h1>
+            <p class="admin-page__subtitle">
+                Підрозділ → працівник → тест → історія проходжень
+            </p>
+        </div>
+    </header>
+
+    <section class="admin-panel">
+        <h2 class="admin-upload__title">Створити підрозділ</h2>
+        <div class="admin-form-row">
+            <input class="admin-input"
+                   @bind="_newDepartmentName"
+                   placeholder="Назва підрозділу" />
+            <button type="button"
+                    class="admin-btn"
+                    disabled="@_isSaving"
+                    @onclick="CreateDepartmentAsync">
+                Додати
+            </button>
+        </div>
+        @if (!string.IsNullOrEmpty(_formMessage))
+        {
+            <p class="@(_formIsError ? "admin-page__error" : "admin-page__muted")" role="status">@_formMessage</p>
+        }
+    </section>
+
+    @if (_isLoading)
+    {
+        <p class="admin-page__muted">Завантаження...</p>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <p class="admin-page__error" role="alert">@_errorMessage</p>
+    }
+    else if (_departments.Count == 0)
+    {
+        <p class="admin-page__muted">Підрозділів ще немає.</p>
+    }
+    else
+    {
+        <div class="dept-grid">
+            @foreach (var dept in _departments)
+            {
+                <a class="dept-card" href="@($"/admin/departments/{dept.Id}")">
+                    <span class="dept-card__number">@dept.Number</span>
+                    <strong class="dept-card__name">@dept.Name</strong>
+                    <span class="dept-card__meta">Працівників: @dept.EmployeeCount</span>
+                    <span class="dept-card__action">Відкрити →</span>
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private readonly List<DepartmentListItem> _departments = [];
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private string? _errorMessage;
+    private string? _formMessage;
+    private bool _formIsError;
+    private string _newDepartmentName = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            await OrganizationService.EnsureDefaultDepartmentsAsync();
+            _departments.Clear();
+            _departments.AddRange(await OrganizationService.ListDepartmentsAsync());
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CreateDepartmentAsync()
+    {
+        _isSaving = true;
+        _formMessage = null;
+        try
+        {
+            await OrganizationService.CreateDepartmentAsync(_newDepartmentName);
+            _newDepartmentName = string.Empty;
+            _formIsError = false;
+            _formMessage = "Підрозділ створено.";
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _formIsError = true;
+            _formMessage = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

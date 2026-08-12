@@ -11,7 +11,8 @@ namespace BlazorLppp.Application.Services;
 public class TestAttemptService(
     IDbContextFactory<ApplicationDbContext> dbContextFactory,
     ITestDefinitionService testDefinitionService,
-    ITestResultDocumentService resultDocumentService) : ITestAttemptService
+    ITestResultDocumentService resultDocumentService,
+    IOrganizationService organizationService) : ITestAttemptService
 {
     public async Task<TestAttempt> StartAsync(
         RespondentModel respondent,
@@ -36,7 +37,7 @@ public class TestAttemptService(
 
         if (!UnitNumbers.IsValid(respondent.NumberUnit))
         {
-            throw new InvalidOperationException("Оберіть підрозділ від 1 до 5.");
+            throw new InvalidOperationException("Оберіть підрозділ.");
         }
 
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -55,25 +56,40 @@ public class TestAttemptService(
         var firstName = respondent.FirstName.Trim();
         var middleName = respondent.MiddleName.Trim();
 
+        var employee = await organizationService.FindOrCreateEmployeeAsync(
+            respondent.NumberUnit,
+            lastName,
+            firstName,
+            middleName,
+            cancellationToken);
+
         // Якщо є незавершена спроба цього ж працівника з тим самим тестом — продовжуємо її.
         var existingInProgress = await dbContext.TestAttempts
             .FirstOrDefaultAsync(
                 a => a.Status == TestAttemptStatus.InProgress &&
                      a.TestDocumentId == document.Id &&
-                     a.NumberUnit == respondent.NumberUnit &&
-                     a.LastName == lastName &&
-                     a.FirstName == firstName &&
-                     a.MiddleName == middleName,
+                     (a.EmployeeId == employee.Id ||
+                      (a.NumberUnit == respondent.NumberUnit &&
+                       a.LastName == lastName &&
+                       a.FirstName == firstName &&
+                       a.MiddleName == middleName)),
                 cancellationToken);
 
         if (existingInProgress is not null)
         {
+            if (existingInProgress.EmployeeId is null)
+            {
+                existingInProgress.EmployeeId = employee.Id;
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+
             return existingInProgress;
         }
 
         var attempt = new TestAttempt
         {
             Id = Guid.NewGuid(),
+            EmployeeId = employee.Id,
             TestDocumentId = document.Id,
             LastName = lastName,
             FirstName = firstName,

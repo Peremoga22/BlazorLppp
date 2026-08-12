@@ -6,6 +6,11 @@ public class TestAttempt
 {
     public Guid Id { get; set; }
 
+    /// <summary>Працівник (сесія / проходження тесту).</summary>
+    public Guid? EmployeeId { get; set; }
+
+    public Employee? Employee { get; set; }
+
     public Guid? TestDocumentId { get; set; }
 
     public TestDocument? TestDocument { get; set; }
@@ -16,6 +21,7 @@ public class TestAttempt
 
     public string MiddleName { get; set; } = string.Empty;
 
+    /// <summary>Legacy-номер підрозділу (синхронізується з Department.Number).</summary>
     public int NumberUnit { get; set; }
 
     public DateTime StartedAt { get; set; }
@@ -29,4 +35,6 @@ public class TestAttempt
     public string? ResultFileName { get; set; }
 
     public ICollection<TestAnswer> Answers { get; set; } = new List<TestAnswer>();
+
+    public ICollection<TestScaleResult> ScaleResults { get; set; } = new List<TestScaleResult>();
 }
