@@ -36,10 +36,11 @@ public static class ZbroyaDocumentTemplate
             return false;
         }
 
-        var normalized = text.Trim();
+        // Тільки точний збіг (з коротким хвостом пунктуації). Не StartsWith:
+        // інакше Адаптивність-200 («Мені приємно мати…») підміняється шаблоном ЗБРОЯ.
+        var normalized = text.Trim().TrimEnd('.', '!', '?', ';', ':', '»', '"', '\'');
         return ReactiveItems.Any(item =>
-            normalized.Equals(item, StringComparison.OrdinalIgnoreCase) ||
-            normalized.StartsWith(item, StringComparison.OrdinalIgnoreCase));
+            normalized.Equals(item, StringComparison.OrdinalIgnoreCase));
     }
 
     public static ParsedTestDocument Create()

@@ -56,10 +56,28 @@ public partial class TestDocumentParser : ITestDocumentParser
                 // На Linux / без Word читаємо текст напряму з OLE .doc
                 parsed = ParseLines(DocBinaryTextReader.ReadLines(filePath));
             }
+
+            // Якщо .doc Адаптивності розібрався погано — беремо канонічний .docx із SeedDocuments.
+            if (IsAdaptivity200FileName(filePath) && !IsCompleteAdaptivity200Document(parsed))
+            {
+                var fallback = ResolveAdaptivity200SeedDocx(filePath);
+                if (fallback is not null)
+                {
+                    parsed = ParseLines(ReadDocxLines(fallback));
+                }
+            }
         }
         else
         {
             parsed = ParseLines(ReadDocxLines(filePath));
+        }
+
+        if (IsAdaptivity200FileName(filePath) ||
+            IsAdaptivity200Title(parsed.Title) ||
+            IsCompleteAdaptivity200Document(parsed))
+        {
+            parsed.Title = "Адаптивність-200 (БОО)";
+            return parsed;
         }
 
         var isZbroyaSource =
@@ -95,6 +113,11 @@ public partial class TestDocumentParser : ITestDocumentParser
 
     private static bool LooksLikeZbroyaDocument(ParsedTestDocument parsed)
     {
+        if (IsAdaptivity200Title(parsed.Title) || IsCompleteAdaptivity200Document(parsed))
+        {
+            return false;
+        }
+
         if (LooksLikeIncompleteZbroya(parsed))
         {
             return true;
@@ -116,6 +139,72 @@ public partial class TestDocumentParser : ITestDocumentParser
         return name.Contains("ЗБРОЯ", StringComparison.OrdinalIgnoreCase)
                || name.Contains("zbroya", StringComparison.OrdinalIgnoreCase)
                || name.Contains("зброя", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsAdaptivity200FileName(string filePath)
+    {
+        var name = Path.GetFileNameWithoutExtension(filePath);
+        return name.Contains("адаптивн", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("adaptiv", StringComparison.OrdinalIgnoreCase)
+               || (name.Contains("БОО", StringComparison.OrdinalIgnoreCase) &&
+                   name.Contains("200", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsCompleteAdaptivity200Document(ParsedTestDocument parsed)
+    {
+        if (parsed.Questions.Count is < 180 or > 220)
+        {
+            return false;
+        }
+
+        var withText = parsed.Questions.Count(q =>
+            !string.IsNullOrWhiteSpace(q.Text) &&
+            q.Text.Any(char.IsLetter) &&
+            q.Text.Length >= 8);
+
+        var yesNoLike = parsed.Questions.Count(q =>
+            q.Type is QuestionType.YesNo or QuestionType.SingleChoice);
+
+        return withText >= 180 && yesNoLike >= 180;
+    }
+
+    private static string? ResolveAdaptivity200SeedDocx(string sourcePath)
+    {
+        var contentRoot = TryFindContentRoot(sourcePath);
+        var candidates = new List<string>();
+        if (contentRoot is not null)
+        {
+            candidates.Add(Path.Combine(contentRoot, "SeedDocuments", "Адаптивність-200.docx"));
+            candidates.Add(Path.Combine(contentRoot, "SeedDocuments", "adaptivity-200.docx"));
+            candidates.Add(Path.Combine(contentRoot, "App_Data", "Documents", "Адаптивність-200", "Адаптивність-200.docx"));
+        }
+
+        // Поруч із завантаженим .doc
+        var dir = Path.GetDirectoryName(sourcePath);
+        if (!string.IsNullOrWhiteSpace(dir))
+        {
+            candidates.Add(Path.Combine(dir, "Адаптивність-200.docx"));
+            candidates.Add(Path.Combine(dir, "adaptivity-200.docx"));
+        }
+
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    private static string? TryFindContentRoot(string path)
+    {
+        var dir = new DirectoryInfo(Path.GetDirectoryName(Path.GetFullPath(path)) ?? path);
+        while (dir is not null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "BlazorLppp.csproj")) ||
+                Directory.Exists(Path.Combine(dir.FullName, "SeedDocuments")))
+            {
+                return dir.FullName;
+            }
+
+            dir = dir.Parent;
+        }
+
+        return null;
     }
 
     private static bool LooksLikeIncompleteZbroya(ParsedTestDocument parsed)
@@ -367,7 +456,8 @@ public partial class TestDocumentParser : ITestDocumentParser
 
                 // Увімкнути режим ЗБРОЯ щойно з’явилось перше відоме твердження —
                 // інакше клітинки 1..4 після Q1 обривають розбір.
-                if (!isZbroya && ZbroyaDocumentTemplate.IsKnownReactiveItem(text))
+                if (!isZbroya && !isAdaptivity200 && !isHorska &&
+                    ZbroyaDocumentTemplate.IsKnownReactiveItem(text))
                 {
                     EnableZbroyaMode(result, ref isZbroya);
                 }
@@ -396,7 +486,8 @@ public partial class TestDocumentParser : ITestDocumentParser
 
             if (pendingNumber.HasValue)
             {
-                if (!isZbroya && ZbroyaDocumentTemplate.IsKnownReactiveItem(line))
+                if (!isZbroya && !isAdaptivity200 && !isHorska &&
+                    ZbroyaDocumentTemplate.IsKnownReactiveItem(line))
                 {
                     EnableZbroyaMode(result, ref isZbroya);
                 }
@@ -819,6 +910,12 @@ public partial class TestDocumentParser : ITestDocumentParser
     {
         foreach (var line in lines)
         {
+            if (IsAdaptivity200Title(line))
+            {
+                result.Title = "Адаптивність-200 (БОО)";
+                return;
+            }
+
             if (IsZbroyaTitle(line))
             {
                 result.Title = "Тест ЗБРОЯ (готовність до служби зі зброєю)";
@@ -828,12 +925,6 @@ public partial class TestDocumentParser : ITestDocumentParser
             if (IsHorskaTitle(line))
             {
                 result.Title = "Методика вивчення схильності до суїцидальної поведінки (М.В. Горська)";
-                return;
-            }
-
-            if (IsAdaptivity200Title(line))
-            {
-                result.Title = "Адаптивність-200 (БОО)";
                 return;
             }
 
