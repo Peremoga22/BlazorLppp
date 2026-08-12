@@ -1109,6 +1109,16 @@ h1:focus {
     box-shadow: none;
 }
 
+.admin-table__actions-head {
+    text-align: right;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.admin-table__actions-head .admin-btn {
+    margin-left: auto;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .admin-tabs__item,
     .admin-stats__item {

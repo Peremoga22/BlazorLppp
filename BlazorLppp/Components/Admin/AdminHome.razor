@@ -113,15 +113,6 @@
                             : $"Завершені тести підрозділу {_selectedUnit}. Файли: «Прізвище_І_П.docx»")
                     </p>
                 </div>
-                @if (_results.Count > 0)
-                {
-                    <a class="admin-btn"
-                       href="@DownloadAllHref"
-                       title="Зібрати всі результати в один Word-документ і завантажити">
-                        <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
-                        Завантажити всі в один документ
-                    </a>
-                }
             </header>
 
             @if (!string.IsNullOrEmpty(_resultsError))
@@ -143,7 +134,14 @@
                                 <th>Підрозділ</th>
                                 <th>Файл</th>
                                 <th>Завершено</th>
-                                <th></th>
+                                <th class="admin-table__actions-head">
+                                    <a class="admin-btn admin-btn--sm"
+                                       href="@DownloadAllHref"
+                                       title="Зібрати всі результати в один Word-документ і завантажити">
+                                        <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
+                                        Усі в один документ
+                                    </a>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
