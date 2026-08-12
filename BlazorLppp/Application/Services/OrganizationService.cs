@@ -15,18 +15,15 @@ public class OrganizationService(
     public async Task EnsureDefaultDepartmentsAsync(CancellationToken cancellationToken = default)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var existingNumbers = await db.Departments
-            .AsNoTracking()
-            .Select(d => d.Number)
-            .ToListAsync(cancellationToken);
+
+        // Сідимо 1–5 лише якщо підрозділів ще немає (щоб видалені не з’являлись знову).
+        if (await db.Departments.AnyAsync(cancellationToken))
+        {
+            return;
+        }
 
         foreach (var number in UnitNumbers.All)
         {
-            if (existingNumbers.Contains(number))
-            {
-                continue;
-            }
-
             db.Departments.Add(new Department
             {
                 Id = Guid.NewGuid(),
@@ -128,24 +125,41 @@ public class OrganizationService(
     }
 
     public async Task<Department> CreateDepartmentAsync(
-        string name,
+        string? name = null,
         CancellationToken cancellationToken = default)
     {
-        var trimmed = name.Trim();
-        if (trimmed.Length < 2)
-        {
-            throw new InvalidOperationException("Вкажіть назву підрозділу.");
-        }
-
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var nextNumber = await db.Departments.AnyAsync(cancellationToken)
             ? await db.Departments.MaxAsync(d => d.Number, cancellationToken) + 1
             : 1;
 
+        var autoName = $"Підрозділ {nextNumber}";
+        var trimmed = name?.Trim() ?? string.Empty;
+
+        // Порожня назва або шаблон «Підрозділ N» → завжди наступний номер.
+        string finalName;
+        if (string.IsNullOrWhiteSpace(trimmed) ||
+            IsDefaultDepartmentName(trimmed))
+        {
+            finalName = autoName;
+        }
+        else
+        {
+            var nameTaken = await db.Departments.AnyAsync(
+                d => d.Name == trimmed,
+                cancellationToken);
+            if (nameTaken)
+            {
+                throw new InvalidOperationException($"Підрозділ «{trimmed}» уже існує.");
+            }
+
+            finalName = trimmed;
+        }
+
         var department = new Department
         {
             Id = Guid.NewGuid(),
-            Name = trimmed,
+            Name = finalName,
             Number = nextNumber,
             CreatedAt = DateTime.Now
         };
@@ -153,6 +167,19 @@ public class OrganizationService(
         db.Departments.Add(department);
         await db.SaveChangesAsync(cancellationToken);
         return department;
+    }
+
+    private static bool IsDefaultDepartmentName(string name)
+    {
+        // «Підрозділ 1», «підрозділ 12» тощо — трактуємо як автоінкремент.
+        const string prefix = "Підрозділ ";
+        if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var suffix = name[prefix.Length..].Trim();
+        return int.TryParse(suffix, out _);
     }
 
     public async Task RenameDepartmentAsync(
@@ -431,6 +458,59 @@ public class OrganizationService(
 
         db.Employees.Remove(employee);
         await db.SaveChangesAsync(cancellationToken);
+
+        foreach (var path in resultPaths)
+        {
+            await resultDocumentService.DeleteAsync(path!, cancellationToken);
+        }
+    }
+
+    public async Task DeleteDepartmentAsync(
+        Guid departmentId,
+        CancellationToken cancellationToken = default)
+    {
+        List<Guid> employeeIds;
+        int departmentNumber;
+
+        await using (var db = await dbContextFactory.CreateDbContextAsync(cancellationToken))
+        {
+            var department = await db.Departments
+                .AsNoTracking()
+                .Include(d => d.Employees)
+                .FirstOrDefaultAsync(d => d.Id == departmentId, cancellationToken)
+                ?? throw new InvalidOperationException("Підрозділ не знайдено.");
+
+            employeeIds = department.Employees.Select(e => e.Id).ToList();
+            departmentNumber = department.Number;
+        }
+
+        foreach (var employeeId in employeeIds)
+        {
+            await DeleteEmployeeAsync(employeeId, cancellationToken);
+        }
+
+        await using var deleteDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var toDelete = await deleteDb.Departments
+            .FirstOrDefaultAsync(d => d.Id == departmentId, cancellationToken)
+            ?? throw new InvalidOperationException("Підрозділ не знайдено.");
+
+        var orphanAttempts = await deleteDb.TestAttempts
+            .Where(a => a.NumberUnit == departmentNumber && a.EmployeeId == null)
+            .ToListAsync(cancellationToken);
+
+        var resultPaths = orphanAttempts
+            .Select(a => a.ResultRelativePath)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (orphanAttempts.Count > 0)
+        {
+            deleteDb.TestAttempts.RemoveRange(orphanAttempts);
+        }
+
+        deleteDb.Departments.Remove(toDelete);
+        await deleteDb.SaveChangesAsync(cancellationToken);
 
         foreach (var path in resultPaths)
         {

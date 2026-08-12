@@ -6,8 +6,10 @@
 @using BlazorLppp.Application.Models
 @using BlazorLppp.Domain
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
 
 @inject IOrganizationService OrganizationService
+@inject IJSRuntime JsRuntime
 
 <PageTitle>Підрозділи</PageTitle>
 
@@ -27,7 +29,7 @@
         <div class="admin-form-row">
             <input class="admin-input"
                    @bind="_newDepartmentName"
-                   placeholder="Назва підрозділу" />
+                   placeholder="Порожньо = наступний (Підрозділ N)" />
             <button type="button"
                     class="admin-btn"
                     disabled="@_isSaving"
@@ -58,12 +60,23 @@
         <div class="dept-grid">
             @foreach (var dept in _departments)
             {
-                <a class="dept-card" href="@($"/admin/departments/{dept.Id}")">
-                    <span class="dept-card__number">@dept.Number</span>
+                <article class="dept-card">
+                    <div class="dept-card__top">
+                        <span class="dept-card__number">@dept.Number</span>
+                        <button type="button"
+                                class="admin-icon-btn admin-icon-btn--danger dept-card__delete"
+                                title="Видалити підрозділ"
+                                aria-label="Видалити підрозділ"
+                                disabled="@_isDeleting"
+                                @onclick="() => DeleteDepartmentAsync(dept)"
+                                @onclick:stopPropagation="true">
+                            <span class="admin-btn__icon admin-btn__icon--trash" aria-hidden="true"></span>
+                        </button>
+                    </div>
                     <strong class="dept-card__name">@dept.Name</strong>
                     <span class="dept-card__meta">Працівників: @dept.EmployeeCount</span>
-                    <span class="dept-card__action">Відкрити →</span>
-                </a>
+                    <a class="dept-card__action" href="@($"/admin/departments/{dept.Id}")">Відкрити →</a>
+                </article>
             }
         </div>
     }
@@ -73,6 +86,7 @@
     private readonly List<DepartmentListItem> _departments = [];
     private bool _isLoading = true;
     private bool _isSaving;
+    private bool _isDeleting;
     private string? _errorMessage;
     private string? _formMessage;
     private bool _formIsError;
@@ -109,10 +123,10 @@
         _formMessage = null;
         try
         {
-            await OrganizationService.CreateDepartmentAsync(_newDepartmentName);
+            var created = await OrganizationService.CreateDepartmentAsync(_newDepartmentName);
             _newDepartmentName = string.Empty;
             _formIsError = false;
-            _formMessage = "Підрозділ створено.";
+            _formMessage = $"Створено «{created.Name}».";
             await ReloadAsync();
         }
         catch (Exception ex)
@@ -123,6 +137,53 @@
         finally
         {
             _isSaving = false;
+        }
+    }
+
+    private async Task DeleteDepartmentAsync(DepartmentListItem dept)
+    {
+        if (_isDeleting)
+        {
+            return;
+        }
+
+        var first = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Видалити підрозділ «{dept.Name}»?");
+
+        if (!first)
+        {
+            return;
+        }
+
+        var second = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Підтвердіть ще раз: буде видалено підрозділ «{dept.Name}»" +
+            $"{(dept.EmployeeCount > 0 ? $", усіх працівників ({dept.EmployeeCount}) і їхні результати тестів" : "")}." +
+            " Цю дію не можна скасувати.");
+
+        if (!second)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+        _errorMessage = null;
+
+        try
+        {
+            await OrganizationService.DeleteDepartmentAsync(dept.Id);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося видалити підрозділ."
+                : ex.Message;
+        }
+        finally
+        {
+            _isDeleting = false;
         }
     }
 }
