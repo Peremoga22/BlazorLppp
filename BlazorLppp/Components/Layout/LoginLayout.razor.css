@@ -6,8 +6,3 @@
     color: #fff;
     overflow-x: hidden;
 }
-
-::deep(html),
-::deep(body) {
-    background: #05080f;
-}
