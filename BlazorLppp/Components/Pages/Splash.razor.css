@@ -1,0 +1,85 @@
+.galaxy-splash {
+    --galaxy-accent: #5a8fb0;
+    --galaxy-ink: #f4f8fb;
+    --galaxy-muted: rgba(214, 232, 242, 0.78);
+    --galaxy-font: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: hidden;
+    background: #000;
+    font-family: var(--galaxy-font);
+    color: var(--galaxy-ink);
+}
+
+.galaxy-splash__canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.galaxy-splash__overlay {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 2rem 1.25rem 3rem;
+    text-align: center;
+    background: linear-gradient(180deg, transparent 45%, rgba(0, 0, 0, 0.72) 100%);
+    pointer-events: none;
+}
+
+.galaxy-splash__eyebrow {
+    margin: 0 0 0.45rem;
+    font-size: 0.82rem;
+    font-weight: 650;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--galaxy-accent);
+}
+
+.galaxy-splash__title {
+    margin: 0;
+    font-size: clamp(2rem, 5vw, 2.6rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    text-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+}
+
+.galaxy-splash__subtitle {
+    margin: 0.45rem 0 1.25rem;
+    color: var(--galaxy-muted);
+    font-size: 0.98rem;
+}
+
+.galaxy-splash__skip {
+    pointer-events: auto;
+    appearance: none;
+    min-height: 2.55rem;
+    padding: 0.55rem 1.35rem;
+    border: 1px solid rgba(90, 143, 176, 0.55);
+    border-radius: 999px;
+    background: rgba(13, 21, 32, 0.55);
+    color: #d7eef8;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 22px rgba(47, 111, 143, 0.28);
+    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.galaxy-splash__skip:hover {
+    transform: translateY(-1px);
+    border-color: #8ec3e0;
+    background: rgba(47, 111, 143, 0.35);
+}

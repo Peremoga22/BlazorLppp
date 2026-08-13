@@ -133,7 +133,10 @@
         if (result.Succeeded)
         {
             Logger.LogInformation("User logged in.");
-            RedirectManager.RedirectTo(await ResolvePostLoginUrlAsync());
+            var destination = await ResolvePostLoginUrlAsync();
+            RedirectManager.RedirectTo(
+                "splash",
+                new Dictionary<string, object?> { ["returnUrl"] = destination });
             return;
         }
 

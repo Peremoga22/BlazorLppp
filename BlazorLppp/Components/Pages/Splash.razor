@@ -1,0 +1,139 @@
+@page "/splash"
+@layout BlazorLppp.Components.Layout.LoginLayout
+@rendermode InteractiveServer
+@attribute [Authorize]
+@implements IAsyncDisposable
+
+@using Microsoft.AspNetCore.Authorization
+
+@inject IJSRuntime JsRuntime
+@inject NavigationManager NavigationManager
+
+<PageTitle>Ласкаво просимо</PageTitle>
+
+<div class="galaxy-splash">
+    <canvas id="galaxy-canvas" class="galaxy-splash__canvas" aria-hidden="true"></canvas>
+
+    <div class="galaxy-splash__overlay">
+        <p class="galaxy-splash__eyebrow">Interactive Galaxy</p>
+        <h1 class="galaxy-splash__title">Вітаємо</h1>
+        <p class="galaxy-splash__subtitle">Завантаження панелі…</p>
+        <button type="button" class="galaxy-splash__skip" @onclick="ContinueAsync">
+            Продовжити
+        </button>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    private IJSObjectReference? _module;
+    private CancellationTokenSource? _autoContinueCts;
+    private bool _started;
+    private bool _navigating;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _started)
+        {
+            return;
+        }
+
+        _started = true;
+
+        try
+        {
+            _module = await JsRuntime.InvokeAsync<IJSObjectReference>(
+                "import",
+                "./js/galaxy-splash.js");
+
+            await _module.InvokeVoidAsync("startGalaxy", "galaxy-canvas");
+        }
+        catch (JSException)
+        {
+            // If WebGL/module fails, still continue to destination.
+            await ContinueAsync();
+            return;
+        }
+
+        _autoContinueCts = new CancellationTokenSource();
+        _ = AutoContinueAsync(_autoContinueCts.Token);
+    }
+
+    private async Task AutoContinueAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(3800, cancellationToken);
+            await InvokeAsync(ContinueAsync);
+        }
+        catch (OperationCanceledException)
+        {
+            // skipped manually
+        }
+    }
+
+    private async Task ContinueAsync()
+    {
+        if (_navigating)
+        {
+            return;
+        }
+
+        _navigating = true;
+        _autoContinueCts?.Cancel();
+
+        try
+        {
+            if (_module is not null)
+            {
+                await _module.InvokeVoidAsync("stopGalaxy");
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException)
+        {
+        }
+
+        NavigationManager.NavigateTo(ResolveDestination());
+    }
+
+    private string ResolveDestination()
+    {
+        if (string.IsNullOrWhiteSpace(ReturnUrl))
+        {
+            return "/admin-home";
+        }
+
+        if (Uri.TryCreate(ReturnUrl, UriKind.Absolute, out var absolute))
+        {
+            return absolute.PathAndQuery;
+        }
+
+        return ReturnUrl.StartsWith('/') ? ReturnUrl : "/" + ReturnUrl;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _autoContinueCts?.Cancel();
+        _autoContinueCts?.Dispose();
+
+        try
+        {
+            if (_module is not null)
+            {
+                await _module.InvokeVoidAsync("stopGalaxy");
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException)
+        {
+        }
+    }
+}
