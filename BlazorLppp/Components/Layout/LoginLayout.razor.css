@@ -1,0 +1,13 @@
+.login-layout {
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    background: #05080f;
+    color: #fff;
+    overflow-x: hidden;
+}
+
+::deep(html),
+::deep(body) {
+    background: #05080f;
+}
