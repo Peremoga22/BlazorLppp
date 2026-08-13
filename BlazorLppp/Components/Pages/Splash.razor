@@ -105,7 +105,7 @@
     {
         if (string.IsNullOrWhiteSpace(ReturnUrl))
         {
-            return "/admin-home";
+            return "/";
         }
 
         if (Uri.TryCreate(ReturnUrl, UriKind.Absolute, out var absolute))
