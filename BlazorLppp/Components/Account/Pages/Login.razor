@@ -28,7 +28,6 @@
 
         <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login" class="login-form">
             <DataAnnotationsValidator />
-            <ValidationSummary class="login-form__errors" role="alert" />
 
             <div class="login-field">
                 <InputText @bind-Value="Input.Email"
@@ -67,7 +66,7 @@
                 <PasskeySubmit Operation="PasskeyOperation.Request"
                                Name="Input.Passkey"
                                EmailName="Input.Email"
-                               class="login-link login-link--passkey">
+                               class="login-passkey">
                     Log in with a passkey
                 </PasskeySubmit>
             </div>

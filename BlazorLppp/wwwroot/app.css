@@ -123,6 +123,44 @@ h1:focus {
     text-align: start;
 }
 
+/* Login page — beat Bootstrap / global input styles */
+.login-scene input.login-field__input,
+.login-scene input.login-field__input:focus,
+.login-scene input.login-field__input.invalid,
+.login-scene input.login-field__input.valid,
+.login-scene input.login-field__input.modified,
+.login-scene input.login-field__input.valid.modified,
+.login-scene input.login-field__input.invalid.modified {
+    border: 0 !important;
+    border-bottom: 1.5px solid rgba(180, 220, 235, 0.45) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #f4fbff !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.login-scene input.login-field__input:focus {
+    border-bottom-color: #00e5ff !important;
+    box-shadow: 0 1px 0 0 #00e5ff !important;
+}
+
+.login-scene button.login-passkey,
+.login-scene button.login-passkey:hover,
+.login-scene button.login-passkey:focus {
+    width: 100%;
+    background: transparent !important;
+    border: 1px solid rgba(180, 220, 235, 0.45) !important;
+    border-radius: 999px !important;
+    color: rgba(214, 236, 245, 0.72) !important;
+    box-shadow: none !important;
+}
+
+.login-scene button.login-passkey:hover {
+    color: #00e5ff !important;
+    border-color: #00e5ff !important;
+}
+
 /* Admin design system — scoped tokens on .admin-layout */
 .admin-layout {
     --admin-ink: #172636;
