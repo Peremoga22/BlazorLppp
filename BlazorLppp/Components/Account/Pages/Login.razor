@@ -16,13 +16,14 @@
 <PageTitle>Вхід</PageTitle>
 
 <div class="login-scene">
-    <div class="login-orbit" aria-hidden="true">
-        <div class="login-orbit__ring"></div>
-        <div class="login-orbit__glow"></div>
-    </div>
+    <div class="login-card">
+        <div class="login-card__brand">
+            <span class="login-card__mark" aria-hidden="true"></span>
+            <span class="login-card__brand-text">Адмінка</span>
+        </div>
 
-    <div class="login-box">
-        <h1 class="login-box__title">Login</h1>
+        <h1 class="login-card__title">Вхід</h1>
+        <p class="login-card__subtitle">Панель доступу адміністратора</p>
 
         <StatusMessage Message="@errorMessage" />
 
@@ -30,52 +31,45 @@
             <DataAnnotationsValidator />
 
             <div class="login-field">
+                <label for="Input.Email" class="login-field__label">Електронна пошта</label>
                 <InputText @bind-Value="Input.Email"
                            id="Input.Email"
                            class="login-field__input"
                            autocomplete="username webauthn"
                            aria-required="true"
-                           placeholder=" " />
-                <label for="Input.Email" class="login-field__label">Email</label>
+                           placeholder="name@example.com" />
                 <ValidationMessage For="() => Input.Email" class="login-field__error" />
             </div>
 
             <div class="login-field">
+                <label for="Input.Password" class="login-field__label">Пароль</label>
                 <InputText type="password"
                            @bind-Value="Input.Password"
                            id="Input.Password"
                            class="login-field__input"
                            autocomplete="current-password"
                            aria-required="true"
-                           placeholder=" " />
-                <label for="Input.Password" class="login-field__label">Password</label>
+                           placeholder="••••••••" />
                 <ValidationMessage For="() => Input.Password" class="login-field__error" />
             </div>
 
             <div class="login-form__row">
                 <label class="login-remember">
                     <InputCheckbox @bind-Value="Input.RememberMe" class="login-remember__input" />
-                    <span>Remember me</span>
+                    <span>Запам’ятати</span>
                 </label>
-                <a class="login-link" href="Account/ForgotPassword">Forgot Password?</a>
+                <a class="login-link" href="Account/ForgotPassword">Забули пароль?</a>
             </div>
 
-            <button type="submit" class="login-btn">Login</button>
+            <button type="submit" class="login-btn">Увійти</button>
 
             <div class="login-form__or">
                 <PasskeySubmit Operation="PasskeyOperation.Request"
                                Name="Input.Passkey"
                                EmailName="Input.Email"
                                class="login-passkey">
-                    Log in with a passkey
+                    Увійти з passkey
                 </PasskeySubmit>
-            </div>
-
-            <div class="login-form__footer">
-                <a class="login-link"
-                   href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">
-                    Signup
-                </a>
             </div>
         </EditForm>
 
