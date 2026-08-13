@@ -1,0 +1,304 @@
+@page "/admin/analytics"
+@page "/analytics"
+@layout AdminLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = AppRoles.Admin)]
+
+@using BlazorLppp.Application.Models
+@using BlazorLppp.Domain
+@using Microsoft.AspNetCore.Authorization
+
+@inject IAnalyticsService AnalyticsService
+@inject IOrganizationService OrganizationService
+@inject ITestDefinitionService TestDefinitionService
+
+<PageTitle>Детальна аналітика</PageTitle>
+
+<div class="admin-page">
+    <header class="admin-page__header admin-page__header--hero">
+        <div class="admin-page__hero-copy">
+            <p class="admin-page__eyebrow"><a href="/admin/departments">Підрозділи</a></p>
+            <h1 class="admin-page__title">Детальна аналітика</h1>
+            <p class="admin-page__subtitle">Фільтри перераховують усі показники без змішування тестів і підрозділів</p>
+        </div>
+    </header>
+
+    <section class="admin-panel analytics-filters">
+        <div class="analytics-filters__grid">
+            <label class="analytics-filters__field">
+                <span>Період від</span>
+                <InputDate class="admin-input" @bind-Value="_dateFrom" />
+            </label>
+            <label class="analytics-filters__field">
+                <span>Період до</span>
+                <InputDate class="admin-input" @bind-Value="_dateTo" />
+            </label>
+            <label class="analytics-filters__field">
+                <span>Підрозділ</span>
+                <select class="admin-select" @bind="_departmentId">
+                    <option value="">Усі підрозділи</option>
+                    @foreach (var dept in _departments)
+                    {
+                        <option value="@dept.Id">@dept.Name</option>
+                    }
+                </select>
+            </label>
+            <label class="analytics-filters__field">
+                <span>Тест</span>
+                <select class="admin-select" @bind="_testId">
+                    <option value="">Усі тести</option>
+                    @foreach (var test in _tests)
+                    {
+                        <option value="@test.Id">@test.Title</option>
+                    }
+                </select>
+            </label>
+            <label class="analytics-filters__field analytics-filters__field--wide">
+                <span>Працівник (пошук)</span>
+                <input class="admin-input" @bind="_employeeSearch" placeholder="ПІБ" />
+            </label>
+        </div>
+        <div class="admin-actions">
+            <button type="button" class="admin-btn" disabled="@_isLoading" @onclick="ApplyAsync">Застосувати</button>
+            <button type="button" class="admin-btn admin-btn--secondary" disabled="@_isLoading" @onclick="ResetAsync">Скинути</button>
+        </div>
+    </section>
+
+    @if (_isLoading)
+    {
+        <p class="admin-page__muted">Завантаження...</p>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <p class="admin-page__error">@_errorMessage</p>
+    }
+    else if (_summary is not null)
+    {
+        <div class="analytics-kpi">
+            <article class="analytics-kpi__card"><strong>@_summary.EmployeesTotal</strong><span>Працівників</span></article>
+            <article class="analytics-kpi__card"><strong>@_summary.EmployeesTested</strong><span>Протестовано</span></article>
+            <article class="analytics-kpi__card"><strong>@_summary.CompletionsTotal</strong><span>Тестувань</span></article>
+            <article class="analytics-kpi__card analytics-kpi__card--attention"><strong>@_summary.AttentionRequiredEmployees</strong><span>Потребують уваги</span></article>
+        </div>
+
+        <section class="admin-panel">
+            <div class="analytics-panel__head analytics-panel__head--row">
+                <h2 class="admin-upload__title">Порівняння підрозділів</h2>
+                <select class="admin-select analytics-sort" @bind="_sortBy" @bind:after="ReloadDepartmentsAsync">
+                    <option value="coverage">За охопленням</option>
+                    <option value="employees">За кількістю працівників</option>
+                    <option value="completions">За кількістю тестувань</option>
+                    <option value="name">За назвою</option>
+                    <option value="number">За номером</option>
+                </select>
+            </div>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Підрозділ</th>
+                            <th>Працівників</th>
+                            <th>Протестовано</th>
+                            <th>Охоплення</th>
+                            <th>Тестувань</th>
+                            <th>Увага</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _departmentRows)
+                        {
+                            <tr>
+                                <td><a class="admin-link" href="@($"/admin/departments/{row.DepartmentId}")">@row.DepartmentName</a></td>
+                                <td>@row.EmployeesTotal</td>
+                                <td>@row.EmployeesTested</td>
+                                <td>@row.CoveragePercent.ToString("0.#")%</td>
+                                <td>@row.CompletionsTotal</td>
+                                <td>@row.AttentionRequiredEmployees</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="admin-panel">
+            <h2 class="admin-upload__title">Пройдені тести</h2>
+            <ul class="analytics-tests">
+                @foreach (var test in _testRows)
+                {
+                    <li>
+                        <a href="@($"/admin/analytics/tests/{test.TestDocumentId}")">@test.TestTitle</a>
+                        <span><strong>@test.Completions</strong> · @test.UniqueEmployees працівників</span>
+                    </li>
+                }
+            </ul>
+        </section>
+
+        <section class="admin-panel">
+            <div class="analytics-panel__head analytics-panel__head--row">
+                <h2 class="admin-upload__title">Не проходили тестування</h2>
+                <span class="admin-badge admin-badge--progress">@_untested.Count</span>
+            </div>
+            @if (_untested.Count == 0)
+            {
+                <p class="admin-page__muted">Усі працівники в межах фільтра мають хоча б одне завершене тестування.</p>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Працівник</th>
+                                <th>Підрозділ</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var person in _untested.Take(50))
+                            {
+                                <tr>
+                                    <td>@person.EmployeeName</td>
+                                    <td>@person.DepartmentName</td>
+                                    <td><a class="admin-link" href="@($"/admin/employees/{person.EmployeeId}")">Відкрити</a></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        <section class="admin-panel">
+            <h2 class="admin-upload__title">Потребують додаткової уваги</h2>
+            <p class="admin-page__muted">
+                Позначено за ключами/нормативами методики. Система не встановлює діагнозів.
+            </p>
+            @if (_attention.Count == 0)
+            {
+                <p class="admin-page__muted">Немає результатів для додаткового перегляду.</p>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Працівник</th>
+                                <th>Підрозділ</th>
+                                <th>Тест</th>
+                                <th>Дата</th>
+                                <th>Примітка</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in _attention)
+                            {
+                                <tr>
+                                    <td>@item.EmployeeName</td>
+                                    <td>@item.DepartmentName</td>
+                                    <td>@item.TestTitle</td>
+                                    <td>@(item.CompletedAt?.ToString("dd.MM.yyyy") ?? "—")</td>
+                                    <td class="analytics-reason">@item.Reason</td>
+                                    <td>
+                                        <a class="admin-btn admin-btn--sm admin-btn--soft"
+                                           href="@($"/admin/results/{item.AttemptId}")">
+                                            Відкрити результат
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private readonly List<DepartmentListItem> _departments = [];
+    private readonly List<(Guid Id, string Title)> _tests = [];
+    private readonly List<DepartmentCoverageDto> _departmentRows = [];
+    private readonly List<TestCompletionsDto> _testRows = [];
+    private readonly List<UntestedEmployeeDto> _untested = [];
+    private readonly List<AttentionItemDto> _attention = [];
+
+    private AnalyticsSummaryDto? _summary;
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private string _sortBy = "coverage";
+
+    private DateTime? _dateFrom;
+    private DateTime? _dateTo;
+    private string _departmentId = string.Empty;
+    private string _testId = string.Empty;
+    private string _employeeSearch = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _departments.AddRange(await OrganizationService.ListDepartmentsAsync());
+        var docs = await TestDefinitionService.ListAsync();
+        _tests.AddRange(docs
+            .OrderByDescending(d => d.IsRequired)
+            .ThenBy(d => d.Title)
+            .Select(d => (d.Id, string.IsNullOrWhiteSpace(d.Title) ? d.OriginalFileName : d.Title)));
+        await ApplyAsync();
+    }
+
+    private AnalyticsFilter BuildFilter()
+    {
+        return new AnalyticsFilter
+        {
+            DateFrom = _dateFrom,
+            DateTo = _dateTo,
+            DepartmentId = Guid.TryParse(_departmentId, out var deptId) ? deptId : null,
+            TestDocumentId = Guid.TryParse(_testId, out var testId) ? testId : null,
+            EmployeeSearch = string.IsNullOrWhiteSpace(_employeeSearch) ? null : _employeeSearch.Trim()
+        };
+    }
+
+    private async Task ApplyAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            var filter = BuildFilter();
+            _summary = await AnalyticsService.GetSummaryAsync(filter);
+            await ReloadDepartmentsAsync();
+            _testRows.Clear();
+            _testRows.AddRange(await AnalyticsService.GetTestCompletionsAsync(filter));
+            _untested.Clear();
+            _untested.AddRange(await AnalyticsService.GetUntestedEmployeesAsync(filter));
+            _attention.Clear();
+            _attention.AddRange(await AnalyticsService.GetAttentionRequiredAsync(filter));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ReloadDepartmentsAsync()
+    {
+        _departmentRows.Clear();
+        _departmentRows.AddRange(await AnalyticsService.GetDepartmentAnalyticsAsync(BuildFilter(), _sortBy));
+    }
+
+    private async Task ResetAsync()
+    {
+        _dateFrom = null;
+        _dateTo = null;
+        _departmentId = string.Empty;
+        _testId = string.Empty;
+        _employeeSearch = string.Empty;
+        _sortBy = "coverage";
+        await ApplyAsync();
+    }
+}

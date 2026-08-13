@@ -1,0 +1,129 @@
+@page "/admin/analytics/tests/{TestDocumentId:guid}"
+@layout AdminLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = AppRoles.Admin)]
+
+@using BlazorLppp.Application.Models
+@using BlazorLppp.Domain
+@using Microsoft.AspNetCore.Authorization
+
+@inject IAnalyticsService AnalyticsService
+
+<PageTitle>@_analytics?.TestTitle ?? "Аналітика тесту"</PageTitle>
+
+<div class="admin-page">
+    <header class="admin-page__header admin-page__header--hero">
+        <div class="admin-page__hero-copy">
+            <p class="admin-page__eyebrow">
+                <a href="/admin/analytics">Аналітика</a>
+            </p>
+            <h1 class="admin-page__title">@(_analytics?.TestTitle ?? "Тест")</h1>
+            <p class="admin-page__subtitle">Статистика лише для цієї методики</p>
+        </div>
+    </header>
+
+    @if (_isLoading)
+    {
+        <p class="admin-page__muted">Завантаження...</p>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <p class="admin-page__error">@_errorMessage</p>
+    }
+    else if (_analytics is null)
+    {
+        <p class="admin-page__muted">Тест не знайдено.</p>
+    }
+    else
+    {
+        <div class="analytics-kpi">
+            <article class="analytics-kpi__card"><strong>@_analytics.Completions</strong><span>Пройдено</span></article>
+            <article class="analytics-kpi__card"><strong>@_analytics.UniqueEmployees</strong><span>Унікальних працівників</span></article>
+            <article class="analytics-kpi__card"><strong>@_analytics.RepeatCompletions</strong><span>Повторних проходжень</span></article>
+            <article class="analytics-kpi__card"><strong>@_analytics.UnreliableCount</strong><span>Недостовірних</span></article>
+            <article class="analytics-kpi__card analytics-kpi__card--attention"><strong>@_analytics.AttentionCount</strong><span>Потребують уваги</span></article>
+        </div>
+
+        @if (_analytics.LevelDistribution.Count > 0)
+        {
+            <section class="admin-panel">
+                <h2 class="admin-upload__title">Розподіл за рівнями</h2>
+                <ul class="analytics-bars">
+                    @{
+                        var maxLevel = Math.Max(1, _analytics.LevelDistribution.Max(x => x.Count));
+                    }
+                    @foreach (var level in _analytics.LevelDistribution)
+                    {
+                        <li class="analytics-bars__item">
+                            <div class="analytics-bars__label">
+                                <span>@level.LevelName</span>
+                                <span>@level.Count</span>
+                            </div>
+                            <div class="analytics-bars__track" aria-hidden="true">
+                                <span class="analytics-bars__fill" style="@($"width:{(level.Count * 100.0 / maxLevel):0.#}%")"></span>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+
+        @if (_analytics.ScaleSummaries.Count > 0)
+        {
+            <section class="admin-panel">
+                <h2 class="admin-upload__title">Середні показники шкал</h2>
+                <p class="admin-page__muted">Недостовірні результати не входять до агрегації.</p>
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Шкала</th>
+                                <th>Середнє (сире)</th>
+                                <th>Середнє (стени)</th>
+                                <th>Вибірка</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var scale in _analytics.ScaleSummaries)
+                            {
+                                <tr>
+                                    <td>@scale.ScaleCode</td>
+                                    <td>@scale.AverageRaw.ToString("0.#")</td>
+                                    <td>@(scale.AverageSten?.ToString("0.#") ?? "—")</td>
+                                    <td>@scale.SampleCount</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public Guid TestDocumentId { get; set; }
+
+    private TestAnalyticsDto? _analytics;
+    private bool _isLoading = true;
+    private string? _errorMessage;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _analytics = await AnalyticsService.GetTestAnalyticsAsync(TestDocumentId);
+            _errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+            _analytics = null;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

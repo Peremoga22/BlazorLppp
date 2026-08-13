@@ -7,10 +7,10 @@
 @using BlazorLppp.Domain
 @using BlazorLppp.Domain.Entities
 @using Microsoft.AspNetCore.Authorization
-
 @using Microsoft.JSInterop
 
 @inject IOrganizationService OrganizationService
+@inject IAnalyticsService AnalyticsService
 @inject NavigationManager Navigation
 @inject IJSRuntime JsRuntime
 
@@ -23,11 +23,24 @@
                 <a href="/admin/departments">Підрозділи</a>
             </p>
             <h1 class="admin-page__title">@(_department?.Name ?? "Підрозділ")</h1>
-            <p class="admin-page__subtitle">Працівники цього підрозділу</p>
+            <p class="admin-page__subtitle">Працівники та аналітика підрозділу</p>
         </div>
     </header>
 
-    @if (_department is not null)
+    <div class="analytics-tabs" role="tablist">
+        <button type="button"
+                class="analytics-tabs__item @(_tab == "employees" ? "analytics-tabs__item--active" : null)"
+                @onclick='() => SwitchTabAsync("employees")'>
+            Працівники
+        </button>
+        <button type="button"
+                class="analytics-tabs__item @(_tab == "analytics" ? "analytics-tabs__item--active" : null)"
+                @onclick='() => SwitchTabAsync("analytics")'>
+            Аналітика
+        </button>
+    </div>
+
+    @if (_department is not null && _tab == "employees")
     {
         <section class="admin-panel">
             <h2 class="admin-upload__title">Редагувати назву</h2>
@@ -54,59 +67,149 @@
                 <p class="@(_formIsError ? "admin-page__error" : "admin-page__muted")">@_formMessage</p>
             }
         </section>
+
+        <section class="admin-panel">
+            <div class="admin-form-row">
+                <input class="admin-input"
+                       @bind="_search"
+                       @bind:event="oninput"
+                       @bind:after="ReloadEmployeesAsync"
+                       placeholder="Пошук працівника" />
+            </div>
+
+            @if (_isLoading)
+            {
+                <p class="admin-page__muted">Завантаження...</p>
+            }
+            else if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <p class="admin-page__error">@_errorMessage</p>
+            }
+            else if (_employees.Count == 0)
+            {
+                <p class="admin-page__muted">Працівників у цьому підрозділі ще немає.</p>
+            }
+            else
+            {
+                <div class="employee-list">
+                    @foreach (var employee in _employees)
+                    {
+                        <article class="employee-card">
+                            <div>
+                                <strong>@employee.DisplayName</strong>
+                                <p class="admin-page__muted">
+                                    Пройдено тестів: @employee.CompletedTestsCount
+                                    @if (employee.LastCompletedAt is not null)
+                                    {
+                                        <span> · Останнє: @employee.LastCompletedAt.Value.ToString("dd.MM.yyyy")</span>
+                                    }
+                                </p>
+                            </div>
+                            <div class="admin-page__actions admin-actions">
+                                <a class="admin-btn admin-btn--soft" href="@($"/admin/employees/{employee.Id}")">Відкрити</a>
+                                <button type="button"
+                                        class="admin-btn admin-btn--danger"
+                                        disabled="@_isDeleting"
+                                        @onclick="() => DeleteEmployeeAsync(employee)">
+                                    Видалити
+                                </button>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
     }
 
-    <section class="admin-panel">
-        <div class="admin-form-row">
-            <input class="admin-input"
-                   @bind="_search"
-                   @bind:event="oninput"
-                   @bind:after="ReloadEmployeesAsync"
-                   placeholder="Пошук працівника" />
-        </div>
-
-        @if (_isLoading)
+    @if (_department is not null && _tab == "analytics")
+    {
+        @if (_deptSummary is null && _matrixLoading)
         {
-            <p class="admin-page__muted">Завантаження...</p>
+            <p class="admin-page__muted">Завантаження аналітики...</p>
         }
-        else if (!string.IsNullOrEmpty(_errorMessage))
+        else if (_deptSummary is not null)
         {
-            <p class="admin-page__error">@_errorMessage</p>
-        }
-        else if (_employees.Count == 0)
-        {
-            <p class="admin-page__muted">Працівників у цьому підрозділі ще немає.</p>
-        }
-        else
-        {
-            <div class="employee-list">
-                @foreach (var employee in _employees)
-                {
-                    <article class="employee-card">
-                        <div>
-                            <strong>@employee.DisplayName</strong>
-                            <p class="admin-page__muted">
-                                Пройдено тестів: @employee.CompletedTestsCount
-                                @if (employee.LastCompletedAt is not null)
-                                {
-                                    <span> · Останнє: @employee.LastCompletedAt.Value.ToString("dd.MM.yyyy")</span>
-                                }
-                            </p>
-                        </div>
-                        <div class="admin-page__actions admin-actions">
-                            <a class="admin-btn admin-btn--soft" href="@($"/admin/employees/{employee.Id}")">Відкрити</a>
-                            <button type="button"
-                                    class="admin-btn admin-btn--danger"
-                                    disabled="@_isDeleting"
-                                    @onclick="() => DeleteEmployeeAsync(employee)">
-                                Видалити
-                            </button>
-                        </div>
-                    </article>
-                }
+            <div class="analytics-kpi">
+                <article class="analytics-kpi__card"><strong>@_deptSummary.EmployeesTotal</strong><span>Працівників</span></article>
+                <article class="analytics-kpi__card"><strong>@_deptSummary.EmployeesTested</strong><span>Протестовано</span></article>
+                <article class="analytics-kpi__card"><strong>@_deptSummary.UntestedEmployees</strong><span>Не проходили</span></article>
+                <article class="analytics-kpi__card"><strong>@_deptSummary.CompletionsTotal</strong><span>Завершено тестувань</span></article>
+                <article class="analytics-kpi__card analytics-kpi__card--attention"><strong>@_deptSummary.AttentionRequiredEmployees</strong><span>Потребують уваги</span></article>
             </div>
+
+            <section class="admin-panel">
+                <div class="analytics-panel__head analytics-panel__head--row">
+                    <h2 class="admin-upload__title">Проходження тестів</h2>
+                    <div class="admin-actions">
+                        <select class="admin-select" @bind="_matrixFilter" @bind:after="ReloadMatrixAsync">
+                            <option value="all">Усі</option>
+                            <option value="tested">Протестовані</option>
+                            <option value="untested">Не протестовані</option>
+                        </select>
+                        <input class="admin-input"
+                               style="min-width:180px"
+                               @bind="_matrixSearch"
+                               @bind:event="oninput"
+                               @bind:after="ReloadMatrixAsync"
+                               placeholder="Пошук" />
+                    </div>
+                </div>
+
+                @if (_matrix is null || _matrix.Rows.Count == 0)
+                {
+                    <p class="admin-page__muted">Немає рядків для відображення.</p>
+                }
+                else
+                {
+                    <div class="admin-table-wrap">
+                        <table class="admin-table analytics-matrix">
+                            <thead>
+                                <tr>
+                                    <th>Працівник</th>
+                                    @foreach (var col in _matrix.Columns)
+                                    {
+                                        <th title="@col.TestTitle">@ShortTitle(col.TestTitle)</th>
+                                    }
+                                    <th>Останнє тестування</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in _matrix.Rows)
+                                {
+                                    <tr>
+                                        <td>
+                                            <a class="admin-link" href="@($"/admin/employees/{row.EmployeeId}")">@row.EmployeeName</a>
+                                        </td>
+                                        @foreach (var cell in row.Cells)
+                                        {
+                                            <td class="analytics-matrix__cell"
+                                                title="@(cell.Completions > 0
+                                                    ? $"Пройдено: {cell.Completions}. Останнє: {cell.LastCompletedAt:dd.MM.yyyy}"
+                                                    : "Ще не проходився")">
+                                                @if (cell.Completions <= 0)
+                                                {
+                                                    <span class="admin-page__muted">—</span>
+                                                }
+                                                else if (cell.Completions == 1)
+                                                {
+                                                    <span class="analytics-matrix__ok">✓</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="analytics-matrix__ok">✓ (@cell.Completions)</span>
+                                                }
+                                            </td>
+                                        }
+                                        <td>@(row.LastCompletedAt?.ToString("dd.MM.yyyy") ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
         }
-    </section>
+    }
 </div>
 
 @code {
@@ -114,7 +217,10 @@
 
     private Department? _department;
     private readonly List<EmployeeListItem> _employees = [];
+    private DepartmentCoverageDto? _deptSummary;
+    private EmployeeTestMatrixResultDto? _matrix;
     private bool _isLoading = true;
+    private bool _matrixLoading;
     private bool _isSaving;
     private bool _isDeleting;
     private string? _errorMessage;
@@ -125,6 +231,9 @@
     private string _newLastName = string.Empty;
     private string _newFirstName = string.Empty;
     private string _newMiddleName = string.Empty;
+    private string _tab = "employees";
+    private string _matrixFilter = "all";
+    private string _matrixSearch = string.Empty;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -138,7 +247,45 @@
 
         _editName = _department.Name;
         await ReloadEmployeesAsync();
+        if (_tab == "analytics")
+        {
+            await ReloadAnalyticsAsync();
+        }
     }
+
+    private async Task SwitchTabAsync(string tab)
+    {
+        _tab = tab;
+        if (_tab == "analytics")
+        {
+            await ReloadAnalyticsAsync();
+        }
+    }
+
+    private async Task ReloadAnalyticsAsync()
+    {
+        _matrixLoading = true;
+        try
+        {
+            _deptSummary = await AnalyticsService.GetDepartmentSummaryAsync(DepartmentId);
+            await ReloadMatrixAsync();
+        }
+        finally
+        {
+            _matrixLoading = false;
+        }
+    }
+
+    private async Task ReloadMatrixAsync()
+    {
+        _matrix = await AnalyticsService.GetEmployeeTestMatrixAsync(
+            DepartmentId,
+            _matrixFilter,
+            string.IsNullOrWhiteSpace(_matrixSearch) ? null : _matrixSearch);
+    }
+
+    private static string ShortTitle(string title)
+        => title.Length <= 18 ? title : title[..16] + "…";
 
     private async Task ReloadEmployeesAsync()
     {

@@ -9,6 +9,7 @@
 @using Microsoft.JSInterop
 
 @inject IOrganizationService OrganizationService
+@inject IAnalyticsService AnalyticsService
 @inject IJSRuntime JsRuntime
 
 <PageTitle>Підрозділи</PageTitle>
@@ -79,11 +80,92 @@
                 </article>
             }
         </div>
+
+        <section class="admin-panel analytics-panel">
+            <div class="analytics-panel__head">
+                <h2 class="admin-upload__title">Аналітика</h2>
+                <p class="admin-page__muted">Агреговані показники по організації (без персональних результатів)</p>
+            </div>
+
+            @if (_overview is null)
+            {
+                <p class="admin-page__muted">Завантаження аналітики...</p>
+            }
+            else
+            {
+                <div class="analytics-kpi">
+                    <article class="analytics-kpi__card">
+                        <strong>@_overview.Summary.EmployeesTotal</strong>
+                        <span>Працівників</span>
+                    </article>
+                    <article class="analytics-kpi__card">
+                        <strong>@_overview.Summary.EmployeesTested</strong>
+                        <span>Протестовано</span>
+                    </article>
+                    <article class="analytics-kpi__card">
+                        <strong>@_overview.Summary.CompletionsTotal</strong>
+                        <span>Тестувань</span>
+                    </article>
+                    <article class="analytics-kpi__card analytics-kpi__card--attention">
+                        <strong>@_overview.Summary.AttentionRequiredEmployees</strong>
+                        <span>Потребують уваги</span>
+                    </article>
+                </div>
+
+                <div class="analytics-split">
+                    <div class="analytics-block">
+                        <h3 class="analytics-block__title">Охоплення тестуванням по підрозділах</h3>
+                        <ul class="analytics-bars">
+                            @foreach (var row in _overview.DepartmentCoverage)
+                            {
+                                <li class="analytics-bars__item">
+                                    <div class="analytics-bars__label">
+                                        <a href="@($"/admin/departments/{row.DepartmentId}")">@row.DepartmentName</a>
+                                        <span>@row.EmployeesTested із @row.EmployeesTotal · @row.CoveragePercent.ToString("0.#")%</span>
+                                    </div>
+                                    <div class="analytics-bars__track" aria-hidden="true">
+                                        <span class="analytics-bars__fill" style="@($"width:{Math.Clamp(row.CoveragePercent, 0, 100)}%")"></span>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+
+                    <div class="analytics-block">
+                        <h3 class="analytics-block__title">Пройдені тести</h3>
+                        @if (_overview.TestCompletions.Count == 0)
+                        {
+                            <p class="admin-page__muted">Завершених проходжень ще немає.</p>
+                        }
+                        else
+                        {
+                            <ul class="analytics-tests">
+                                @foreach (var test in _overview.TestCompletions)
+                                {
+                                    <li>
+                                        <a href="@($"/admin/analytics/tests/{test.TestDocumentId}")">@test.TestTitle</a>
+                                        <span>
+                                            <strong>@test.Completions</strong> проходжень
+                                            · @test.UniqueEmployees працівників
+                                        </span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+
+                <div class="analytics-panel__footer">
+                    <a class="admin-btn" href="/admin/analytics">Детальна аналітика →</a>
+                </div>
+            }
+        </section>
     }
 </div>
 
 @code {
     private readonly List<DepartmentListItem> _departments = [];
+    private OrgAnalyticsOverviewDto? _overview;
     private bool _isLoading = true;
     private bool _isSaving;
     private bool _isDeleting;
@@ -106,6 +188,9 @@
             await OrganizationService.EnsureDefaultDepartmentsAsync();
             _departments.Clear();
             _departments.AddRange(await OrganizationService.ListDepartmentsAsync());
+            _overview = _departments.Count == 0
+                ? null
+                : await AnalyticsService.GetOrgOverviewAsync();
         }
         catch (Exception ex)
         {

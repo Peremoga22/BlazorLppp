@@ -1,0 +1,181 @@
+@page "/admin/analytics/employees/{EmployeeId:guid}"
+@layout AdminLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = AppRoles.Admin)]
+
+@using BlazorLppp.Application.Models
+@using BlazorLppp.Domain
+@using Microsoft.AspNetCore.Authorization
+
+@inject IAnalyticsService AnalyticsService
+
+<PageTitle>Динаміка</PageTitle>
+
+<div class="admin-page">
+    <header class="admin-page__header admin-page__header--hero">
+        <div class="admin-page__hero-copy">
+            <p class="admin-page__eyebrow">
+                <a href="/admin/analytics">Аналітика</a>
+                @if (_dynamics is not null)
+                {
+                    <span> · </span>
+                    <a href="@($"/admin/employees/{EmployeeId}")">@_dynamics.EmployeeName</a>
+                }
+            </p>
+            <h1 class="admin-page__title">Динаміка</h1>
+            <p class="admin-page__subtitle">@(_dynamics?.TestTitle ?? "Повторні проходження одного тесту")</p>
+        </div>
+    </header>
+
+    @if (_isLoading)
+    {
+        <p class="admin-page__muted">Завантаження...</p>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <p class="admin-page__error">@_errorMessage</p>
+    }
+    else if (_dynamics is null || _dynamics.Points.Count == 0)
+    {
+        <p class="admin-page__muted">Немає достовірних проходжень для побудови динаміки.</p>
+    }
+    else
+    {
+        <section class="admin-panel">
+            <div class="admin-form-row">
+                <label class="analytics-filters__field">
+                    <span>Шкала</span>
+                    <select class="admin-select" @bind="_selectedScale">
+                        @foreach (var scaleCode in _dynamics.ScaleCodes)
+                        {
+                            <option value="@scaleCode">@scaleCode</option>
+                        }
+                    </select>
+                </label>
+            </div>
+
+            <div class="analytics-chart" aria-hidden="true">
+                @{
+                    var chartPoints = BuildChartPoints(_dynamics, _selectedScale);
+                }
+                <svg viewBox="0 0 640 220" class="analytics-chart__svg" role="img">
+                    <polyline fill="none"
+                              stroke="#2f6f8f"
+                              stroke-width="3"
+                              points="@chartPoints.Polyline" />
+                    @foreach (var point in chartPoints.Dots)
+                    {
+                        <circle cx="@point.X" cy="@point.Y" r="4.5" fill="#5a8fb0" />
+                    }
+                </svg>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            @foreach (var scaleCode in _dynamics.ScaleCodes)
+                            {
+                                <th>@scaleCode</th>
+                            }
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var point in _dynamics.Points)
+                        {
+                            <tr>
+                                <td>@point.CompletedAt.ToString("dd.MM.yyyy")</td>
+                                @foreach (var scaleCode in _dynamics.ScaleCodes)
+                                {
+                                    <td>@(point.ScaleValues.TryGetValue(scaleCode, out var v) ? v.ToString("0.#") : "—")</td>
+                                }
+                                <td>
+                                    <a class="admin-link" href="@($"/admin/results/{point.AttemptId}")">Результат</a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid EmployeeId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "test")]
+    public Guid? TestDocumentId { get; set; }
+
+    private EmployeeDynamicsDto? _dynamics;
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private string _selectedScale = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!TestDocumentId.HasValue)
+        {
+            _errorMessage = "Вкажіть тест у параметрі ?test=";
+            _isLoading = false;
+            return;
+        }
+
+        _isLoading = true;
+        try
+        {
+            _dynamics = await AnalyticsService.GetEmployeeDynamicsAsync(EmployeeId, TestDocumentId.Value);
+            _selectedScale = _dynamics?.ScaleCodes.FirstOrDefault() ?? string.Empty;
+            _errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+            _dynamics = null;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static (string Polyline, IReadOnlyList<(string X, string Y)> Dots) BuildChartPoints(
+        EmployeeDynamicsDto dynamics,
+        string selectedScale)
+    {
+        var values = new List<(int Index, double Value)>();
+        for (var i = 0; i < dynamics.Points.Count; i++)
+        {
+            if (dynamics.Points[i].ScaleValues.TryGetValue(selectedScale, out var value))
+            {
+                values.Add((i, value));
+            }
+        }
+
+        if (values.Count == 0)
+        {
+            return (string.Empty, []);
+        }
+
+        var min = values.Min(v => v.Value);
+        var max = Math.Max(values.Max(v => v.Value), min + 1);
+        var dots = new List<(string X, string Y)>();
+        var parts = new List<string>();
+
+        foreach (var (index, value) in values)
+        {
+            var x = dynamics.Points.Count == 1
+                ? 320d
+                : 40 + index * (560.0 / Math.Max(1, dynamics.Points.Count - 1));
+            var y = 180 - ((value - min) / (max - min)) * 140;
+            var xs = x.ToString("0.#");
+            var ys = y.ToString("0.#");
+            parts.Add($"{xs},{ys}");
+            dots.Add((xs, ys));
+        }
+
+        return (string.Join(' ', parts), dots);
+    }
+}

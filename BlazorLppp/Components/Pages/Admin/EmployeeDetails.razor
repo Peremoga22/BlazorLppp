@@ -123,6 +123,13 @@
             }
 
             <div class="admin-page__actions admin-actions" style="margin-top:1rem">
+                @if (_selectedTestId.HasValue && _card.Sessions.Count(s => s.IsCompleted) >= 2)
+                {
+                    <a class="admin-btn"
+                       href="@($"/admin/analytics/employees/{EmployeeId}?test={_selectedTestId}")">
+                        Динаміка →
+                    </a>
+                }
                 <a class="admin-btn admin-btn--soft"
                    href="@($"/admin/departments/{_card.Department.Id}")">
                     ← Назад на один крок
