@@ -1,7 +1,42 @@
 .admin-layout {
+    --admin-ink: #172636;
+    --admin-ink-soft: #2a3d52;
+    --admin-muted: #5c6f82;
+    --admin-muted-soft: #7a8c9d;
+    --admin-line: rgba(23, 38, 54, 0.1);
+    --admin-line-strong: rgba(23, 38, 54, 0.16);
+    --admin-surface: #ffffff;
+    --admin-surface-soft: #f5f8fb;
+    --admin-canvas-top: #eef3f7;
+    --admin-canvas-bottom: #e4ebf2;
+    --admin-accent: #2f6f8f;
+    --admin-accent-strong: #245a75;
+    --admin-accent-soft: #e7f1f7;
+    --admin-accent-mid: #5a8fb0;
+    --admin-sidebar-top: #1a2a3a;
+    --admin-sidebar-bottom: #243447;
+    --admin-success: #1f6b45;
+    --admin-success-soft: #e5f5ec;
+    --admin-danger: #c2473d;
+    --admin-danger-soft: #fdeceb;
+    --admin-radius-sm: 10px;
+    --admin-radius: 14px;
+    --admin-radius-lg: 18px;
+    --admin-shadow-xs: 0 1px 2px rgba(23, 38, 54, 0.06);
+    --admin-shadow-sm: 0 4px 14px rgba(23, 38, 54, 0.06);
+    --admin-shadow-md: 0 10px 28px rgba(23, 38, 54, 0.08);
+    --admin-shadow-lg: 0 18px 40px rgba(23, 38, 54, 0.12);
+    --admin-shadow-sidebar: 8px 0 32px rgba(15, 25, 40, 0.22);
+    --admin-font: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+
     display: flex;
     min-height: 100vh;
-    background: #f4f6f8;
+    font-family: var(--admin-font);
+    color: var(--admin-ink);
+    background:
+        radial-gradient(120% 80% at 0% 0%, rgba(90, 143, 176, 0.14), transparent 52%),
+        radial-gradient(90% 70% at 100% 0%, rgba(36, 90, 117, 0.08), transparent 48%),
+        linear-gradient(180deg, var(--admin-canvas-top) 0%, var(--admin-canvas-bottom) 100%);
 }
 
 .admin-layout__menu-checkbox {
@@ -15,12 +50,13 @@
 }
 
 .admin-layout__sidebar {
-    width: 240px;
+    width: 248px;
     flex-shrink: 0;
-    background: linear-gradient(180deg, #243447 0%, #2f445a 100%);
+    background: linear-gradient(185deg, var(--admin-sidebar-top) 0%, var(--admin-sidebar-bottom) 100%);
     color: #fff;
-    padding: 1.15rem 1rem 1.35rem;
+    padding: 1.25rem 1rem 1.4rem;
     z-index: 40;
+    box-shadow: var(--admin-shadow-sidebar);
 }
 
 .admin-layout__sidebar-head {
@@ -28,16 +64,18 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    margin-bottom: 1.25rem;
+    margin-bottom: 1.35rem;
+    padding: 0.15rem 0.2rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .admin-layout__brand {
     display: block;
     padding: 0 0.35rem;
     color: #fff;
-    font-weight: 700;
-    font-size: 1.15rem;
-    letter-spacing: 0.01em;
+    font-weight: 800;
+    font-size: 1.2rem;
+    letter-spacing: -0.02em;
     text-decoration: none;
 }
 
@@ -48,7 +86,7 @@
     width: 2.35rem;
     height: 2.35rem;
     border: 1px solid rgba(255, 255, 255, 0.22);
-    border-radius: 10px;
+    border-radius: var(--admin-radius-sm);
     background: rgba(255, 255, 255, 0.1);
     color: #fff;
     font-size: 1.55rem;
@@ -70,21 +108,21 @@
 .admin-layout__nav {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 0.35rem;
 }
 
 ::deep(.admin-layout__link) {
     display: flex;
     align-items: center;
     width: 100%;
-    padding: 0.7rem 0.9rem;
+    padding: 0.72rem 0.95rem;
     border: 1px solid transparent;
     border-radius: 12px;
     background: transparent;
-    color: rgba(255, 255, 255, 0.88);
+    color: rgba(255, 255, 255, 0.86);
     text-decoration: none;
-    font-size: 0.95rem;
-    font-weight: 500;
+    font-size: 0.94rem;
+    font-weight: 550;
     line-height: 1.2;
     cursor: pointer;
     transition:
@@ -97,48 +135,48 @@
 
 ::deep(.admin-layout__link:hover),
 ::deep(.admin-layout__link.active) {
-    background: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.12);
     color: #fff;
     text-decoration: none;
 }
 
 ::deep(.admin-layout__link.active) {
-    background: rgba(255, 255, 255, 0.18);
-    box-shadow: inset 3px 0 0 #7eb6d9;
+    background: rgba(255, 255, 255, 0.16);
+    box-shadow: inset 3px 0 0 #8ec3e0;
 }
 
 .admin-layout__link--button,
 ::deep(.admin-layout__link--button) {
     border-color: rgba(255, 255, 255, 0.22);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.07) 100%);
+    background: rgba(255, 255, 255, 0.1);
     color: #fff;
     font: inherit;
-    font-weight: 600;
+    font-weight: 650;
     text-align: center;
     justify-content: center;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
+    box-shadow: var(--admin-shadow-xs);
 }
 
 .admin-layout__link--button:hover,
 ::deep(.admin-layout__link--button:hover) {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.12) 100%);
+    background: rgba(255, 255, 255, 0.18);
     border-color: rgba(255, 255, 255, 0.4);
     color: #fff;
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
 }
 
 .admin-layout__logout {
-    margin-top: 0.85rem;
-    padding-top: 0.85rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    margin-top: 0.95rem;
+    padding-top: 0.95rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .admin-layout__main {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 1.5rem 1.5rem 0;
+    padding: 1.65rem 1.65rem 0;
     min-width: 0;
     min-height: 0;
 }
@@ -159,10 +197,10 @@
         display: flex;
         align-items: center;
         gap: 0.75rem;
-        padding: 0.75rem 1rem;
-        background: linear-gradient(180deg, #243447 0%, #2c4056 100%);
+        padding: 0.8rem 1rem;
+        background: linear-gradient(180deg, var(--admin-sidebar-top) 0%, var(--admin-sidebar-bottom) 100%);
         color: #fff;
-        box-shadow: 0 4px 16px rgba(36, 52, 71, 0.2);
+        box-shadow: 0 8px 24px rgba(23, 38, 54, 0.22);
     }
 
     .admin-topbar__toggle {
@@ -172,12 +210,12 @@
         min-height: 2.4rem;
         padding: 0.45rem 0.85rem;
         border: 1px solid rgba(255, 255, 255, 0.24);
-        border-radius: 10px;
+        border-radius: var(--admin-radius-sm);
         background: rgba(255, 255, 255, 0.12);
         color: #fff;
         font: inherit;
         font-size: 0.9rem;
-        font-weight: 600;
+        font-weight: 650;
         cursor: pointer;
         transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
     }
@@ -200,8 +238,9 @@
 
     .admin-topbar__brand {
         color: #fff;
-        font-weight: 700;
+        font-weight: 800;
         font-size: 1.05rem;
+        letter-spacing: -0.02em;
         text-decoration: none;
     }
 
@@ -210,11 +249,11 @@
         top: 0;
         left: 0;
         bottom: 0;
-        width: min(280px, 86vw);
+        width: min(288px, 86vw);
         padding-top: 1rem;
         transform: translateX(-105%);
         transition: transform 0.22s ease;
-        box-shadow: 8px 0 28px rgba(0, 0, 0, 0.28);
+        box-shadow: var(--admin-shadow-sidebar);
         overflow-y: auto;
     }
 
@@ -231,8 +270,8 @@
         position: fixed;
         inset: 0;
         z-index: 35;
-        background: rgba(20, 30, 40, 0.45);
-        backdrop-filter: blur(2px);
+        background: rgba(16, 26, 36, 0.48);
+        backdrop-filter: blur(3px);
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.2s ease;
