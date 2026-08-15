@@ -47,7 +47,6 @@ builder.Services.AddScoped<ITestDefinitionService, TestDefinitionService>();
 builder.Services.AddScoped<ITestResultDocumentService, TestResultDocumentService>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
-builder.Services.AddSingleton<IStukalkaService, StukalkaService>();
 
 builder.Services.AddAuthentication(options =>
     {

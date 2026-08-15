@@ -1681,37 +1681,3 @@ h1:focus {
     height: auto;
     display: block;
 }
-
-.stukalka-form {
-    display: grid;
-    gap: 0.85rem;
-}
-
-.stukalka-form__field {
-    display: grid;
-    gap: 0.35rem;
-}
-
-.stukalka-form__field span {
-    font-size: 0.82rem;
-    font-weight: 650;
-    color: var(--admin-muted, #5a6b7d);
-}
-
-.stukalka-form__field .admin-input {
-    flex: none;
-    width: 100%;
-    min-width: 0;
-}
-
-.admin-textarea {
-    min-height: 8rem;
-    resize: vertical;
-    line-height: 1.5;
-}
-
-.stukalka-table__message {
-    max-width: 28rem;
-    white-space: pre-wrap;
-    word-break: break-word;
-}
