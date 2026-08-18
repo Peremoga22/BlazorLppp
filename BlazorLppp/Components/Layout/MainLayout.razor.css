@@ -3,18 +3,19 @@
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    --ts-ink: #172636;
-    --ts-muted: #5c6f82;
-    --ts-soft: #7a8c9d;
-    --ts-line: rgba(23, 38, 54, 0.12);
-    --ts-surface: #f5f8fb;
-    --ts-accent: #2f6f8f;
-    --ts-accent-deep: #245a75;
-    --ts-accent-soft: rgba(47, 111, 143, 0.12);
-    --ts-accent-ring: rgba(47, 111, 143, 0.24);
-    --ts-accent-gradient: linear-gradient(165deg, #5a8fb0 0%, #2f6f8f 55%, #245a75 100%);
-    --ts-accent-gradient-hover: linear-gradient(165deg, #6a9fc0 0%, #387fa0 55%, #1e4f68 100%);
-    font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+    --ts-ink: var(--ink);
+    --ts-muted: var(--muted);
+    --ts-soft: var(--muted-soft);
+    --ts-line: var(--line);
+    --ts-surface: var(--surface-2);
+    --ts-accent: var(--accent);
+    --ts-accent-mid: var(--accent-mid);
+    --ts-accent-deep: var(--accent-strong);
+    --ts-accent-soft: var(--accent-soft);
+    --ts-accent-ring: var(--accent-ring);
+    --ts-accent-gradient: var(--accent-gradient);
+    --ts-accent-gradient-hover: var(--accent-gradient-hover);
+    font-family: var(--font);
 }
 
 main {
@@ -23,9 +24,9 @@ main {
     flex-direction: column;
     min-width: 0;
     background:
-        radial-gradient(110% 70% at 100% 0%, rgba(90, 143, 176, 0.16), transparent 52%),
-        radial-gradient(90% 55% at 0% 100%, rgba(47, 111, 143, 0.1), transparent 48%),
-        linear-gradient(180deg, #eef3f7 0%, #e4ebf2 100%);
+        radial-gradient(110% 70% at 100% 0%, var(--accent-soft), transparent 52%),
+        radial-gradient(90% 55% at 0% 100%, var(--accent-soft), transparent 48%),
+        var(--bg);
 }
 
 main > article.content {
@@ -33,31 +34,32 @@ main > article.content {
 }
 
 .sidebar {
-    background-image: linear-gradient(185deg, #1a2a3a 0%, #243447 100%);
-    box-shadow: 8px 0 28px rgba(15, 25, 40, 0.18);
+    background-image: linear-gradient(185deg, var(--sidebar-top) 0%, var(--sidebar-bottom) 100%);
+    box-shadow: 8px 0 28px rgba(0, 0, 0, 0.22);
 }
 
 .top-row {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, #f5f8fb 100%);
-    border-bottom: 1px solid rgba(23, 38, 54, 0.1);
-    box-shadow: 0 8px 22px rgba(23, 38, 54, 0.05);
-    justify-content: flex-end;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
+    justify-content: space-between;
     height: 3.5rem;
     display: flex;
     align-items: center;
+    padding-right: 1rem;
 }
 
     .top-row ::deep a, .top-row ::deep .btn-link {
         white-space: nowrap;
         margin-left: 1.5rem;
         text-decoration: none;
-        color: var(--ts-accent, #2f6f8f);
+        color: var(--ts-accent);
         font-weight: 650;
     }
 
     .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
         text-decoration: underline;
-        color: var(--ts-accent-deep, #245a75);
+        color: var(--ts-accent-deep);
     }
 
     .top-row ::deep a:first-child {

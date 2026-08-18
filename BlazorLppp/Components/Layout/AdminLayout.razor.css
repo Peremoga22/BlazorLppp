@@ -79,6 +79,18 @@
     text-decoration: none;
 }
 
+.admin-layout__sidebar-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.admin-layout__theme {
+    width: 2.1rem;
+    height: 2.1rem;
+    font-size: 0.95rem;
+}
+
 .admin-layout__close {
     display: none;
     align-items: center;
@@ -142,7 +154,7 @@
 
 ::deep(.admin-layout__link.active) {
     background: rgba(255, 255, 255, 0.16);
-    box-shadow: inset 3px 0 0 #8ec3e0;
+    box-shadow: inset 3px 0 0 var(--admin-accent-mid, #7c6df0);
 }
 
 .admin-layout__link--button,
@@ -242,6 +254,13 @@
         font-size: 1.05rem;
         letter-spacing: -0.02em;
         text-decoration: none;
+        flex: 1;
+    }
+
+    .admin-topbar__theme {
+        width: 2.15rem;
+        height: 2.15rem;
+        font-size: 0.95rem;
     }
 
     .admin-layout__sidebar {

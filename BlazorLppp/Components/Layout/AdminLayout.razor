@@ -12,6 +12,9 @@
             Меню
         </label>
         <a class="admin-topbar__brand" href="/admin-home">Адмінка</a>
+        <button type="button" class="theme-toggle admin-topbar__theme" onclick="toggleTheme()" aria-label="Перемкнути тему" title="Перемкнути тему">
+            <span data-theme-icon aria-hidden="true">🌙</span>
+        </button>
     </header>
 
     <label for="admin-menu-toggle" class="admin-layout__backdrop" aria-label="Закрити меню"></label>
@@ -19,9 +22,14 @@
     <aside id="admin-sidebar" class="admin-layout__sidebar">
         <div class="admin-layout__sidebar-head">
             <a class="admin-layout__brand" href="/admin-home" @attributes="CloseMenuAttrs">Адмінка</a>
-            <label for="admin-menu-toggle" class="admin-layout__close" aria-label="Закрити меню">
-                <span aria-hidden="true">×</span>
-            </label>
+            <div class="admin-layout__sidebar-head-actions">
+                <button type="button" class="theme-toggle admin-layout__theme" onclick="toggleTheme()" aria-label="Перемкнути тему" title="Перемкнути тему">
+                    <span data-theme-icon aria-hidden="true">🌙</span>
+                </button>
+                <label for="admin-menu-toggle" class="admin-layout__close" aria-label="Закрити меню">
+                    <span aria-hidden="true">×</span>
+                </label>
+            </div>
         </div>
         <nav class="admin-layout__nav">
             <NavLink class="admin-layout__link" href="/admin/departments" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">Підрозділи</NavLink>

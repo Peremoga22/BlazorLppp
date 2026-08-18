@@ -1,8 +1,8 @@
 .galaxy-splash {
-    --galaxy-accent: #5a8fb0;
-    --galaxy-ink: #f4f8fb;
-    --galaxy-muted: rgba(214, 232, 242, 0.78);
-    --galaxy-font: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+    --galaxy-accent: #8b83fb;
+    --galaxy-ink: #f4f5fb;
+    --galaxy-muted: rgba(222, 220, 250, 0.78);
+    --galaxy-font: var(--font);
 
     position: relative;
     min-height: 100vh;
@@ -64,22 +64,22 @@
     appearance: none;
     min-height: 2.55rem;
     padding: 0.55rem 1.35rem;
-    border: 1px solid rgba(90, 143, 176, 0.55);
+    border: 1px solid rgba(139, 131, 251, 0.55);
     border-radius: 999px;
-    background: rgba(13, 21, 32, 0.55);
-    color: #d7eef8;
+    background: rgba(10, 12, 20, 0.55);
+    color: #e3e1ff;
     font: inherit;
     font-size: 0.9rem;
     font-weight: 700;
     letter-spacing: 0.04em;
     cursor: pointer;
     backdrop-filter: blur(8px);
-    box-shadow: 0 0 22px rgba(47, 111, 143, 0.28);
+    box-shadow: 0 0 22px rgba(88, 80, 236, 0.28);
     transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
 .galaxy-splash__skip:hover {
     transform: translateY(-1px);
-    border-color: #8ec3e0;
-    background: rgba(47, 111, 143, 0.35);
+    border-color: #b7b0ff;
+    background: rgba(88, 80, 236, 0.35);
 }

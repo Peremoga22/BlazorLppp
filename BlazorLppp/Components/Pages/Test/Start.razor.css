@@ -1,25 +1,21 @@
 .test-start {
-    --ts-ink: #172636;
-    --ts-muted: #5c6f82;
-    --ts-soft: #7a8c9d;
-    --ts-line: rgba(23, 38, 54, 0.12);
-    --ts-line-strong: rgba(23, 38, 54, 0.18);
-    --ts-surface: #f5f8fb;
-    --ts-accent: #2f6f8f;
-    --ts-accent-mid: #5a8fb0;
-    --ts-accent-deep: #245a75;
-    --ts-accent-soft: rgba(47, 111, 143, 0.12);
-    --ts-accent-ring: rgba(47, 111, 143, 0.24);
-    --ts-accent-gradient: linear-gradient(165deg, #5a8fb0 0%, #2f6f8f 55%, #245a75 100%);
-    --ts-accent-gradient-hover: linear-gradient(165deg, #6a9fc0 0%, #387fa0 55%, #1e4f68 100%);
+    --ts-ink: var(--ink);
+    --ts-muted: var(--muted);
+    --ts-soft: var(--muted-soft);
+    --ts-line: var(--line);
+    --ts-line-strong: var(--line-strong);
+    --ts-surface: var(--surface-2);
+    --ts-accent: var(--accent);
+    --ts-accent-mid: var(--accent-mid);
+    --ts-accent-deep: var(--accent-strong);
+    --ts-accent-soft: var(--accent-soft);
+    --ts-accent-ring: var(--accent-ring);
+    --ts-accent-gradient: var(--accent-gradient);
+    --ts-accent-gradient-hover: var(--accent-gradient-hover);
     --ts-radius: 16px;
-    --ts-font: "Plus Jakarta Sans", "Segoe UI", sans-serif;
-    --ts-shadow:
-        0 1px 2px rgba(23, 38, 54, 0.05),
-        0 16px 40px rgba(23, 38, 54, 0.12);
-    --ts-shadow-lg:
-        0 2px 4px rgba(23, 38, 54, 0.06),
-        0 24px 56px rgba(23, 38, 54, 0.16);
+    --ts-font: var(--font);
+    --ts-shadow: var(--shadow-md);
+    --ts-shadow-lg: var(--shadow-lg);
 
     width: 100%;
     max-width: 680px;
@@ -43,12 +39,12 @@
     position: relative;
     overflow: visible;
     background:
-        linear-gradient(165deg, rgba(255, 255, 255, 0.98) 0%, #ffffff 42%),
-        radial-gradient(120% 90% at 0% 0%, rgba(90, 143, 176, 0.16), transparent 55%);
+        radial-gradient(120% 90% at 0% 0%, var(--ts-accent-soft), transparent 55%),
+        var(--surface);
     border-radius: calc(var(--ts-radius) + 4px);
     box-shadow: var(--ts-shadow-lg);
     padding: 1.85rem 1.4rem 1.7rem;
-    border: 1px solid rgba(47, 111, 143, 0.14);
+    border: 1px solid var(--ts-line-strong);
 }
 
 .test-start__card::before {
@@ -58,7 +54,7 @@
     width: 100%;
     height: 4px;
     border-radius: calc(var(--ts-radius) + 4px) calc(var(--ts-radius) + 4px) 0 0;
-    background: linear-gradient(90deg, #172636 0%, #2f6f8f 48%, #5a8fb0 100%);
+    background: var(--ts-accent-gradient);
     pointer-events: none;
 }
 
@@ -99,7 +95,7 @@
 .test-start__lead {
     margin: 0 0 1.05rem;
     font-size: 1.08rem;
-    color: #2a3d52;
+    color: var(--ink-soft);
     line-height: 1.5;
     font-weight: 600;
 }
@@ -107,9 +103,9 @@
 .test-start__callout {
     padding: 1.05rem 1.1rem;
     border-radius: 14px;
-    background: linear-gradient(180deg, #f7fafc 0%, #eef4f8 100%);
-    border: 1px solid rgba(47, 111, 143, 0.12);
-    box-shadow: 0 8px 22px rgba(23, 38, 54, 0.05);
+    background: var(--ts-surface);
+    border: 1px solid var(--ts-line);
+    box-shadow: var(--shadow-sm);
 }
 
 .test-start__text {
@@ -133,11 +129,9 @@
     position: relative;
     padding: 1.2rem 1.15rem 1.1rem;
     border-radius: var(--ts-radius);
-    background: #fff;
-    border: 1px solid rgba(47, 111, 143, 0.12);
-    box-shadow:
-        0 1px 2px rgba(23, 38, 54, 0.04),
-        0 10px 24px rgba(23, 38, 54, 0.06);
+    background: var(--surface);
+    border: 1px solid var(--ts-line);
+    box-shadow: var(--shadow-sm);
 }
 
 .test-start__form:first-of-type {
@@ -202,19 +196,21 @@
     margin-bottom: 0.4rem;
     font-size: 0.86rem;
     font-weight: 700;
-    color: #2a3d52;
+    color: var(--ink-soft);
 }
 
 .test-start__input {
     display: block;
     width: 100%;
     box-sizing: border-box;
+    appearance: none;
+    -webkit-appearance: none;
     padding: 0.85rem 1rem;
     font: inherit;
     font-size: 1rem;
     line-height: 1.4;
     color: var(--ts-ink);
-    background: var(--ts-surface);
+    background-color: var(--ts-surface);
     border: 1px solid var(--ts-line-strong);
     border-radius: 12px;
     box-shadow: inset 0 1px 1px rgba(23, 38, 54, 0.03);
@@ -225,16 +221,16 @@
 }
 
 .test-start__input::placeholder {
-    color: #94a3b3;
+    color: var(--muted-soft);
 }
 
 .test-start__input:hover {
-    border-color: #9eb6cb;
+    border-color: var(--ts-accent-mid);
 }
 
 .test-start__input:focus {
     outline: none;
-    background: #ffffff;
+    background: var(--surface);
     border-color: var(--ts-accent-mid);
     box-shadow: 0 0 0 4px var(--ts-accent-ring);
 }
@@ -275,11 +271,11 @@
     font-weight: 550;
     line-height: 1.4;
     color: var(--ts-ink);
-    background: linear-gradient(180deg, #ffffff 0%, #f5f8fb 100%);
+    background-color: var(--ts-surface);
     border: 1px solid var(--ts-line-strong);
     border-radius: 12px;
     cursor: pointer;
-    box-shadow: 0 1px 2px rgba(23, 38, 54, 0.04);
+    box-shadow: var(--shadow-xs);
     transition:
         border-color 0.18s ease,
         background-color 0.18s ease,
@@ -287,14 +283,14 @@
 }
 
 .test-start__dropdown-trigger:hover {
-    border-color: #9eb6cb;
-    box-shadow: 0 4px 14px rgba(23, 38, 54, 0.07);
+    border-color: var(--ts-accent-mid);
+    box-shadow: var(--shadow-sm);
 }
 
 .test-start__dropdown--open .test-start__dropdown-trigger,
 .test-start__dropdown-trigger:focus-visible {
     outline: none;
-    background: #ffffff;
+    background: var(--surface);
     border-color: var(--ts-accent-mid);
     box-shadow: 0 0 0 4px var(--ts-accent-ring);
 }
@@ -308,7 +304,7 @@
 }
 
 .test-start__dropdown-value--placeholder {
-    color: #94a3b3;
+    color: var(--muted-soft);
     font-weight: 400;
 }
 
@@ -348,12 +344,10 @@
     margin: 0;
     padding: 0.45rem;
     list-style: none;
-    background: #ffffff;
-    border: 1px solid rgba(47, 111, 143, 0.16);
+    background: var(--surface);
+    border: 1px solid var(--ts-line-strong);
     border-radius: 14px;
-    box-shadow:
-        0 2px 4px rgba(23, 38, 54, 0.05),
-        0 20px 44px rgba(23, 38, 54, 0.16);
+    box-shadow: var(--shadow-lg);
     max-height: min(18rem, 50vh);
     overflow-y: auto;
     animation: test-start-menu-in 0.16s ease both;
@@ -393,17 +387,17 @@
 .test-start__dropdown-option:hover,
 .test-start__dropdown-option:focus-visible {
     outline: none;
-    background: #eef4f8;
+    background: var(--ts-surface);
 }
 
 .test-start__dropdown-option--selected {
-    background: linear-gradient(180deg, #eaf3f8 0%, #ddeef6 100%);
+    background: var(--ts-accent-soft);
     color: var(--ts-accent-deep);
 }
 
 .test-start__dropdown-option--selected:hover,
 .test-start__dropdown-option--selected:focus-visible {
-    background: linear-gradient(180deg, #e2eef5 0%, #d2e7f2 100%);
+    background: var(--ts-accent-ring);
 }
 
 .test-start__dropdown-option-text {
@@ -434,7 +428,7 @@
     display: block;
     margin-top: 0.35rem;
     font-size: 0.84rem;
-    color: #b42318;
+    color: var(--danger);
 }
 
 .test-start__actions {
@@ -448,13 +442,11 @@
 .test-start__resume-card {
     padding: 1.05rem 1.15rem 1.2rem;
     border-radius: 14px;
-    border: 1px solid rgba(47, 111, 143, 0.18);
+    border: 1px solid var(--ts-line-strong);
     background:
-        radial-gradient(120% 120% at 100% 0%, rgba(90, 143, 176, 0.16), transparent 55%),
-        linear-gradient(180deg, #ffffff 0%, #f3f8fc 100%);
-    box-shadow:
-        0 1px 2px rgba(23, 38, 54, 0.04),
-        0 12px 28px rgba(23, 38, 54, 0.08);
+        radial-gradient(120% 120% at 100% 0%, var(--ts-accent-soft), transparent 55%),
+        var(--surface);
+    box-shadow: var(--shadow-md);
 }
 
 .test-start__resume-title {
@@ -487,8 +479,8 @@
     font-weight: 750;
     border: none;
     border-radius: 14px;
-    color: #ffffff;
-    background: linear-gradient(180deg, #c2ccd6 0%, #a8b4c0 100%);
+    color: var(--surface);
+    background: var(--muted-soft);
     cursor: not-allowed;
     box-shadow: none;
     transition:
@@ -501,13 +493,13 @@
 .test-start__submit--active {
     background: var(--ts-accent-gradient);
     cursor: pointer;
-    box-shadow: 0 12px 28px rgba(47, 111, 143, 0.32);
+    box-shadow: 0 12px 28px var(--ts-accent-ring);
 }
 
 .test-start__submit--active:hover {
     background: var(--ts-accent-gradient-hover);
     transform: translateY(-2px);
-    box-shadow: 0 16px 34px rgba(47, 111, 143, 0.38);
+    box-shadow: 0 16px 34px var(--ts-accent-ring);
 }
 
 .test-start__submit--active:active {
@@ -518,7 +510,7 @@
     outline: none;
     box-shadow:
         0 0 0 3px var(--ts-accent-ring),
-        0 12px 28px rgba(47, 111, 143, 0.32);
+        0 12px 28px var(--ts-accent-ring);
 }
 
 .test-start__submit:disabled {
@@ -548,11 +540,11 @@
     padding: 0.8rem 0.95rem;
     text-align: center;
     font-size: 0.92rem;
-    color: #9b1c1c;
-    background: #fef3f2;
-    border: 1px solid #f5c2c0;
+    color: var(--danger-strong, var(--danger));
+    background: var(--danger-soft);
+    border: 1px solid var(--danger-soft);
     border-radius: 12px;
-    box-shadow: 0 6px 16px rgba(155, 28, 28, 0.08);
+    box-shadow: var(--shadow-xs);
 }
 
 .test-start__loading {

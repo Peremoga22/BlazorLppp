@@ -1,22 +1,18 @@
 .test-page {
-    --tp-ink: #172636;
-    --tp-muted: #5c6f82;
-    --tp-accent: #2f6f8f;
-    --tp-accent-mid: #5a8fb0;
-    --tp-accent-deep: #245a75;
-    --tp-line: rgba(23, 38, 54, 0.12);
-    --tp-surface: #f5f8fb;
-    --tp-ring: rgba(47, 111, 143, 0.24);
-    --tp-soft: rgba(47, 111, 143, 0.1);
-    --tp-gradient: linear-gradient(165deg, #5a8fb0 0%, #2f6f8f 55%, #245a75 100%);
-    --tp-gradient-hover: linear-gradient(165deg, #6a9fc0 0%, #387fa0 55%, #1e4f68 100%);
-    --tp-font: "Plus Jakarta Sans", "Segoe UI", sans-serif;
-    --tp-shadow:
-        0 1px 2px rgba(23, 38, 54, 0.05),
-        0 16px 40px rgba(23, 38, 54, 0.12);
-    --tp-shadow-lg:
-        0 2px 4px rgba(23, 38, 54, 0.06),
-        0 24px 56px rgba(23, 38, 54, 0.16);
+    --tp-ink: var(--ink);
+    --tp-muted: var(--muted);
+    --tp-accent: var(--accent);
+    --tp-accent-mid: var(--accent-mid);
+    --tp-accent-deep: var(--accent-strong);
+    --tp-line: var(--line);
+    --tp-surface: var(--surface-2);
+    --tp-ring: var(--accent-ring);
+    --tp-soft: var(--accent-soft);
+    --tp-gradient: var(--accent-gradient);
+    --tp-gradient-hover: var(--accent-gradient-hover);
+    --tp-font: var(--font);
+    --tp-shadow: var(--shadow-md);
+    --tp-shadow-lg: var(--shadow-lg);
 
     width: 100%;
     max-width: 820px;
@@ -40,12 +36,12 @@
     position: relative;
     overflow: hidden;
     background:
-        linear-gradient(165deg, rgba(255, 255, 255, 0.98) 0%, #ffffff 40%),
-        radial-gradient(120% 80% at 0% 0%, rgba(90, 143, 176, 0.14), transparent 55%);
+        radial-gradient(120% 80% at 0% 0%, var(--tp-soft), transparent 55%),
+        var(--surface);
     border-radius: 20px;
     box-shadow: var(--tp-shadow-lg);
     padding: 2.25rem 1.75rem;
-    border: 1px solid rgba(47, 111, 143, 0.14);
+    border: 1px solid var(--tp-line);
     text-align: center;
 }
 
@@ -55,7 +51,7 @@
     inset: 0 auto auto 0;
     width: 100%;
     height: 4px;
-    background: linear-gradient(90deg, #172636 0%, #2f6f8f 48%, #5a8fb0 100%);
+    background: var(--tp-gradient);
 }
 
 .test-page__card--form {
@@ -75,7 +71,7 @@
     margin: 0 0 0.75rem;
     font-size: 1.05rem;
     font-weight: 600;
-    color: #2a3d52;
+    color: var(--ink-soft);
     text-align: center;
 }
 
@@ -96,15 +92,15 @@
     text-decoration: none;
     font-weight: 700;
     background: var(--tp-soft);
-    box-shadow: 0 1px 2px rgba(23, 38, 54, 0.04);
+    box-shadow: var(--shadow-xs);
     transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .test-page__link:hover {
     text-decoration: none;
     color: var(--tp-accent-deep);
-    background: rgba(47, 111, 143, 0.16);
-    box-shadow: 0 6px 16px rgba(47, 111, 143, 0.14);
+    background: var(--tp-ring);
+    box-shadow: var(--shadow-sm);
 }
 
 .test-form__header {
@@ -116,9 +112,9 @@
     margin-top: 0.85rem;
     padding: 0.95rem 1.05rem;
     border-radius: 14px;
-    background: linear-gradient(180deg, #f7fafc 0%, #eef4f8 100%);
-    border: 1px solid rgba(47, 111, 143, 0.12);
-    box-shadow: 0 8px 20px rgba(23, 38, 54, 0.05);
+    background: var(--tp-surface);
+    border: 1px solid var(--tp-line);
+    box-shadow: var(--shadow-sm);
 }
 
 .test-form__list {
@@ -142,11 +138,11 @@
     margin: 0 0 1rem;
     padding: 0.9rem 1.05rem;
     border-radius: 14px;
-    background: linear-gradient(180deg, #f7fafc 0%, #eef4f8 100%);
-    border: 1px solid rgba(47, 111, 143, 0.12);
+    background: var(--tp-surface);
+    border: 1px solid var(--tp-line);
     color: var(--tp-muted);
     font-size: 0.9rem;
-    box-shadow: 0 8px 20px rgba(23, 38, 54, 0.05);
+    box-shadow: var(--shadow-sm);
 }
 
 .test-form__section-title {
@@ -195,11 +191,11 @@
     display: grid;
     grid-template-columns: repeat(11, minmax(0, 1fr));
     gap: 0;
-    border: 1px solid #9eb0c2;
+    border: 1px solid var(--tp-line);
     border-radius: 10px;
     overflow: hidden;
-    background: linear-gradient(180deg, #eef3f7 0%, #dce6ef 100%);
-    box-shadow: inset 0 1px 2px rgba(23, 38, 54, 0.05);
+    background: var(--tp-surface);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .test-form__analog-item {
@@ -208,9 +204,9 @@
     justify-content: center;
     min-height: 2.45rem;
     padding: 0.35rem 0.1rem;
-    border-right: 1px solid rgba(90, 107, 125, 0.28);
+    border-right: 1px solid var(--tp-line);
     cursor: pointer;
-    color: #334155;
+    color: var(--tp-ink);
     font-size: 0.78rem;
     font-weight: 700;
     text-align: center;
@@ -230,32 +226,28 @@
 .test-form__analog-item:hover,
 .test-form__analog-item.is-selected,
 .test-form__analog-item:has(input:checked) {
-    background: rgba(47, 111, 143, 0.16);
+    background: var(--tp-soft);
     color: var(--tp-accent-deep);
 }
 
 .test-form__analog-item.is-selected,
 .test-form__analog-item:has(input:checked) {
-    background: rgba(47, 111, 143, 0.28);
+    background: var(--tp-ring);
     box-shadow: inset 0 0 0 2px var(--tp-accent);
 }
 
 .test-form__question {
     padding: 1.15rem 1.2rem;
-    border: 1px solid rgba(47, 111, 143, 0.12);
+    border: 1px solid var(--tp-line);
     border-radius: 16px;
-    background: #fff;
-    box-shadow:
-        0 1px 2px rgba(23, 38, 54, 0.04),
-        0 10px 24px rgba(23, 38, 54, 0.06);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
     transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
 }
 
 .test-form__question:hover {
-    border-color: rgba(47, 111, 143, 0.2);
-    box-shadow:
-        0 2px 4px rgba(23, 38, 54, 0.05),
-        0 14px 30px rgba(23, 38, 54, 0.09);
+    border-color: var(--tp-accent-mid);
+    box-shadow: var(--shadow-md);
 }
 
 .test-form__question--compact {
@@ -307,15 +299,15 @@
     border: 1px solid var(--tp-line);
     cursor: pointer;
     color: var(--tp-ink);
-    box-shadow: 0 1px 2px rgba(23, 38, 54, 0.03);
+    box-shadow: var(--shadow-xs);
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, transform 0.15s ease;
 }
 
 .test-form__option:hover {
-    border-color: #9eb6cb;
-    background: #eef4f8;
+    border-color: var(--tp-accent-mid);
+    background: var(--tp-soft);
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(23, 38, 54, 0.08);
+    box-shadow: var(--shadow-sm);
 }
 
 .test-form__option input {
@@ -351,19 +343,19 @@
     padding: 0.55rem 0.4rem;
     border-radius: 11px;
     border: 1px solid var(--tp-line);
-    background: #fff;
+    background: var(--surface);
     text-align: center;
     cursor: pointer;
     color: var(--tp-ink);
     font-weight: 700;
-    box-shadow: 0 1px 2px rgba(23, 38, 54, 0.04);
+    box-shadow: var(--shadow-xs);
     transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .test-form__scale-item:hover {
-    border-color: #9eb6cb;
+    border-color: var(--tp-accent-mid);
     transform: translateY(-1px);
-    box-shadow: 0 6px 14px rgba(23, 38, 54, 0.08);
+    box-shadow: var(--shadow-sm);
 }
 
 .test-form__scale-item input {
@@ -374,12 +366,12 @@
     background: var(--tp-gradient);
     border-color: transparent;
     color: #fff;
-    box-shadow: 0 10px 20px rgba(47, 111, 143, 0.3);
+    box-shadow: 0 10px 20px var(--tp-ring);
 }
 
 .test-form__option:has(input:checked) {
     border-color: var(--tp-accent);
-    background: #eaf3f8;
+    background: var(--tp-soft);
     box-shadow: 0 0 0 3px var(--tp-ring);
 }
 
@@ -424,14 +416,14 @@
     font-size: 1.02rem;
     font-weight: 750;
     cursor: pointer;
-    box-shadow: 0 14px 30px rgba(47, 111, 143, 0.32);
+    box-shadow: 0 14px 30px var(--tp-ring);
     transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .test-form__submit:hover:not(:disabled) {
     background: var(--tp-gradient-hover);
     transform: translateY(-2px);
-    box-shadow: 0 18px 36px rgba(47, 111, 143, 0.38);
+    box-shadow: 0 18px 36px var(--tp-ring);
 }
 
 .test-form__submit:disabled {
@@ -443,14 +435,14 @@
 
 .test-form__error {
     margin: 1rem 0 0;
-    color: #b42318;
+    color: var(--danger);
     font-weight: 600;
 }
 
 .test-form__done {
     margin: 1.5rem 0 0;
     text-align: center;
-    color: #1f6b45;
+    color: var(--success);
     font-size: 1.1rem;
     font-weight: 750;
 }
