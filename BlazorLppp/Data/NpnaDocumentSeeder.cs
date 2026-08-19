@@ -7,6 +7,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BlazorLppp.Data;
 
+/// <summary>
+/// Зашитий бланк НПН-А. Якщо документ уже є — лише править тип/варіанти.
+/// Повторний Import видаляє питання і падає на FK TestAnswers (Restrict).
+/// </summary>
 public static class NpnaDocumentSeeder
 {
     private const string FolderName = "НПН-А";
@@ -15,6 +19,22 @@ public static class NpnaDocumentSeeder
     private const string DisplayFileName = "НПН-А.docx";
 
     public static async Task SeedAsync(IServiceProvider services, CancellationToken cancellationToken = default)
+    {
+        var log = services.GetRequiredService<ILoggerFactory>().CreateLogger("NpnaDocumentSeeder");
+        try
+        {
+            await SeedCoreAsync(services, log, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "НПН-А: сид не вдався. Додаток запускається далі.");
+        }
+    }
+
+    private static async Task SeedCoreAsync(
+        IServiceProvider services,
+        ILogger log,
+        CancellationToken cancellationToken)
     {
         var environment = services.GetRequiredService<IWebHostEnvironment>();
         var definitionService = services.GetRequiredService<ITestDefinitionService>();
@@ -31,27 +51,23 @@ public static class NpnaDocumentSeeder
 
         foreach (var documentId in candidateIds)
         {
-            await RepairDocumentAsync(dbContext, documentId, cancellationToken);
+            await RepairDocumentAsync(dbContext, documentId, log, cancellationToken);
         }
 
-        var hasComplete = false;
-        foreach (var documentId in candidateIds)
+        if (candidateIds.Count > 0)
         {
-            var snapshot = await dbContext.TestDocuments
-                .AsNoTracking()
-                .Include(d => d.Questions)
-                .ThenInclude(q => q.Options)
-                .FirstOrDefaultAsync(d => d.Id == documentId, cancellationToken);
-
-            if (snapshot is not null && IsCompleteNpnaDocument(snapshot))
-            {
-                hasComplete = true;
-                break;
-            }
+            log.LogInformation(
+                "НПН-А: знайдено {Count} існуючих бланк(ів). Повторний імпорт пропущено.",
+                candidateIds.Count);
+            return;
         }
 
-        if (hasComplete)
+        var pathTaken = await dbContext.TestDocuments
+            .AsNoTracking()
+            .AnyAsync(d => d.RelativePath == RelativePath, cancellationToken);
+        if (pathTaken)
         {
+            log.LogWarning("НПН-А: шлях {Path} уже зайнятий, імпорт пропущено.", RelativePath);
             return;
         }
 
@@ -122,6 +138,7 @@ public static class NpnaDocumentSeeder
     private static async Task RepairDocumentAsync(
         ApplicationDbContext dbContext,
         Guid documentId,
+        ILogger log,
         CancellationToken cancellationToken)
     {
         await dbContext.TestDocuments
@@ -150,31 +167,29 @@ public static class NpnaDocumentSeeder
 
         if (questionIds.Count == 0)
         {
+            log.LogWarning("НПН-А: документ {Id} без питань — бланк не перезаписую (можуть бути спроби).", documentId);
             return;
         }
 
-        var existingKeys = await dbContext.TestOptions
+        var existingOptions = await dbContext.TestOptions
             .AsNoTracking()
             .Where(o => questionIds.Contains(o.TestQuestionId))
-            .Select(o => new { o.TestQuestionId, o.Key, o.Text })
+            .Select(o => new OptionSnapshot(o.TestQuestionId, o.SortOrder, o.Key, o.Text))
             .ToListAsync(cancellationToken);
 
-        var keysByQuestion = existingKeys
+        var optionsByQuestion = existingOptions
             .GroupBy(o => o.TestQuestionId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var toAdd = new List<TestOption>();
         foreach (var questionId in questionIds)
         {
-            keysByQuestion.TryGetValue(questionId, out var options);
+            optionsByQuestion.TryGetValue(questionId, out var options);
             options ??= [];
 
-            var hasYes = options.Any(o =>
-                string.Equals(o.Key, "Так", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(o.Text, "Так", StringComparison.OrdinalIgnoreCase));
-            var hasNo = options.Any(o =>
-                string.Equals(o.Key, "Ні", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(o.Text, "Ні", StringComparison.OrdinalIgnoreCase));
+            var nextSort = options.Count == 0 ? 1 : options.Max(o => o.SortOrder) + 1;
+            var hasYes = options.Any(IsYesOption);
+            var hasNo = options.Any(IsNoOption);
 
             if (!hasYes)
             {
@@ -182,7 +197,7 @@ public static class NpnaDocumentSeeder
                 {
                     Id = Guid.NewGuid(),
                     TestQuestionId = questionId,
-                    SortOrder = 1,
+                    SortOrder = nextSort++,
                     Key = "Так",
                     Text = "Так"
                 });
@@ -194,7 +209,7 @@ public static class NpnaDocumentSeeder
                 {
                     Id = Guid.NewGuid(),
                     TestQuestionId = questionId,
-                    SortOrder = 2,
+                    SortOrder = nextSort,
                     Key = "Ні",
                     Text = "Ні"
                 });
@@ -206,29 +221,33 @@ public static class NpnaDocumentSeeder
             return;
         }
 
-        dbContext.TestOptions.AddRange(toAdd);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        dbContext.ChangeTracker.Clear();
+        try
+        {
+            dbContext.TestOptions.AddRange(toAdd);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            log.LogWarning(ex, "НПН-А: не вдалося дописати варіанти Так/Ні для документа {Id}.", documentId);
+        }
+        finally
+        {
+            dbContext.ChangeTracker.Clear();
+        }
     }
 
-    private static bool IsCompleteNpnaDocument(TestDocument document)
-    {
-        if (document.Questions.Count != NpnaDocumentTemplate.QuestionCount)
-        {
-            return false;
-        }
+    private static bool IsYesOption(OptionSnapshot option) =>
+        string.Equals(option.Key, "Так", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(option.Text, "Так", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(option.Key, "+", StringComparison.OrdinalIgnoreCase);
 
-        if (string.Equals(document.Title, "Психологічний тест", StringComparison.Ordinal))
-        {
-            return false;
-        }
+    private static bool IsNoOption(OptionSnapshot option) =>
+        string.Equals(option.Key, "Ні", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(option.Text, "Ні", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(option.Key, "-", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(option.Key, "−", StringComparison.OrdinalIgnoreCase);
 
-        return document.Questions.All(q =>
-            q.Type == QuestionType.YesNo &&
-            q.Options.Count >= 2 &&
-            !string.IsNullOrWhiteSpace(q.Text) &&
-            q.Text.Any(char.IsLetter));
-    }
+    private sealed record OptionSnapshot(Guid TestQuestionId, int SortOrder, string Key, string Text);
 
     private static string? ResolveSourcePath(string contentRootPath)
     {
