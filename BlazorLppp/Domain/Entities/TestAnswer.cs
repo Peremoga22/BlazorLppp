@@ -17,4 +17,9 @@ public class TestAnswer
     public TestOption? SelectedOption { get; set; }
 
     public int? ScaleValue { get; set; }
+
+    /// <summary>
+    /// Для MultiChoice: список Id варіантів через кому; після «|» — вільний текст («Інше»).
+    /// </summary>
+    public string? TextValue { get; set; }
 }

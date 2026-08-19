@@ -35,7 +35,15 @@ public class TestAttemptService(
                 "Обраний тест не містить питань. Зверніться до адміністратора.");
         }
 
-        if (!UnitNumbers.IsValid(respondent.NumberUnit))
+        var isAnonymous = respondent.IsAnonymous || AnonymousSurveyScoring.LooksLike(document);
+        if (isAnonymous)
+        {
+            if (respondent.AnonymousRank is null)
+            {
+                throw new InvalidOperationException("Оберіть категорію: солдат, сержант або офіцер.");
+            }
+        }
+        else if (!UnitNumbers.IsValid(respondent.NumberUnit))
         {
             throw new InvalidOperationException("Оберіть підрозділ.");
         }
@@ -46,55 +54,67 @@ public class TestAttemptService(
             .AsNoTracking()
             .AnyAsync(d => d.IsRequired && d.Questions.Any(), cancellationToken);
 
-        if (hasRequiredTests && !document.IsRequired)
+        if (hasRequiredTests && !document.IsRequired && !isAnonymous)
         {
             throw new InvalidOperationException(
                 "Цей тест зараз недоступний. Оберіть тест зі списку, визначеного адміністратором.");
         }
 
-        var lastName = respondent.LastName.Trim();
-        var firstName = respondent.FirstName.Trim();
-        var middleName = respondent.MiddleName.Trim();
+        var lastName = isAnonymous ? "Тест" : respondent.LastName.Trim();
+        var firstName = isAnonymous ? "анонімний" : respondent.FirstName.Trim();
+        var middleName = isAnonymous
+            ? AnonymousRankNames.Display(respondent.AnonymousRank!.Value)
+            : respondent.MiddleName.Trim();
+        var numberUnit = isAnonymous ? 0 : respondent.NumberUnit;
 
-        var employee = await organizationService.FindOrCreateEmployeeAsync(
-            respondent.NumberUnit,
-            lastName,
-            firstName,
-            middleName,
-            cancellationToken);
-
-        // Якщо є незавершена спроба цього ж працівника з тим самим тестом — продовжуємо її.
-        var existingInProgress = await dbContext.TestAttempts
-            .FirstOrDefaultAsync(
-                a => a.Status == TestAttemptStatus.InProgress &&
-                     a.TestDocumentId == document.Id &&
-                     (a.EmployeeId == employee.Id ||
-                      (a.NumberUnit == respondent.NumberUnit &&
-                       a.LastName == lastName &&
-                       a.FirstName == firstName &&
-                       a.MiddleName == middleName)),
-                cancellationToken);
-
-        if (existingInProgress is not null)
+        Guid? employeeId = null;
+        if (!isAnonymous)
         {
-            if (existingInProgress.EmployeeId is null)
-            {
-                existingInProgress.EmployeeId = employee.Id;
-                await dbContext.SaveChangesAsync(cancellationToken);
-            }
+            var employee = await organizationService.FindOrCreateEmployeeAsync(
+                numberUnit,
+                lastName,
+                firstName,
+                middleName,
+                cancellationToken);
+            employeeId = employee.Id;
+        }
 
-            return existingInProgress;
+        if (!isAnonymous)
+        {
+            var existingInProgress = await dbContext.TestAttempts
+                .FirstOrDefaultAsync(
+                    a => a.Status == TestAttemptStatus.InProgress &&
+                         a.TestDocumentId == document.Id &&
+                         (a.EmployeeId == employeeId ||
+                          (a.NumberUnit == numberUnit &&
+                           a.LastName == lastName &&
+                           a.FirstName == firstName &&
+                           a.MiddleName == middleName)),
+                    cancellationToken);
+
+            if (existingInProgress is not null)
+            {
+                if (existingInProgress.EmployeeId is null)
+                {
+                    existingInProgress.EmployeeId = employeeId;
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                }
+
+                return existingInProgress;
+            }
         }
 
         var attempt = new TestAttempt
         {
             Id = Guid.NewGuid(),
-            EmployeeId = employee.Id,
+            EmployeeId = employeeId,
             TestDocumentId = document.Id,
             LastName = lastName,
             FirstName = firstName,
             MiddleName = middleName,
-            NumberUnit = respondent.NumberUnit,
+            NumberUnit = numberUnit,
+            IsAnonymous = isAnonymous,
+            AnonymousRank = isAnonymous ? respondent.AnonymousRank : null,
             StartedAt = DateTime.Now,
             CompletedAt = null,
             Status = TestAttemptStatus.InProgress
@@ -243,13 +263,21 @@ public class TestAttemptService(
         return new TestFormModel
         {
             AttemptId = attempt.Id,
-            RespondentName = $"{attempt.LastName} {attempt.FirstName} {attempt.MiddleName}".Trim(),
+            RespondentName = attempt.IsAnonymous
+                ? $"Анонімний тест · {AnonymousRankNames.Display(attempt.AnonymousRank ?? AnonymousRank.Soldier)}"
+                : $"{attempt.LastName} {attempt.FirstName} {attempt.MiddleName}".Trim(),
             TestTitle = document.Title,
             Instruction = document.Instruction,
             IsCompleted = attempt.Status == TestAttemptStatus.Completed,
             Questions = document.Questions.Select(q =>
             {
                 answersByQuestion.TryGetValue(q.Id, out var answer);
+                var (multiIds, freeText) = AnonymousSurveyScoring.Unpack(answer?.TextValue);
+                if (multiIds.Count == 0 && answer?.SelectedOptionId is Guid selected)
+                {
+                    multiIds.Add(selected);
+                }
+
                 return new TestFormQuestionModel
                 {
                     Id = q.Id,
@@ -259,6 +287,7 @@ public class TestAttemptService(
                     Type = q.Type,
                     ScaleMin = q.ScaleMin,
                     ScaleMax = q.ScaleMax,
+                    MaxSelections = q.Text.Contains("до 3", StringComparison.OrdinalIgnoreCase) ? 3 : null,
                     Options = q.Options
                         .Select(o => new TestFormOptionModel
                         {
@@ -268,7 +297,9 @@ public class TestAttemptService(
                         })
                         .ToList(),
                     SelectedOptionId = answer?.SelectedOptionId,
-                    ScaleValue = answer?.ScaleValue
+                    SelectedOptionIds = multiIds,
+                    ScaleValue = answer?.ScaleValue,
+                    TextValue = freeText
                 };
             }).ToList()
         };
@@ -330,7 +361,8 @@ public class TestAttemptService(
                 TestAttemptId = attemptId,
                 TestQuestionId = question.Id,
                 SelectedOptionId = input.SelectedOptionId,
-                ScaleValue = input.ScaleValue
+                ScaleValue = input.ScaleValue,
+                TextValue = input.TextValue
             });
         }
 
@@ -347,8 +379,9 @@ public class TestAttemptService(
 
     public async Task<IReadOnlyList<TestResultListItem>> GetCompletedResultsAsync(
         int? numberUnit = null,
-        DateOnly? month = null,
+        int? monthOfYear = null,
         IReadOnlyCollection<Guid>? attemptIds = null,
+        bool includeAnonymous = false,
         CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -358,17 +391,20 @@ public class TestAttemptService(
             .Include(a => a.TestDocument)
             .Where(a => a.Status == TestAttemptStatus.Completed);
 
+        if (!includeAnonymous)
+        {
+            query = query.Where(a => !a.IsAnonymous);
+        }
+
         if (numberUnit.HasValue)
         {
             query = query.Where(a => a.NumberUnit == numberUnit.Value);
         }
 
-        if (month.HasValue)
+        if (monthOfYear is >= 1 and <= 12)
         {
-            var start = month.Value.ToDateTime(TimeOnly.MinValue);
-            var end = start.AddMonths(1);
-            query = query.Where(a => (a.CompletedAt ?? a.StartedAt) >= start &&
-                                     (a.CompletedAt ?? a.StartedAt) < end);
+            var month = monthOfYear.Value;
+            query = query.Where(a => (a.CompletedAt ?? a.StartedAt).Month == month);
         }
 
         if (attemptIds is { Count: > 0 })
@@ -380,30 +416,120 @@ public class TestAttemptService(
             .OrderByDescending(a => a.CompletedAt ?? a.StartedAt)
             .ToListAsync(cancellationToken);
 
-        return items.Select(a =>
-        {
-            var baseName = resultDocumentService.BuildFileBaseName(a.LastName, a.FirstName, a.MiddleName);
-            var hasFile = !string.IsNullOrWhiteSpace(a.ResultRelativePath) &&
-                          File.Exists(resultDocumentService.GetAbsolutePath(a.ResultRelativePath));
-
-            return new TestResultListItem
-            {
-                AttemptId = a.Id,
-                LastName = a.LastName,
-                FirstName = a.FirstName,
-                MiddleName = a.MiddleName,
-                DisplayName = $"{a.LastName} {a.FirstName} {a.MiddleName}".Trim(),
-                TestTitle = a.TestDocument?.Title,
-                FileBaseName = baseName,
-                ResultRelativePath = a.ResultRelativePath,
-                ResultFileName = a.ResultFileName ?? (hasFile ? Path.GetFileName(a.ResultRelativePath) : null),
-                HasResultFile = hasFile,
-                StartedAt = a.StartedAt,
-                CompletedAt = a.CompletedAt,
-                NumberUnit = a.NumberUnit
-            };
-        }).ToList();
+        return items.Select(MapResultListItem).ToList();
     }
+
+    public async Task<IReadOnlyList<TestResultListItem>> GetAnonymousResultsAsync(
+        AnonymousRank? rank = null,
+        int? monthOfYear = null,
+        CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var query = dbContext.TestAttempts
+            .AsNoTracking()
+            .Include(a => a.TestDocument)
+            .Where(a => a.Status == TestAttemptStatus.Completed && a.IsAnonymous);
+
+        if (rank.HasValue)
+        {
+            query = query.Where(a => a.AnonymousRank == rank.Value);
+        }
+
+        if (monthOfYear is >= 1 and <= 12)
+        {
+            var month = monthOfYear.Value;
+            query = query.Where(a => (a.CompletedAt ?? a.StartedAt).Month == month);
+        }
+
+        var items = await query
+            .OrderByDescending(a => a.CompletedAt ?? a.StartedAt)
+            .ToListAsync(cancellationToken);
+
+        return items.Select(MapResultListItem).ToList();
+    }
+
+    public async Task<AnonymousSurveyStatsDto> GetAnonymousStatsAsync(
+        AnonymousRank? rank = null,
+        int? monthOfYear = null,
+        CancellationToken cancellationToken = default)
+    {
+        var results = await GetAnonymousResultsAsync(rank, monthOfYear, cancellationToken);
+        var soldiers = results.Count(r => r.AnonymousRank == AnonymousRank.Soldier);
+        var sergeants = results.Count(r => r.AnonymousRank == AnonymousRank.Sergeant);
+        var officers = results.Count(r => r.AnonymousRank == AnonymousRank.Officer);
+
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var attemptIds = results.Select(r => r.AttemptId).ToList();
+        var answers = attemptIds.Count == 0
+            ? []
+            : await dbContext.TestAnswers
+                .AsNoTracking()
+                .Include(a => a.SelectedOption)
+                .Include(a => a.TestQuestion)
+                .Where(a => attemptIds.Contains(a.TestAttemptId))
+                .ToListAsync(cancellationToken);
+
+        var readiness = answers
+            .Where(a => a.TestQuestion != null &&
+                        a.TestQuestion.SortOrder == AnonymousSurveyScoring.ReadinessSort &&
+                        a.SelectedOption != null)
+            .GroupBy(a => a.SelectedOption!.Text)
+            .Select(g => new AnonymousSurveyChartSlice { Label = ShortChartLabel(g.Key), Count = g.Count() })
+            .OrderByDescending(s => s.Count)
+            .ToList();
+
+        var combat = answers
+            .Where(a => a.TestQuestion != null &&
+                        a.TestQuestion.SortOrder == AnonymousSurveyScoring.CombatSort &&
+                        a.SelectedOption != null)
+            .GroupBy(a => a.SelectedOption!.Text)
+            .Select(g => new AnonymousSurveyChartSlice { Label = ShortChartLabel(g.Key), Count = g.Count() })
+            .OrderByDescending(s => s.Count)
+            .ToList();
+
+        return new AnonymousSurveyStatsDto
+        {
+            Total = results.Count,
+            Soldiers = soldiers,
+            Sergeants = sergeants,
+            Officers = officers,
+            Readiness = readiness,
+            CombatExperience = combat
+        };
+    }
+
+    private TestResultListItem MapResultListItem(TestAttempt a)
+    {
+        var baseName = resultDocumentService.BuildFileBaseName(a.LastName, a.FirstName, a.MiddleName);
+        var hasFile = !string.IsNullOrWhiteSpace(a.ResultRelativePath) &&
+                      File.Exists(resultDocumentService.GetAbsolutePath(a.ResultRelativePath));
+        var display = a.IsAnonymous
+            ? $"Анонімний тест · {(a.AnonymousRank is AnonymousRank rank ? AnonymousRankNames.Display(rank) : "—")}"
+            : $"{a.LastName} {a.FirstName} {a.MiddleName}".Trim();
+
+        return new TestResultListItem
+        {
+            AttemptId = a.Id,
+            LastName = a.LastName,
+            FirstName = a.FirstName,
+            MiddleName = a.MiddleName,
+            DisplayName = display,
+            TestTitle = a.TestDocument?.Title,
+            FileBaseName = baseName,
+            ResultRelativePath = a.ResultRelativePath,
+            ResultFileName = a.ResultFileName ?? (hasFile ? Path.GetFileName(a.ResultRelativePath) : null),
+            HasResultFile = hasFile,
+            StartedAt = a.StartedAt,
+            CompletedAt = a.CompletedAt,
+            NumberUnit = a.NumberUnit,
+            IsAnonymous = a.IsAnonymous,
+            AnonymousRank = a.AnonymousRank
+        };
+    }
+
+    private static string ShortChartLabel(string value)
+        => value.Length <= 42 ? value : value[..39] + "…";
 
     public async Task<TestResultDetails?> GetResultDetailsAsync(
         Guid attemptId,
@@ -504,6 +630,7 @@ public class TestAttemptService(
         return question.Type switch
         {
             QuestionType.Scale => answer.ScaleValue?.ToString() ?? "—",
+            QuestionType.MultiChoice => FormatMultiChoice(question, answer),
             QuestionType.SingleChoice or QuestionType.YesNo when answer.SelectedOption is not null
                 => string.IsNullOrWhiteSpace(answer.SelectedOption.Key) ||
                    answer.SelectedOption.Key is "Так" or "Ні"
@@ -511,6 +638,27 @@ public class TestAttemptService(
                     : $"{answer.SelectedOption.Key}. {answer.SelectedOption.Text}",
             _ => "—"
         };
+    }
+
+    private static string FormatMultiChoice(TestQuestion question, TestAnswer answer)
+    {
+        var (ids, extra) = AnonymousSurveyScoring.Unpack(answer.TextValue);
+        if (ids.Count == 0 && answer.SelectedOptionId is Guid one)
+        {
+            ids.Add(one);
+        }
+
+        var labels = question.Options
+            .Where(o => ids.Contains(o.Id))
+            .OrderBy(o => o.SortOrder)
+            .Select(o => o.Text)
+            .ToList();
+        if (!string.IsNullOrWhiteSpace(extra))
+        {
+            labels.Add(extra);
+        }
+
+        return labels.Count == 0 ? "—" : string.Join("; ", labels);
     }
 
     public async Task<TestAttemptListResult> GetListAsync(
@@ -538,12 +686,10 @@ public class TestAttemptService(
             attempts = attempts.Where(a => a.Status == query.Status.Value);
         }
 
-        if (query.Month.HasValue)
+        if (query.Month is >= 1 and <= 12)
         {
-            var start = query.Month.Value.ToDateTime(TimeOnly.MinValue);
-            var end = start.AddMonths(1);
-            attempts = attempts.Where(a => (a.CompletedAt ?? a.StartedAt) >= start &&
-                                           (a.CompletedAt ?? a.StartedAt) < end);
+            var month = query.Month.Value;
+            attempts = attempts.Where(a => (a.CompletedAt ?? a.StartedAt).Month == month);
         }
 
         var totalCount = await attempts.CountAsync(cancellationToken);
@@ -570,7 +716,7 @@ public class TestAttemptService(
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var today = DateTime.Today;
-        var attempts = dbContext.TestAttempts.AsNoTracking().AsQueryable();
+        var attempts = dbContext.TestAttempts.AsNoTracking().Where(a => !a.IsAnonymous);
         if (numberUnit.HasValue)
         {
             attempts = attempts.Where(a => a.NumberUnit == numberUnit.Value);
@@ -650,6 +796,31 @@ public class TestAttemptService(
                 }
 
                 input.SelectedOptionId = null;
+                input.TextValue = null;
+                break;
+
+            case QuestionType.MultiChoice:
+                var selected = input.SelectedOptionIds
+                    .Where(id => question.Options.Any(o => o.Id == id))
+                    .Distinct()
+                    .ToList();
+                if (selected.Count == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Оберіть хоча б один варіант для питання {question.SortOrder}.");
+                }
+
+                var maxSelections = question.Text.Contains("до 3", StringComparison.OrdinalIgnoreCase) ? 3 : 0;
+                if (maxSelections > 0 && selected.Count > maxSelections)
+                {
+                    throw new InvalidOperationException(
+                        $"Для питання {question.SortOrder} можна обрати не більше {maxSelections} варіантів.");
+                }
+
+                input.SelectedOptionIds = selected;
+                input.SelectedOptionId = selected[0];
+                input.ScaleValue = null;
+                input.TextValue = AnonymousSurveyScoring.Pack(selected, input.TextValue);
                 break;
 
             default:

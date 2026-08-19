@@ -447,6 +447,16 @@
     font-weight: 750;
 }
 
+.test-form__other {
+    width: 100%;
+    margin: 0.15rem 0 0.55rem 1.6rem;
+    min-height: 2.4rem;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--tp-line);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
 @media (prefers-reduced-motion: reduce) {
     .test-page,
     .test-form__submit,

@@ -1,35 +1,53 @@
 using System.ComponentModel.DataAnnotations;
 
 using BlazorLppp.Domain;
+using BlazorLppp.Domain.Enums;
 
 namespace BlazorLppp.Application.Models;
 
 public class RespondentModel : IValidatableObject
 {
-    [Required(ErrorMessage = "Вкажіть прізвище")]
     [StringLength(100, ErrorMessage = "Прізвище не може перевищувати 100 символів")]
     public string LastName { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "Вкажіть ім’я")]
     [StringLength(100, ErrorMessage = "Ім’я не може перевищувати 100 символів")]
     public string FirstName { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "Вкажіть по батькові")]
     [StringLength(100, ErrorMessage = "По батькові не може перевищувати 100 символів")]
     public string MiddleName { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "Вкажіть номер підрозділу")]
-    [Range(1, 9999, ErrorMessage = "Оберіть підрозділ")]
+    [Range(0, 9999, ErrorMessage = "Оберіть підрозділ")]
     public int NumberUnit { get; set; }
 
     [Required(ErrorMessage = "Оберіть тест")]
     public Guid? TestDocumentId { get; set; }
+
+    public bool IsAnonymous { get; set; }
+
+    public AnonymousRank? AnonymousRank { get; set; }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (!TestDocumentId.HasValue || TestDocumentId.Value == Guid.Empty)
         {
             yield return new ValidationResult("Оберіть тест", [nameof(TestDocumentId)]);
+        }
+
+        if (IsAnonymous)
+        {
+            if (AnonymousRank is null)
+            {
+                yield return new ValidationResult(
+                    "Оберіть категорію: солдат, сержант або офіцер",
+                    [nameof(AnonymousRank)]);
+            }
+
+            yield break;
+        }
+
+        if (NumberUnit < 1)
+        {
+            yield return new ValidationResult("Оберіть підрозділ", [nameof(NumberUnit)]);
         }
 
         foreach (var result in ValidateTrimmed(LastName, nameof(LastName), "Вкажіть прізвище", "Прізвище"))
@@ -57,14 +75,13 @@ public class RespondentModel : IValidatableObject
         var raw = value ?? string.Empty;
         var trimmed = raw.Trim();
 
-        // Лише пробіли — Required цього не ловить
-        if (raw.Length > 0 && trimmed.Length == 0)
+        if (trimmed.Length == 0)
         {
             yield return new ValidationResult(requiredMessage, [memberName]);
             yield break;
         }
 
-        if (trimmed.Length > 0 && trimmed.Length < 2)
+        if (trimmed.Length < 2)
         {
             yield return new ValidationResult(
                 $"{fieldLabel} має містити щонайменше 2 символи",

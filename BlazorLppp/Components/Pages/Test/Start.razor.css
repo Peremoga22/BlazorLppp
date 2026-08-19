@@ -547,6 +547,44 @@
     box-shadow: var(--shadow-xs);
 }
 
+.test-start__anonymous {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem 1.1rem;
+    border: 1px dashed var(--ts-line-strong);
+    border-radius: 14px;
+    background: var(--ts-accent-soft);
+}
+
+.test-start__anonymous-label {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--ts-ink);
+}
+
+.test-start__rank {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+}
+
+.test-start__rank-option {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.8rem;
+    border-radius: 999px;
+    border: 1px solid var(--ts-line-strong);
+    background: var(--surface);
+    cursor: pointer;
+    font-weight: 650;
+}
+
 .test-start__loading {
     display: flex;
     align-items: center;

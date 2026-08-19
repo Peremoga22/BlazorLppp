@@ -235,7 +235,7 @@
     private string? _errorMessage;
     private string? _resultsError;
 
-    private DateOnly? SelectedMonthFilter => MonthFilter.Parse(_selectedMonth);
+    private int? SelectedMonthFilter => MonthFilter.Parse(_selectedMonth);
 
     private string DownloadAllHref
     {
@@ -247,10 +247,9 @@
                 parts.Add($"numberUnit={_selectedUnit.Value}");
             }
 
-            if (SelectedMonthFilter is { } month)
+            if (SelectedMonthFilter is int month)
             {
-                parts.Add($"year={month.Year}");
-                parts.Add($"month={month.Month}");
+                parts.Add($"month={month}");
             }
 
             if (_results.Count > 0)

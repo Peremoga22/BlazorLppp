@@ -1,0 +1,266 @@
+@page "/admin/anonymous"
+@layout AdminLayout
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = AppRoles.Admin)]
+
+@using BlazorLppp.Application.Models
+@using BlazorLppp.Domain
+@using BlazorLppp.Domain.Enums
+@using Microsoft.AspNetCore.Authorization
+
+@inject ITestAttemptService TestAttemptService
+@inject NavigationManager Navigation
+
+<PageTitle>Анонімне опитування</PageTitle>
+
+<div class="admin-page">
+    <header class="admin-page__header admin-page__header--hero">
+        <div class="admin-page__hero-copy">
+            <p class="admin-page__eyebrow">Анонімні дані</p>
+            <h1 class="admin-page__title">Анонімне опитування</h1>
+            <p class="admin-page__subtitle">
+                Відповіді зберігаються в теках за категорією: солдати, сержанти, офіцери
+            </p>
+        </div>
+    </header>
+
+    <div class="anon-folders" role="tablist">
+        <button type="button"
+                class="anon-folder @(_rank is null ? "anon-folder--active" : null)"
+                @onclick="() => SelectFolderAsync(null)">
+            <strong>Усі</strong>
+            <span>@(_stats?.Total ?? 0)</span>
+        </button>
+        <button type="button"
+                class="anon-folder @(_rank == AnonymousRank.Soldier ? "anon-folder--active" : null)"
+                @onclick="() => SelectFolderAsync(AnonymousRank.Soldier)">
+            <strong>Солдати</strong>
+            <span>@(_stats?.Soldiers ?? 0)</span>
+        </button>
+        <button type="button"
+                class="anon-folder @(_rank == AnonymousRank.Sergeant ? "anon-folder--active" : null)"
+                @onclick="() => SelectFolderAsync(AnonymousRank.Sergeant)">
+            <strong>Сержанти</strong>
+            <span>@(_stats?.Sergeants ?? 0)</span>
+        </button>
+        <button type="button"
+                class="anon-folder @(_rank == AnonymousRank.Officer ? "anon-folder--active" : null)"
+                @onclick="() => SelectFolderAsync(AnonymousRank.Officer)">
+            <strong>Офіцери</strong>
+            <span>@(_stats?.Officers ?? 0)</span>
+        </button>
+    </div>
+
+    <div class="admin-home-results__toolbar" style="margin: 1rem 0;">
+        <label class="admin-home-results__month">
+            <span>Місяць</span>
+            <select class="admin-select"
+                    @bind="_selectedMonth"
+                    @bind:after="ReloadAsync"
+                    aria-label="Фільтр за місяцем">
+                <option value="">Усі місяці</option>
+                @foreach (var option in _monthOptions)
+                {
+                    <option value="@option.Value">@option.Label</option>
+                }
+            </select>
+        </label>
+        <button type="button"
+                class="admin-btn admin-btn--sm"
+                disabled="@(_items.Count == 0)"
+                @onclick="DownloadAll">
+            <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
+            Усі з теки
+        </button>
+    </div>
+
+    @if (_isLoading)
+    {
+        <p class="admin-page__muted">Завантаження...</p>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <p class="admin-page__error">@_errorMessage</p>
+    }
+    else
+    {
+        @if (_stats is not null)
+        {
+            <section class="admin-panel">
+                <h2 class="admin-upload__title">Коротка статистика</h2>
+                <div class="anon-chart">
+                    @foreach (var bar in RankBars)
+                    {
+                        <div class="anon-chart__row">
+                            <span>@bar.Label</span>
+                            <div class="analytics-bars__track" aria-hidden="true">
+                                <span class="analytics-bars__fill" style="@($"width:{bar.Width}%")"></span>
+                            </div>
+                            <strong>@bar.Count</strong>
+                        </div>
+                    }
+                </div>
+                @if (_stats.Readiness.Count > 0)
+                {
+                    <h3 class="analytics-block__title">Готовність</h3>
+                    <ul class="analytics-bars">
+                        @foreach (var slice in _stats.Readiness)
+                        {
+                            <li class="analytics-bars__item">
+                                <div class="analytics-bars__label">
+                                    <span>@slice.Label</span>
+                                    <span>@slice.Count</span>
+                                </div>
+                                <div class="analytics-bars__track">
+                                    <span class="analytics-bars__fill" style="@($"width:{SliceWidth(slice.Count)}%")"></span>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+        }
+
+        <section class="admin-panel">
+            <h2 class="admin-upload__title">
+                @(_rank is AnonymousRank r ? AnonymousRankNames.Plural(r) : "Усі анонімні відповіді")
+            </h2>
+            @if (_items.Count == 0)
+            {
+                <p class="admin-page__muted">У цій теці ще немає завершених анкет.</p>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Категорія</th>
+                                <th>Дата</th>
+                                <th>Файл</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in _items)
+                            {
+                                <tr>
+                                    <td>@(item.AnonymousRank is AnonymousRank rank ? AnonymousRankNames.Display(rank) : "—")</td>
+                                    <td>@(item.CompletedAt?.ToString("dd.MM.yyyy HH:mm") ?? "—")</td>
+                                    <td>
+                                        @if (item.HasResultFile)
+                                        {
+                                            <code>@item.ResultFileName</code>
+                                        }
+                                        else
+                                        {
+                                            <span class="admin-page__muted">не сформовано</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="admin-actions admin-actions--icons">
+                                            <a class="admin-icon-btn"
+                                               href="@($"/admin/results/{item.AttemptId}")"
+                                               title="Деталі">
+                                                <span class="admin-btn__icon admin-btn__icon--eye" aria-hidden="true"></span>
+                                            </a>
+                                            <a class="admin-icon-btn admin-icon-btn--download"
+                                               href="@($"/admin/results/{item.AttemptId}/download")"
+                                               title="Завантажити">
+                                                <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private readonly IReadOnlyList<(string Value, string Label)> _monthOptions = MonthFilter.BuildOptions();
+    private readonly List<TestResultListItem> _items = [];
+    private AnonymousSurveyStatsDto? _stats;
+    private AnonymousRank? _rank;
+    private string _selectedMonth = string.Empty;
+    private bool _isLoading = true;
+    private string? _errorMessage;
+
+    private int? SelectedMonth => MonthFilter.Parse(_selectedMonth);
+
+    private IEnumerable<(string Label, int Count, double Width)> RankBars
+    {
+        get
+        {
+            if (_stats is null)
+            {
+                return [];
+            }
+
+            var max = Math.Max(1, new[] { _stats.Soldiers, _stats.Sergeants, _stats.Officers }.Max());
+            return
+            [
+                ("Солдати", _stats.Soldiers, _stats.Soldiers * 100.0 / max),
+                ("Сержанти", _stats.Sergeants, _stats.Sergeants * 100.0 / max),
+                ("Офіцери", _stats.Officers, _stats.Officers * 100.0 / max)
+            ];
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task SelectFolderAsync(AnonymousRank? rank)
+    {
+        _rank = rank;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            _stats = await TestAttemptService.GetAnonymousStatsAsync(null, SelectedMonth);
+            _items.Clear();
+            _items.AddRange(await TestAttemptService.GetAnonymousResultsAsync(_rank, SelectedMonth));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private double SliceWidth(int count)
+    {
+        var max = _stats?.Readiness.Select(s => s.Count).DefaultIfEmpty(1).Max() ?? 1;
+        return Math.Clamp(count * 100.0 / Math.Max(1, max), 0, 100);
+    }
+
+    private void DownloadAll()
+    {
+        var parts = new List<string>();
+        if (_rank is AnonymousRank rank)
+        {
+            parts.Add($"rank={(int)rank}");
+        }
+
+        if (SelectedMonth is int month)
+        {
+            parts.Add($"month={month}");
+        }
+
+        var href = parts.Count == 0
+            ? "/admin/anonymous/download-all"
+            : $"/admin/anonymous/download-all?{string.Join("&", parts)}";
+        Navigation.NavigateTo(href, forceLoad: true);
+    }
+}

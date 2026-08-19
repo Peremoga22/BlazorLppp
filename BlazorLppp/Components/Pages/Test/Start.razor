@@ -134,61 +134,96 @@
                         <h2 id="respondent-data-heading" class="test-start__section-title">Ваші дані</h2>
                     </div>
 
-                    <div class="test-start__grid">
-                        <div class="test-start__field">
-                            <label class="test-start__label" for="lastName">Прізвище</label>
-                            <input id="lastName"
-                                   class="test-start__input"
-                                   value="@Model.LastName"
-                                   @oninput="OnLastNameInput"
-                                   placeholder="Введіть прізвище"
-                                   maxlength="100"
-                                   autocomplete="family-name" />
-                            <ValidationMessage For="() => Model.LastName" class="test-start__error" />
+                    @if (IsAnonymousSelected)
+                    {
+                        <div class="test-start__anonymous">
+                            <p class="test-start__anonymous-label">Тест анонімний</p>
+                            <p class="test-start__hint">Прізвище, ім’я, по батькові та підрозділ не збираються.</p>
+                            <fieldset class="test-start__rank">
+                                <legend class="test-start__label">Оберіть категорію</legend>
+                                <label class="test-start__rank-option">
+                                    <input type="radio"
+                                           name="anonymous-rank"
+                                           checked="@(Model.AnonymousRank == AnonymousRank.Soldier)"
+                                           @onchange="() => SetAnonymousRank(AnonymousRank.Soldier)" />
+                                    <span>Солдат</span>
+                                </label>
+                                <label class="test-start__rank-option">
+                                    <input type="radio"
+                                           name="anonymous-rank"
+                                           checked="@(Model.AnonymousRank == AnonymousRank.Sergeant)"
+                                           @onchange="() => SetAnonymousRank(AnonymousRank.Sergeant)" />
+                                    <span>Сержант</span>
+                                </label>
+                                <label class="test-start__rank-option">
+                                    <input type="radio"
+                                           name="anonymous-rank"
+                                           checked="@(Model.AnonymousRank == AnonymousRank.Officer)"
+                                           @onchange="() => SetAnonymousRank(AnonymousRank.Officer)" />
+                                    <span>Офіцер</span>
+                                </label>
+                            </fieldset>
+                            <ValidationMessage For="() => Model.AnonymousRank" class="test-start__error" />
                         </div>
+                    }
+                    else
+                    {
+                        <div class="test-start__grid">
+                            <div class="test-start__field">
+                                <label class="test-start__label" for="lastName">Прізвище</label>
+                                <input id="lastName"
+                                       class="test-start__input"
+                                       value="@Model.LastName"
+                                       @oninput="OnLastNameInput"
+                                       placeholder="Введіть прізвище"
+                                       maxlength="100"
+                                       autocomplete="family-name" />
+                                <ValidationMessage For="() => Model.LastName" class="test-start__error" />
+                            </div>
 
-                        <div class="test-start__field">
-                            <label class="test-start__label" for="firstName">Ім’я</label>
-                            <input id="firstName"
-                                   class="test-start__input"
-                                   value="@Model.FirstName"
-                                   @oninput="OnFirstNameInput"
-                                   placeholder="Введіть ім’я"
-                                   maxlength="100"
-                                   autocomplete="given-name" />
-                            <ValidationMessage For="() => Model.FirstName" class="test-start__error" />
-                        </div>
+                            <div class="test-start__field">
+                                <label class="test-start__label" for="firstName">Ім’я</label>
+                                <input id="firstName"
+                                       class="test-start__input"
+                                       value="@Model.FirstName"
+                                       @oninput="OnFirstNameInput"
+                                       placeholder="Введіть ім’я"
+                                       maxlength="100"
+                                       autocomplete="given-name" />
+                                <ValidationMessage For="() => Model.FirstName" class="test-start__error" />
+                            </div>
 
-                        <div class="test-start__field test-start__field--wide">
-                            <label class="test-start__label" for="middleName">По батькові</label>
-                            <input id="middleName"
-                                   class="test-start__input"
-                                   value="@Model.MiddleName"
-                                   @oninput="OnMiddleNameInput"
-                                   placeholder="Введіть по батькові"
-                                   maxlength="100"
-                                   autocomplete="additional-name" />
-                            <ValidationMessage For="() => Model.MiddleName" class="test-start__error" />
-                        </div>
+                            <div class="test-start__field test-start__field--wide">
+                                <label class="test-start__label" for="middleName">По батькові</label>
+                                <input id="middleName"
+                                       class="test-start__input"
+                                       value="@Model.MiddleName"
+                                       @oninput="OnMiddleNameInput"
+                                       placeholder="Введіть по батькові"
+                                       maxlength="100"
+                                       autocomplete="additional-name" />
+                                <ValidationMessage For="() => Model.MiddleName" class="test-start__error" />
+                            </div>
 
-                        <div class="test-start__field test-start__field--wide">
-                            <label class="test-start__label" for="numberUnit">Підрозділ</label>
-                            <select id="numberUnit"
-                                    class="test-start__input"
-                                    value="@(Model.NumberUnit == 0 ? "" : Model.NumberUnit.ToString())"
-                                    @onchange="OnNumberUnitChanged">
-                                <option value="">— Оберіть підрозділ —</option>
-                                @foreach (var dept in _departments)
-                                {
-                                    <option value="@dept.Number">@dept.Name</option>
-                                }
-                            </select>
-                            <ValidationMessage For="() => Model.NumberUnit" class="test-start__error" />
+                            <div class="test-start__field test-start__field--wide">
+                                <label class="test-start__label" for="numberUnit">Підрозділ</label>
+                                <select id="numberUnit"
+                                        class="test-start__input"
+                                        value="@(Model.NumberUnit == 0 ? "" : Model.NumberUnit.ToString())"
+                                        @onchange="OnNumberUnitChanged">
+                                    <option value="">— Оберіть підрозділ —</option>
+                                    @foreach (var dept in _departments)
+                                    {
+                                        <option value="@dept.Number">@dept.Name</option>
+                                    }
+                                </select>
+                                <ValidationMessage For="() => Model.NumberUnit" class="test-start__error" />
+                            </div>
                         </div>
-                    </div>
+                    }
                 </section>
 
-                @if (_incompleteAttempt is not null)
+                @if (_incompleteAttempt is not null && !IsAnonymousSelected)
                 {
                     <section class="test-start__resume" aria-live="polite">
                         <div class="test-start__resume-card">
@@ -274,12 +309,19 @@
         }
     }
 
+    private bool IsAnonymousSelected =>
+        HasSelectedTest &&
+        _availableTests.FirstOrDefault(d => d.Id == Model.TestDocumentId) is { } selected &&
+        AnonymousSurveyScoring.LooksLike(selected);
+
     private bool CanStart =>
         HasSelectedTest &&
-        !string.IsNullOrWhiteSpace(Model.LastName) &&
-        !string.IsNullOrWhiteSpace(Model.FirstName) &&
-        UnitNumbers.IsValid(Model.NumberUnit) &&
-        !string.IsNullOrWhiteSpace(Model.MiddleName);
+        (IsAnonymousSelected
+            ? Model.AnonymousRank is not null
+            : !string.IsNullOrWhiteSpace(Model.LastName) &&
+              !string.IsNullOrWhiteSpace(Model.FirstName) &&
+              UnitNumbers.IsValid(Model.NumberUnit) &&
+              !string.IsNullOrWhiteSpace(Model.MiddleName));
 
     private bool CanCheckIncomplete =>
         Model.LastName.Trim().Length >= 2 &&
@@ -299,11 +341,20 @@
                 .Where(d => d.Questions.Count > 0 && !IsBrokenZbroyaDocument(d))
                 .ToList();
 
-            // Якщо адмін позначив обов’язкові тести — показуємо лише їх.
             var required = withQuestions.Where(d => d.IsRequired).ToList();
+            var list = (required.Count > 0 ? required : withQuestions).ToList();
+            foreach (var anonymous in withQuestions.Where(AnonymousSurveyScoring.LooksLike))
+            {
+                if (list.All(d => d.Id != anonymous.Id))
+                {
+                    list.Add(anonymous);
+                }
+            }
+
             _availableTests.AddRange(
-                (required.Count > 0 ? required : withQuestions)
-                    .OrderByDescending(d => d.IsRequired)
+                list
+                    .OrderByDescending(d => AnonymousSurveyScoring.LooksLike(d))
+                    .ThenByDescending(d => d.IsRequired)
                     .ThenByDescending(d => d.IsActive)
                     .ThenByDescending(d => d.UploadedAt));
 
@@ -313,6 +364,7 @@
             if (preferred is not null)
             {
                 Model.TestDocumentId = preferred.Id;
+                Model.IsAnonymous = AnonymousSurveyScoring.LooksLike(preferred);
             }
         }
         finally
@@ -366,7 +418,22 @@
     {
         Model.TestDocumentId = testId;
         _isTestMenuOpen = false;
+        Model.IsAnonymous = IsAnonymousSelected;
+        if (Model.IsAnonymous)
+        {
+            _incompleteAttempt = null;
+            _isCheckingIncomplete = false;
+            return;
+        }
+
+        Model.AnonymousRank = null;
         await ScheduleIncompleteCheckAsync();
+    }
+
+    private void SetAnonymousRank(AnonymousRank rank)
+    {
+        Model.AnonymousRank = rank;
+        Model.IsAnonymous = true;
     }
 
     private void OnTestMenuKeyDown(KeyboardEventArgs e)
@@ -528,9 +595,20 @@
 
         try
         {
-            Model.LastName = Model.LastName.Trim();
-            Model.FirstName = Model.FirstName.Trim();
-            Model.MiddleName = Model.MiddleName.Trim();
+            Model.IsAnonymous = IsAnonymousSelected;
+            if (Model.IsAnonymous)
+            {
+                Model.LastName = "Тест";
+                Model.FirstName = "анонімний";
+                Model.MiddleName = AnonymousRankNames.Display(Model.AnonymousRank ?? AnonymousRank.Soldier);
+                Model.NumberUnit = 0;
+            }
+            else
+            {
+                Model.LastName = Model.LastName.Trim();
+                Model.FirstName = Model.FirstName.Trim();
+                Model.MiddleName = Model.MiddleName.Trim();
+            }
             var attempt = await TestAttemptService.StartAsync(Model);
             Navigation.NavigateTo($"/test/{attempt.Id}");
         }

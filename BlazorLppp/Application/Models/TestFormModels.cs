@@ -37,7 +37,13 @@ public class TestFormQuestionModel
 
     public Guid? SelectedOptionId { get; set; }
 
+    public List<Guid> SelectedOptionIds { get; set; } = [];
+
     public int? ScaleValue { get; set; }
+
+    public string? TextValue { get; set; }
+
+    public int? MaxSelections { get; set; }
 }
 
 public class TestFormOptionModel
@@ -55,5 +61,9 @@ public class TestAnswerInput
 
     public Guid? SelectedOptionId { get; set; }
 
+    public List<Guid> SelectedOptionIds { get; set; } = [];
+
     public int? ScaleValue { get; set; }
+
+    public string? TextValue { get; set; }
 }

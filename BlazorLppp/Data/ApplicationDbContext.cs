@@ -200,6 +200,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasForeignKey(e => e.SelectedOptionId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            entity.Property(e => e.TextValue)
+                .HasMaxLength(2000);
+
             entity.HasIndex(e => new { e.TestAttemptId, e.TestQuestionId }).IsUnique();
         });
 
@@ -227,6 +230,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(e => e.Status)
                 .IsRequired()
                 .HasConversion<int>();
+
+            entity.Property(e => e.IsAnonymous)
+                .IsRequired()
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.AnonymousRank)
+                .HasConversion<int?>();
 
             entity.Property(e => e.NumberUnit)
                 .IsRequired();

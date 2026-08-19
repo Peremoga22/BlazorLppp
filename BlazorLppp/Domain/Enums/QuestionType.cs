@@ -4,5 +4,6 @@ public enum QuestionType
 {
     SingleChoice = 1,
     YesNo = 2,
-    Scale = 3
+    Scale = 3,
+    MultiChoice = 4
 }

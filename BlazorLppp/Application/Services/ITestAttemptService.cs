@@ -1,5 +1,6 @@
 using BlazorLppp.Application.Models;
 using BlazorLppp.Domain.Entities;
+using BlazorLppp.Domain.Enums;
 
 namespace BlazorLppp.Application.Services;
 
@@ -32,8 +33,19 @@ public interface ITestAttemptService
 
     Task<IReadOnlyList<TestResultListItem>> GetCompletedResultsAsync(
         int? numberUnit = null,
-        DateOnly? month = null,
+        int? monthOfYear = null,
         IReadOnlyCollection<Guid>? attemptIds = null,
+        bool includeAnonymous = false,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<TestResultListItem>> GetAnonymousResultsAsync(
+        AnonymousRank? rank = null,
+        int? monthOfYear = null,
+        CancellationToken cancellationToken = default);
+
+    Task<AnonymousSurveyStatsDto> GetAnonymousStatsAsync(
+        AnonymousRank? rank = null,
+        int? monthOfYear = null,
         CancellationToken cancellationToken = default);
 
     Task<TestResultDetails?> GetResultDetailsAsync(

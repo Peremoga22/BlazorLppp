@@ -25,6 +25,8 @@ public class ParsedTestQuestion
 
     public int? ScaleMax { get; set; }
 
+    public int? MaxSelections { get; set; }
+
     public List<ParsedTestOption> Options { get; set; } = [];
 }
 

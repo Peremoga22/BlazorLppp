@@ -186,6 +186,29 @@
                                         }
                                     </div>
                                 }
+                                else if (question.Type == QuestionType.MultiChoice)
+                                {
+                                    <div class="test-form__options" role="group" aria-label="@question.Text">
+                                        @foreach (var option in question.Options)
+                                        {
+                                            var optionId = option.Id;
+                                            <label class="test-form__option">
+                                                <input type="checkbox"
+                                                       checked="@question.SelectedOptionIds.Contains(optionId)"
+                                                       @onchange="e => ToggleMulti(question, optionId, e)" />
+                                                <span>@option.Text</span>
+                                            </label>
+                                            @if (AnonymousSurveyScoring.IsFreeTextOption(option.Text) &&
+                                                 question.SelectedOptionIds.Contains(optionId))
+                                            {
+                                                <input class="test-form__other"
+                                                       placeholder="Вкажіть свій варіант"
+                                                       value="@question.TextValue"
+                                                       @oninput="ev => question.TextValue = ev.Value?.ToString()" />
+                                            }
+                                        }
+                                    </div>
+                                }
                                 else if (question.Type == QuestionType.Scale)
                                 {
                                     var min = question.ScaleMin ?? 1;
@@ -273,7 +296,9 @@
             {
                 QuestionId = q.Id,
                 SelectedOptionId = q.SelectedOptionId,
-                ScaleValue = q.ScaleValue
+                SelectedOptionIds = q.SelectedOptionIds,
+                ScaleValue = q.ScaleValue,
+                TextValue = q.TextValue
             }).ToList();
 
             await TestAttemptService.SubmitAsync(AttemptId, answers);
@@ -288,6 +313,30 @@
         finally
         {
             _isSubmitting = false;
+        }
+    }
+
+    private static void ToggleMulti(TestFormQuestionModel question, Guid optionId, ChangeEventArgs e)
+    {
+        var isChecked = e.Value is true ||
+                        (e.Value is string text && bool.TryParse(text, out var parsed) && parsed);
+        if (isChecked)
+        {
+            if (question.MaxSelections is int max &&
+                question.SelectedOptionIds.Count >= max &&
+                !question.SelectedOptionIds.Contains(optionId))
+            {
+                return;
+            }
+
+            if (!question.SelectedOptionIds.Contains(optionId))
+            {
+                question.SelectedOptionIds.Add(optionId);
+            }
+        }
+        else
+        {
+            question.SelectedOptionIds.Remove(optionId);
         }
     }
 

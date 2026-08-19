@@ -227,6 +227,11 @@ public static class AttemptAttentionEvaluator
             };
         }
 
+        if (AnonymousSurveyScoring.CanScore(document, questions))
+        {
+            return new AttemptAttentionResult();
+        }
+
         return new AttemptAttentionResult();
     }
 }

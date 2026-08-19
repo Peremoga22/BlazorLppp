@@ -34,10 +34,11 @@ public partial class TestDocumentParser : ITestDocumentParser
 
         var forceAssinger = IsAssingerFileName(filePath);
         var forceNpna = IsNpnaFileName(filePath);
+        var forceAnonymous = IsAnonymousSurveyFileName(filePath);
 
         try
         {
-            return ParseCore(filePath, forceAssinger, forceNpna);
+            return ParseCore(filePath, forceAssinger, forceNpna, forceAnonymous);
         }
         catch (Exception) when (forceAssinger)
         {
@@ -47,9 +48,13 @@ public partial class TestDocumentParser : ITestDocumentParser
         {
             return NpnaDocumentTemplate.Create();
         }
+        catch (Exception) when (forceAnonymous)
+        {
+            return AnonymousSurveyDocumentTemplate.Create();
+        }
     }
 
-    private ParsedTestDocument ParseCore(string filePath, bool forceAssinger, bool forceNpna)
+    private ParsedTestDocument ParseCore(string filePath, bool forceAssinger, bool forceNpna, bool forceAnonymous = false)
     {
         ParsedTestDocument parsed;
         if (Path.GetExtension(filePath).Equals(".txt", StringComparison.OrdinalIgnoreCase))
@@ -125,6 +130,13 @@ public partial class TestDocumentParser : ITestDocumentParser
             }
 
             return NpnaDocumentTemplate.Create();
+        }
+
+        if (forceAnonymous ||
+            IsAnonymousSurveyFileName(filePath) ||
+            IsAnonymousSurveyTitle(parsed.Title))
+        {
+            return AnonymousSurveyDocumentTemplate.Create();
         }
 
         var isZbroyaSource =
@@ -1176,6 +1188,19 @@ public partial class TestDocumentParser : ITestDocumentParser
            (value.Contains("Горськ", StringComparison.OrdinalIgnoreCase) ||
             value.Contains("М.В. Горська", StringComparison.OrdinalIgnoreCase) ||
             value.Contains("вивчення схильності до суїцидальної поведінки", StringComparison.OrdinalIgnoreCase));
+
+    internal static bool IsAnonymousSurveyFileName(string filePath)
+    {
+        var name = Path.GetFileNameWithoutExtension(filePath);
+        return name.Contains("анонімне", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("анонимн", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("anonymous", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsAnonymousSurveyTitle(string? value)
+        => !string.IsNullOrWhiteSpace(value) &&
+           (value.Contains("Анонімне опитуван", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("анонімне анкетуван", StringComparison.OrdinalIgnoreCase));
 
     internal static bool IsAssingerFileName(string filePath)
     {

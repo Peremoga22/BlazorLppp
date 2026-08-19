@@ -50,10 +50,18 @@ public partial class TestResultDocumentService(
             .ToListAsync(cancellationToken);
 
         var answersByQuestion = answers.ToDictionary(a => a.TestQuestionId);
+        var isAnonymousSurvey = attempt.IsAnonymous || AnonymousSurveyScoring.CanScore(document, questions);
 
-        var baseName = BuildFileBaseName(attempt.LastName, attempt.FirstName, attempt.MiddleName);
+        var baseName = isAnonymousSurvey
+            ? BuildAnonymousFileBaseName(attempt)
+            : BuildFileBaseName(attempt.LastName, attempt.FirstName, attempt.MiddleName);
         var root = ResolveResultsRoot();
-        var folderPath = Path.Combine(root, baseName);
+        var folderPath = isAnonymousSurvey
+            ? Path.Combine(
+                root,
+                AnonymousSurveyDocumentTemplate.FolderName,
+                AnonymousRankNames.Folder(attempt.AnonymousRank ?? AnonymousRank.Soldier))
+            : Path.Combine(root, baseName);
         Directory.CreateDirectory(folderPath);
 
         var fileName = $"{baseName}.docx";
@@ -78,7 +86,12 @@ public partial class TestResultDocumentService(
             var isZbroya = ZbroyaScoring.CanScore(document, questions);
             var isNpna = NpnaScoring.CanScore(document, questions);
 
-            if (isAdaptivity200)
+            if (isAnonymousSurvey)
+            {
+                var scoring = AnonymousSurveyScoring.Evaluate(attempt, questions, answersByQuestion);
+                AppendAnonymousSurveyBlank(body, attempt, examDate, questions, answersByQuestion, scoring);
+            }
+            else if (isAdaptivity200)
             {
                 var scoring = Adaptivity200Scoring.Evaluate(questions, answersByQuestion);
                 AppendAdaptivity200Blank(body, attempt, fullName, examDate, questions, answersByQuestion, scoring);
@@ -324,6 +337,14 @@ public partial class TestResultDocumentService(
         return parts.Count == 0
             ? $"result-{DateTime.Now:yyyyMMdd-HHmmss}"
             : string.Join('_', parts);
+    }
+
+    private static string BuildAnonymousFileBaseName(TestAttempt attempt)
+    {
+        var rank = AnonymousRankNames.Folder(attempt.AnonymousRank ?? AnonymousRank.Soldier);
+        var stamp = (attempt.CompletedAt ?? attempt.StartedAt).ToString("yyyyMMdd-HHmmss");
+        var shortId = attempt.Id.ToString("N")[..8];
+        return $"Anonim_{rank}_{stamp}_{shortId}";
     }
 
     private string ResolveResultsRoot()
@@ -1303,6 +1324,80 @@ public partial class TestResultDocumentService(
         AppendBodyParagraph(body, "45 і більше балів — надмірна агресивність;");
         AppendBodyParagraph(body, "36–44 бали — помірна агресивність;");
         AppendBodyParagraph(body, "35 і менше балів — надмірна миролюбність.");
+    }
+
+    private static void AppendAnonymousSurveyBlank(
+        Body body,
+        TestAttempt attempt,
+        string examDate,
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion,
+        AnonymousSurveyScoringResult scoring)
+    {
+        AppendCenteredParagraph(body, AnonymousSurveyDocumentTemplate.CanonicalTitle, bold: true, fontSize: TitleFontSize);
+        AppendCenteredParagraph(body, "Анонімний тест", bold: true, fontSize: BodyFontSize);
+        AppendEmptyParagraph(body);
+
+        AppendFieldLine(body, [("Категорія", scoring.RankName)]);
+        AppendFieldLine(body, [("Дата", examDate)]);
+        AppendFieldLine(body,
+        [
+            ("Тека", AnonymousRankNames.Folder(attempt.AnonymousRank ?? AnonymousRank.Soldier))
+        ]);
+        AppendEmptyParagraph(body);
+        AppendInstructionParagraph(body, AnonymousSurveyDocumentTemplate.CanonicalInstruction);
+        AppendEmptyParagraph(body);
+
+        foreach (var question in questions.OrderBy(q => q.SortOrder))
+        {
+            answersByQuestion.TryGetValue(question.Id, out var answer);
+            AppendBodyParagraph(body, $"{question.SortOrder}. {question.Text}", bold: true);
+            AppendBodyParagraph(body, FormatAnonymousAnswer(question, answer));
+        }
+
+        AppendEmptyParagraph(body);
+        AppendCenteredParagraph(body, "Оцінка результатів", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Психологічний висновок", bold: true);
+        AppendBodyParagraph(body, scoring.Conclusion);
+    }
+
+    private static string FormatAnonymousAnswer(TestQuestion question, TestAnswer? answer)
+    {
+        if (answer is null)
+        {
+            return "—";
+        }
+
+        if (question.Type == QuestionType.MultiChoice)
+        {
+            var (ids, extra) = AnonymousSurveyScoring.Unpack(answer.TextValue);
+            if (ids.Count == 0 && answer.SelectedOptionId is Guid one)
+            {
+                ids.Add(one);
+            }
+
+            var labels = question.Options
+                .Where(o => ids.Contains(o.Id))
+                .OrderBy(o => o.SortOrder)
+                .Select(o => o.Text)
+                .ToList();
+            if (!string.IsNullOrWhiteSpace(extra))
+            {
+                labels.Add(extra);
+            }
+
+            return labels.Count == 0 ? "—" : string.Join("; ", labels);
+        }
+
+        if (answer.SelectedOptionId is Guid selected)
+        {
+            return question.Options.FirstOrDefault(o => o.Id == selected)?.Text
+                   ?? answer.SelectedOption?.Text
+                   ?? "—";
+        }
+
+        return "—";
     }
 
     private static void AppendNpnaScoringSection(Body body, NpnaScoringResult scoring)

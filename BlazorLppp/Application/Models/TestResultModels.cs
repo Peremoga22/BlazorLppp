@@ -30,6 +30,10 @@ public class TestResultListItem
     public DateTime? CompletedAt { get; init; }
 
     public int NumberUnit { get; init; }
+
+    public bool IsAnonymous { get; init; }
+
+    public AnonymousRank? AnonymousRank { get; init; }
 }
 
 public class TestResultDetails
@@ -56,4 +60,26 @@ public class TestResultAnswerLine
     public string AnswerText { get; init; } = string.Empty;
 
     public QuestionType Type { get; init; }
+}
+
+public class AnonymousSurveyStatsDto
+{
+    public int Total { get; init; }
+
+    public int Soldiers { get; init; }
+
+    public int Sergeants { get; init; }
+
+    public int Officers { get; init; }
+
+    public IReadOnlyList<AnonymousSurveyChartSlice> Readiness { get; init; } = [];
+
+    public IReadOnlyList<AnonymousSurveyChartSlice> CombatExperience { get; init; } = [];
+}
+
+public class AnonymousSurveyChartSlice
+{
+    public string Label { get; init; } = string.Empty;
+
+    public int Count { get; init; }
 }

@@ -646,6 +646,8 @@ public class AnalyticsService(IDbContextFactory<ApplicationDbContext> dbContextF
         IQueryable<TestAttempt> query,
         AnalyticsFilter filter)
     {
+        query = query.Where(a => !a.IsAnonymous);
+
         if (filter.DepartmentId.HasValue)
         {
             query = query.Where(a => a.Employee != null && a.Employee.DepartmentId == filter.DepartmentId.Value);

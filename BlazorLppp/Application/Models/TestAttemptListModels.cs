@@ -9,7 +9,8 @@ public class TestAttemptListQuery
 
     public TestAttemptStatus? Status { get; set; }
 
-    public DateOnly? Month { get; set; }
+    /// <summary>Календарний місяць 1–12 без року.</summary>
+    public int? Month { get; set; }
 
     public int Page { get; set; } = 1;
 

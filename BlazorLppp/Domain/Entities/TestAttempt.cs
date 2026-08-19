@@ -24,6 +24,10 @@ public class TestAttempt
     /// <summary>Legacy-номер підрозділу (синхронізується з Department.Number).</summary>
     public int NumberUnit { get; set; }
 
+    public bool IsAnonymous { get; set; }
+
+    public AnonymousRank? AnonymousRank { get; set; }
+
     public DateTime StartedAt { get; set; }
 
     public DateTime? CompletedAt { get; set; }

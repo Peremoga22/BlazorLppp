@@ -2,41 +2,49 @@ using System.Globalization;
 
 namespace BlazorLppp.Application.Models;
 
+/// <summary>
+/// Фільтр за календарним місяцем без року: січень…грудень (усі роки).
+/// </summary>
 public static class MonthFilter
 {
-    public static string CurrentValue => DateTime.Now.ToString("yyyy-MM");
+    public static string CurrentValue => DateTime.Now.Month.ToString("00");
 
-    public static DateOnly? Parse(string? value)
+    public static int? Parse(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value) || value.Length != 7 || value[4] != '-')
+        if (string.IsNullOrWhiteSpace(value))
         {
             return null;
         }
 
-        if (!int.TryParse(value[..4], out var year) ||
-            !int.TryParse(value[5..], out var month) ||
-            month is < 1 or > 12)
+        var trimmed = value.Trim();
+        if (int.TryParse(trimmed, out var month) && month is >= 1 and <= 12)
         {
-            return null;
+            return month;
         }
 
-        return new DateOnly(year, month, 1);
+        // Старий формат yyyy-MM — беремо лише місяць.
+        if (trimmed.Length == 7 &&
+            trimmed[4] == '-' &&
+            int.TryParse(trimmed[5..], out var legacyMonth) &&
+            legacyMonth is >= 1 and <= 12)
+        {
+            return legacyMonth;
+        }
+
+        return null;
     }
 
-    public static IReadOnlyList<(string Value, string Label)> BuildOptions(int monthsBack = 24)
+    public static IReadOnlyList<(string Value, string Label)> BuildOptions()
     {
         var uk = CultureInfo.GetCultureInfo("uk-UA");
-        var start = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-        var count = Math.Max(1, monthsBack);
-        var items = new List<(string Value, string Label)>(count);
-        for (var i = 0; i < count; i++)
+        var items = new List<(string Value, string Label)>(12);
+        for (var month = 1; month <= 12; month++)
         {
-            var date = start.AddMonths(-i);
-            var raw = date.ToString("MMMM yyyy", uk);
+            var raw = uk.DateTimeFormat.GetMonthName(month);
             var label = string.IsNullOrEmpty(raw)
-                ? date.ToString("yyyy-MM")
+                ? month.ToString("00")
                 : char.ToUpper(raw[0], uk) + raw[1..];
-            items.Add((date.ToString("yyyy-MM"), label));
+            items.Add((month.ToString("00"), label));
         }
 
         return items;

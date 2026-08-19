@@ -98,6 +98,12 @@ public class TestDefinitionService(
             TestDocumentParser.IsNpnaFileName(upload.FolderName) ||
             TestDocumentParser.IsNpnaTitle(upload.FileName);
 
+        var looksLikeAnonymous =
+            TestDocumentParser.IsAnonymousSurveyFileName(absoluteFilePath) ||
+            TestDocumentParser.IsAnonymousSurveyFileName(upload.FileName) ||
+            TestDocumentParser.IsAnonymousSurveyFileName(upload.FolderName) ||
+            TestDocumentParser.IsAnonymousSurveyTitle(upload.FileName);
+
         ParsedTestDocument parsed;
         try
         {
@@ -110,6 +116,10 @@ public class TestDefinitionService(
         catch (Exception) when (looksLikeNpna)
         {
             parsed = NpnaDocumentTemplate.Create();
+        }
+        catch (Exception) when (looksLikeAnonymous)
+        {
+            parsed = AnonymousSurveyDocumentTemplate.Create();
         }
 
         if (looksLikeAssinger &&
@@ -124,6 +134,11 @@ public class TestDefinitionService(
              parsed.Questions.Any(q => string.IsNullOrWhiteSpace(q.Text) || !q.Text.Any(char.IsLetter))))
         {
             parsed = NpnaDocumentTemplate.Create();
+        }
+
+        if (looksLikeAnonymous)
+        {
+            parsed = AnonymousSurveyDocumentTemplate.Create();
         }
 
         return parsed;

@@ -4,6 +4,7 @@ using BlazorLppp.Components;
 using BlazorLppp.Components.Account;
 using BlazorLppp.Data;
 using BlazorLppp.Domain;
+using BlazorLppp.Domain.Enums;
 
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
@@ -100,6 +101,7 @@ using (var scope = app.Services.CreateScope())
     await HorskaDocumentSeeder.SeedAsync(scope.ServiceProvider);
     await AssingerDocumentSeeder.SeedAsync(scope.ServiceProvider);
     await NpnaDocumentSeeder.SeedAsync(scope.ServiceProvider);
+    await AnonymousSurveyDocumentSeeder.SeedAsync(scope.ServiceProvider);
 }
 
 // Configure the HTTP request pipeline.
@@ -130,24 +132,19 @@ app.MapAdditionalIdentityEndpoints();
 
 app.MapGet("/admin/results/download-all", async (
     int? numberUnit,
-    int? year,
     int? month,
     string? ids,
     ITestAttemptService attemptService,
     ITestResultDocumentService resultDocumentService,
     CancellationToken cancellationToken) =>
 {
-    DateOnly? monthFilter = null;
-    if (year is int y && month is int m && m is >= 1 and <= 12 && y is >= 2000 and <= 2100)
-    {
-        monthFilter = new DateOnly(y, m, 1);
-    }
-
+    var monthFilter = month is >= 1 and <= 12 ? month : null;
     var attemptIds = ParseAttemptIds(ids);
     var results = await attemptService.GetCompletedResultsAsync(
         numberUnit,
         monthFilter,
         attemptIds,
+        includeAnonymous: false,
         cancellationToken);
     if (results.Count == 0)
     {
@@ -163,6 +160,7 @@ app.MapGet("/admin/results/download-all", async (
         numberUnit,
         monthFilter,
         attemptIds,
+        includeAnonymous: false,
         cancellationToken);
     var paths = results
         .OrderBy(r => r.CompletedAt ?? r.StartedAt)
@@ -179,9 +177,62 @@ app.MapGet("/admin/results/download-all", async (
     var hint = numberUnit is null
         ? "Результати_усі"
         : $"Результати_підрозділ_{numberUnit.Value}";
-    if (monthFilter.HasValue)
+    if (monthFilter is int selectedMonth)
     {
-        hint = $"{hint}_{monthFilter.Value:yyyy-MM}";
+        hint = $"{hint}_{selectedMonth:00}";
+    }
+
+    var (absolutePath, downloadName) = await resultDocumentService.CombineResultDocumentsAsync(
+        paths,
+        hint,
+        cancellationToken);
+
+    return Results.File(
+        absolutePath,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        downloadName);
+})
+.RequireAuthorization(policy => policy.RequireRole(AppRoles.Admin));
+
+app.MapGet("/admin/anonymous/download-all", async (
+    int? rank,
+    int? month,
+    ITestAttemptService attemptService,
+    ITestResultDocumentService resultDocumentService,
+    CancellationToken cancellationToken) =>
+{
+    AnonymousRank? rankFilter = rank is >= 1 and <= 3 ? (AnonymousRank)rank.Value : null;
+    var monthFilter = month is >= 1 and <= 12 ? month : null;
+    var results = await attemptService.GetAnonymousResultsAsync(rankFilter, monthFilter, cancellationToken);
+    if (results.Count == 0)
+    {
+        return Results.NotFound();
+    }
+
+    foreach (var item in results)
+    {
+        await attemptService.EnsureResultFileAsync(item.AttemptId, cancellationToken);
+    }
+
+    results = await attemptService.GetAnonymousResultsAsync(rankFilter, monthFilter, cancellationToken);
+    var paths = results
+        .OrderBy(r => r.CompletedAt ?? r.StartedAt)
+        .Select(r => r.ResultRelativePath)
+        .Where(p => !string.IsNullOrWhiteSpace(p))
+        .Cast<string>()
+        .ToList();
+
+    if (paths.Count == 0)
+    {
+        return Results.NotFound();
+    }
+
+    var hint = rankFilter is AnonymousRank selectedRank
+        ? $"Anonimni_{AnonymousRankNames.Folder(selectedRank)}"
+        : "Anonimni_usi";
+    if (monthFilter is int selectedMonth)
+    {
+        hint = $"{hint}_{selectedMonth:00}";
     }
 
     var (absolutePath, downloadName) = await resultDocumentService.CombineResultDocumentsAsync(
