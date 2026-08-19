@@ -18,20 +18,19 @@
 <PageTitle>Документи</PageTitle>
 
 <div class="admin-page">
-    <header class="admin-page__header">
-        <div class="admin-page__header-row">
-            <div>
-                <h1 class="admin-page__title">Документи тесту</h1>
-                <p class="admin-page__subtitle">
-                    Завантажте .docx/.doc/.txt — система зчитає питання і сформує вебформу.
-                    Позначте чекбоксом, які тести мають пройти працівники.
-                </p>
-            </div>
-            <a class="admin-link admin-link--back" href="/admin-home">
-                <span class="admin-btn__icon admin-btn__icon--arrow-left" aria-hidden="true"></span>
-                До панелі
-            </a>
+    <header class="admin-page__header admin-page__header--hero">
+        <div class="admin-page__hero-copy">
+            <p class="admin-page__eyebrow">Методики</p>
+            <h1 class="admin-page__title">Документи тесту</h1>
+            <p class="admin-page__subtitle">
+                Завантажте .docx/.doc/.txt — система зчитає питання і сформує вебформу.
+                Позначте чекбоксом, які тести мають пройти працівники.
+            </p>
         </div>
+        <a class="admin-link admin-link--back" href="/admin-home">
+            <span class="admin-btn__icon admin-btn__icon--arrow-left" aria-hidden="true"></span>
+            До панелі
+        </a>
     </header>
 
     <section class="admin-upload" aria-labelledby="upload-heading">
@@ -81,7 +80,7 @@
         }
         else if (_testDocuments.Count == 0)
         {
-            <p class="admin-page__muted">Ще немає активних тестів. Завантажте документ.</p>
+            <p class="admin-empty">Ще немає активних тестів. Завантажте документ.</p>
         }
         else
         {

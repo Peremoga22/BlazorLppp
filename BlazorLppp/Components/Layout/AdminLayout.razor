@@ -21,7 +21,13 @@
 
     <aside id="admin-sidebar" class="admin-layout__sidebar">
         <div class="admin-layout__sidebar-head">
-            <a class="admin-layout__brand" href="/admin-home" @attributes="CloseMenuAttrs">Адмінка</a>
+            <a class="admin-layout__brand" href="/admin-home" @attributes="CloseMenuAttrs">
+                <span class="admin-layout__mark" aria-hidden="true">L</span>
+                <span class="admin-layout__brand-copy">
+                    <strong>LPPP</strong>
+                    <small>Адмін-панель</small>
+                </span>
+            </a>
             <div class="admin-layout__sidebar-head-actions">
                 <button type="button" class="theme-toggle admin-layout__theme" onclick="toggleTheme()" aria-label="Перемкнути тему" title="Перемкнути тему">
                     <span data-theme-icon aria-hidden="true">🌙</span>
@@ -31,21 +37,71 @@
                 </label>
             </div>
         </div>
-        <nav class="admin-layout__nav">
-            <NavLink class="admin-layout__link" href="/admin/departments" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">Підрозділи</NavLink>
-            <NavLink class="admin-layout__link" href="/admin/analytics" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">Аналітика</NavLink>
-            <NavLink class="admin-layout__link" href="/admin-home" Match="NavLinkMatch.All" @attributes="CloseMenuAttrs">Огляд</NavLink>
-            <NavLink class="admin-layout__link" href="/admin/attempts" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">Спроби</NavLink>
-            <NavLink class="admin-layout__link" href="/admin/anonymous" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">Анонімне опитування</NavLink>
-            <NavLink class="admin-layout__link" href="/admin/documents" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">Документи</NavLink>
-            <NavLink class="admin-layout__link" href="/" Match="NavLinkMatch.All" @attributes="CloseMenuAttrs">До тесту</NavLink>
+
+        <nav class="admin-layout__nav" aria-label="Адмінка">
+            <p class="admin-layout__nav-label">Огляд</p>
+            <NavLink class="admin-layout__link" href="/admin-home" Match="NavLinkMatch.All" @attributes="CloseMenuAttrs">
+                <svg class="admin-layout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-8 9 8" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 10v10h14V10" />
+                </svg>
+                <span>Огляд</span>
+            </NavLink>
+            <NavLink class="admin-layout__link" href="/admin/departments" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">
+                <svg class="admin-layout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21V8.25L12 3l8.25 5.25V21" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 21v-6h6v6" />
+                </svg>
+                <span>Підрозділи</span>
+            </NavLink>
+            <NavLink class="admin-layout__link" href="/admin/analytics" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">
+                <svg class="admin-layout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 19V5M4 19h16" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 15v-4M12 15V8M16 15v-2" />
+                </svg>
+                <span>Аналітика</span>
+            </NavLink>
+
+            <p class="admin-layout__nav-label">Тестування</p>
+            <NavLink class="admin-layout__link" href="/admin/attempts" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">
+                <svg class="admin-layout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h8M8 11h8M8 15h5" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 4h12a2 2 0 012 2v14l-4-2-4 2-4-2-4 2V6a2 2 0 012-2z" />
+                </svg>
+                <span>Спроби</span>
+            </NavLink>
+            <NavLink class="admin-layout__link" href="/admin/anonymous" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">
+                <svg class="admin-layout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <circle cx="12" cy="8" r="3.25" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.5 19.5c1.2-3.2 3.5-4.75 6.5-4.75s5.3 1.55 6.5 4.75" />
+                </svg>
+                <span>Анонімне опитування</span>
+            </NavLink>
+            <NavLink class="admin-layout__link" href="/admin/documents" Match="NavLinkMatch.Prefix" @attributes="CloseMenuAttrs">
+                <svg class="admin-layout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M7 3.75h7.5L19.5 9v11.25A1.5 1.5 0 0118 21.75H7A1.5 1.5 0 015.5 20.25V5.25A1.5 1.5 0 017 3.75z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.5 3.75V9h5" />
+                </svg>
+                <span>Документи</span>
+            </NavLink>
+        </nav>
+
+        <div class="admin-layout__sidebar-foot">
+            <NavLink class="admin-layout__link" href="/" Match="NavLinkMatch.All" @attributes="CloseMenuAttrs">
+                <svg class="admin-layout__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h13" />
+                </svg>
+                <span>До тесту</span>
+            </NavLink>
             <form class="admin-layout__logout" action="Account/Logout" method="post">
                 <AntiforgeryToken />
                 <input type="hidden" name="ReturnUrl" value="" />
                 <button type="submit" class="admin-layout__link admin-layout__link--button">Вийти</button>
             </form>
-        </nav>
+        </div>
     </aside>
+
     <main class="admin-layout__main">
         <div class="admin-layout__content">
             @Body

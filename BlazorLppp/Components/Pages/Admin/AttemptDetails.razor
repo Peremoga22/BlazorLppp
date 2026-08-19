@@ -15,17 +15,16 @@
 <PageTitle>Деталі спроби</PageTitle>
 
 <div class="admin-page">
-    <header class="admin-page__header">
-        <div class="admin-page__header-row">
-            <div>
-                <h1 class="admin-page__title">Деталі спроби</h1>
-                <p class="admin-page__subtitle">Інформація про респондента та статус</p>
-            </div>
-            <a class="admin-link admin-link--back" href="/admin/attempts">
-                <span class="admin-btn__icon admin-btn__icon--arrow-left" aria-hidden="true"></span>
-                До списку
-            </a>
+    <header class="admin-page__header admin-page__header--hero">
+        <div class="admin-page__hero-copy">
+            <p class="admin-page__eyebrow">Спроба</p>
+            <h1 class="admin-page__title">Деталі спроби</h1>
+            <p class="admin-page__subtitle">Інформація про респондента та статус</p>
         </div>
+        <a class="admin-link admin-link--back" href="/admin/attempts">
+            <span class="admin-btn__icon admin-btn__icon--arrow-left" aria-hidden="true"></span>
+            До списку
+        </a>
     </header>
 
     @if (_isLoading)
