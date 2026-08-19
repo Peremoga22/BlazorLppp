@@ -226,14 +226,14 @@
     private int? _selectedUnit;
     private TestAttemptStats? _stats;
     private readonly List<TestResultListItem> _results = [];
-    private readonly IReadOnlyList<(string Value, string Label)> _monthOptions = BuildMonthOptions();
-    private string _selectedMonth = DateTime.Now.ToString("yyyy-MM");
+    private readonly IReadOnlyList<(string Value, string Label)> _monthOptions = MonthFilter.BuildOptions();
+    private string _selectedMonth = MonthFilter.CurrentValue;
     private bool _isLoading = true;
     private bool _isDeleting;
     private string? _errorMessage;
     private string? _resultsError;
 
-    private DateOnly? SelectedMonthFilter => ParseMonth(_selectedMonth);
+    private DateOnly? SelectedMonthFilter => MonthFilter.Parse(_selectedMonth);
 
     private string DownloadAllHref
     {
@@ -406,40 +406,5 @@
         {
             _resultsError = "Не вдалося відфільтрувати результати.";
         }
-    }
-
-    private static DateOnly? ParseMonth(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value) || value.Length != 7 || value[4] != '-')
-        {
-            return null;
-        }
-
-        if (!int.TryParse(value[..4], out var year) ||
-            !int.TryParse(value[5..], out var month) ||
-            month is < 1 or > 12)
-        {
-            return null;
-        }
-
-        return new DateOnly(year, month, 1);
-    }
-
-    private static IReadOnlyList<(string Value, string Label)> BuildMonthOptions()
-    {
-        var uk = System.Globalization.CultureInfo.GetCultureInfo("uk-UA");
-        var start = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-        var items = new List<(string Value, string Label)>(24);
-        for (var i = 0; i < 24; i++)
-        {
-            var date = start.AddMonths(-i);
-            var raw = date.ToString("MMMM yyyy", uk);
-            var label = string.IsNullOrEmpty(raw)
-                ? date.ToString("yyyy-MM")
-                : char.ToUpper(raw[0], uk) + raw[1..];
-            items.Add((date.ToString("yyyy-MM"), label));
-        }
-
-        return items;
     }
 }

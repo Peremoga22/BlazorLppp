@@ -532,6 +532,14 @@ public class TestAttemptService(
             attempts = attempts.Where(a => a.Status == query.Status.Value);
         }
 
+        if (query.Month.HasValue)
+        {
+            var start = query.Month.Value.ToDateTime(TimeOnly.MinValue);
+            var end = start.AddMonths(1);
+            attempts = attempts.Where(a => (a.CompletedAt ?? a.StartedAt) >= start &&
+                                           (a.CompletedAt ?? a.StartedAt) < end);
+        }
+
         var totalCount = await attempts.CountAsync(cancellationToken);
 
         var items = await attempts

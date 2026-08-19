@@ -40,6 +40,17 @@
             <option value="@((int)TestAttemptStatus.InProgress)">В процесі</option>
             <option value="@((int)TestAttemptStatus.Completed)">Завершені</option>
         </select>
+
+        <select class="admin-select"
+                @bind="_selectedMonth"
+                @bind:after="OnMonthChangedAsync"
+                aria-label="Фільтр спроб за місяцем">
+            <option value="">Усі місяці</option>
+            @foreach (var option in _monthOptions)
+            {
+                <option value="@option.Value">@option.Label</option>
+            }
+        </select>
     </div>
 
     @if (_isLoading)
@@ -52,7 +63,7 @@
     }
     else if (_result is null || _result.Items.Count == 0)
     {
-        <p class="admin-page__muted">Спроб не знайдено.</p>
+        <p class="admin-page__muted">@EmptyMessage</p>
     }
     else
     {
@@ -137,11 +148,24 @@
     private TestAttemptListResult? _result;
     private string _search = string.Empty;
     private string _statusFilter = string.Empty;
+    private readonly IReadOnlyList<(string Value, string Label)> _monthOptions = MonthFilter.BuildOptions();
+    private string _selectedMonth = MonthFilter.CurrentValue;
     private int _page = 1;
     private bool _isLoading = true;
     private bool _isDeleting;
     private string? _errorMessage;
     private CancellationTokenSource? _searchCts;
+
+    private string EmptyMessage
+    {
+        get
+        {
+            var option = _monthOptions.FirstOrDefault(o => o.Value == _selectedMonth);
+            return string.IsNullOrEmpty(option.Label)
+                ? "Спроб не знайдено."
+                : $"Спроб за {option.Label.ToLowerInvariant()} не знайдено.";
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -149,6 +173,12 @@
     }
 
     private async Task OnStatusChangedAsync()
+    {
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnMonthChangedAsync()
     {
         _page = 1;
         await LoadAsync();
@@ -234,6 +264,7 @@
             {
                 Search = _search,
                 Status = status,
+                Month = MonthFilter.Parse(_selectedMonth),
                 Page = _page,
                 PageSize = 20
             }, cancellationToken);
