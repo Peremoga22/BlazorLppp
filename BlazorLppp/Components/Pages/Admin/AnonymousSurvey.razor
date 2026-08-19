@@ -24,37 +24,37 @@
         </div>
     </header>
 
-    <div class="anon-folders" role="tablist">
+    <div class="anon-folders" role="tablist" aria-label="Теки за категорією">
         <button type="button"
                 class="anon-folder @(_rank is null ? "anon-folder--active" : null)"
                 @onclick="() => SelectFolderAsync(null)">
-            <strong>Усі</strong>
-            <span>@(_stats?.Total ?? 0)</span>
+            <span class="anon-folder__value">@(_stats?.Total ?? 0)</span>
+            <span class="anon-folder__label">Усі</span>
         </button>
         <button type="button"
                 class="anon-folder @(_rank == AnonymousRank.Soldier ? "anon-folder--active" : null)"
                 @onclick="() => SelectFolderAsync(AnonymousRank.Soldier)">
-            <strong>Солдати</strong>
-            <span>@(_stats?.Soldiers ?? 0)</span>
+            <span class="anon-folder__value">@(_stats?.Soldiers ?? 0)</span>
+            <span class="anon-folder__label">Солдати</span>
         </button>
         <button type="button"
                 class="anon-folder @(_rank == AnonymousRank.Sergeant ? "anon-folder--active" : null)"
                 @onclick="() => SelectFolderAsync(AnonymousRank.Sergeant)">
-            <strong>Сержанти</strong>
-            <span>@(_stats?.Sergeants ?? 0)</span>
+            <span class="anon-folder__value">@(_stats?.Sergeants ?? 0)</span>
+            <span class="anon-folder__label">Сержанти</span>
         </button>
         <button type="button"
                 class="anon-folder @(_rank == AnonymousRank.Officer ? "anon-folder--active" : null)"
                 @onclick="() => SelectFolderAsync(AnonymousRank.Officer)">
-            <strong>Офіцери</strong>
-            <span>@(_stats?.Officers ?? 0)</span>
+            <span class="anon-folder__value">@(_stats?.Officers ?? 0)</span>
+            <span class="anon-folder__label">Офіцери</span>
         </button>
     </div>
 
-    <div class="admin-home-results__toolbar" style="margin: 1rem 0;">
-        <label class="admin-home-results__month">
-            <span>Місяць</span>
-            <select class="admin-select"
+    <div class="anon-toolbar">
+        <label class="anon-month">
+            <span class="anon-month__caption">Місяць</span>
+            <select class="anon-month__select"
                     @bind="_selectedMonth"
                     @bind:after="ReloadAsync"
                     aria-label="Фільтр за місяцем">
