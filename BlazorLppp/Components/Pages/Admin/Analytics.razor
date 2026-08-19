@@ -75,18 +75,26 @@
     else if (_summary is not null)
     {
         <div class="analytics-kpi">
-            <article class="analytics-kpi__card"><strong>@_summary.EmployeesTotal</strong><span>Працівників</span></article>
+            <article class="analytics-kpi__card"><strong>@_summary.StaffTotal</strong><span>Штат</span></article>
+            <article class="analytics-kpi__card"><strong>@_summary.EmployeesTotal</strong><span>У списку</span></article>
             <article class="analytics-kpi__card"><strong>@_summary.EmployeesTested</strong><span>Протестовано</span></article>
+            <article class="analytics-kpi__card"><strong>@_summary.CompletionRateDisplay</strong><span>Коефіцієнт проходження</span></article>
             <article class="analytics-kpi__card"><strong>@_summary.CompletionsTotal</strong><span>Тестувань</span></article>
             <article class="analytics-kpi__card analytics-kpi__card--attention"><strong>@_summary.AttentionRequiredEmployees</strong><span>Потребують уваги</span></article>
         </div>
+        <p class="admin-page__muted">
+            Коефіцієнт проходження = протестовані працівники / чисельність (штат).
+            «У списку» — працівники, заведені в систему. Штат вказується на картці підрозділу.
+        </p>
 
         <section class="admin-panel">
             <div class="analytics-panel__head analytics-panel__head--row">
                 <h2 class="admin-upload__title">Порівняння підрозділів</h2>
                 <select class="admin-select analytics-sort" @bind="_sortBy" @bind:after="ReloadDepartmentsAsync">
-                    <option value="coverage">За охопленням</option>
-                    <option value="employees">За кількістю працівників</option>
+                    <option value="rate">За коефіцієнтом проходження</option>
+                    <option value="coverage">За охопленням списку</option>
+                    <option value="staff">За штатом</option>
+                    <option value="employees">За кількістю у списку</option>
                     <option value="completions">За кількістю тестувань</option>
                     <option value="name">За назвою</option>
                     <option value="number">За номером</option>
@@ -97,9 +105,11 @@
                     <thead>
                         <tr>
                             <th>Підрозділ</th>
-                            <th>Працівників</th>
+                            <th>Штат</th>
+                            <th>У списку</th>
                             <th>Протестовано</th>
-                            <th>Охоплення</th>
+                            <th>Коефіцієнт</th>
+                            <th>Охоплення списку</th>
                             <th>Тестувань</th>
                             <th>Увага</th>
                         </tr>
@@ -109,8 +119,10 @@
                         {
                             <tr>
                                 <td><a class="admin-link" href="@($"/admin/departments/{row.DepartmentId}")">@row.DepartmentName</a></td>
+                                <td>@(row.StaffCount > 0 ? row.StaffCount.ToString() : "—")</td>
                                 <td>@row.EmployeesTotal</td>
                                 <td>@row.EmployeesTested</td>
+                                <td>@row.CompletionRateDisplay</td>
                                 <td>@row.CoveragePercent.ToString("0.#")%</td>
                                 <td>@row.CompletionsTotal</td>
                                 <td>@row.AttentionRequiredEmployees</td>
@@ -228,7 +240,7 @@
     private AnalyticsSummaryDto? _summary;
     private bool _isLoading = true;
     private string? _errorMessage;
-    private string _sortBy = "coverage";
+    private string _sortBy = "rate";
 
     private DateTime? _dateFrom;
     private DateTime? _dateTo;
@@ -298,7 +310,7 @@
         _departmentId = string.Empty;
         _testId = string.Empty;
         _employeeSearch = string.Empty;
-        _sortBy = "coverage";
+        _sortBy = "rate";
         await ApplyAsync();
     }
 }

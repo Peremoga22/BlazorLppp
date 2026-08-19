@@ -43,13 +43,22 @@
     @if (_department is not null && _tab == "employees")
     {
         <section class="admin-panel">
-            <h2 class="admin-upload__title">Редагувати назву</h2>
+            <h2 class="admin-upload__title">Назва і чисельність</h2>
             <div class="admin-form-row">
-                <input class="admin-input" @bind="_editName" />
-                <button type="button" class="admin-btn admin-btn--soft" disabled="@_isSaving" @onclick="RenameAsync">
+                <input class="admin-input" @bind="_editName" placeholder="Назва підрозділу" />
+                <input class="admin-input admin-input--staff"
+                       type="number"
+                       min="0"
+                       step="1"
+                       @bind="_editStaffCount"
+                       title="Скільки працівників у підрозділі (штат)" />
+                <button type="button" class="admin-btn admin-btn--soft" disabled="@_isSaving" @onclick="SaveDepartmentAsync">
                     Зберегти
                 </button>
             </div>
+            <p class="admin-page__muted">
+                Коефіцієнт проходження = кількість протестованих працівників / чисельність (штат).
+            </p>
         </section>
 
         <section class="admin-panel">
@@ -130,8 +139,10 @@
         else if (_deptSummary is not null)
         {
             <div class="analytics-kpi">
-                <article class="analytics-kpi__card"><strong>@_deptSummary.EmployeesTotal</strong><span>Працівників</span></article>
+                <article class="analytics-kpi__card"><strong>@(_deptSummary.StaffCount > 0 ? _deptSummary.StaffCount.ToString() : "—")</strong><span>Штат</span></article>
+                <article class="analytics-kpi__card"><strong>@_deptSummary.EmployeesTotal</strong><span>У списку</span></article>
                 <article class="analytics-kpi__card"><strong>@_deptSummary.EmployeesTested</strong><span>Протестовано</span></article>
+                <article class="analytics-kpi__card"><strong>@_deptSummary.CompletionRateDisplay</strong><span>Коефіцієнт проходження</span></article>
                 <article class="analytics-kpi__card"><strong>@_deptSummary.UntestedEmployees</strong><span>Не проходили</span></article>
                 <article class="analytics-kpi__card"><strong>@_deptSummary.CompletionsTotal</strong><span>Завершено тестувань</span></article>
                 <article class="analytics-kpi__card analytics-kpi__card--attention"><strong>@_deptSummary.AttentionRequiredEmployees</strong><span>Потребують уваги</span></article>
@@ -227,6 +238,7 @@
     private string? _formMessage;
     private bool _formIsError;
     private string _editName = string.Empty;
+    private int _editStaffCount;
     private string _search = string.Empty;
     private string _newLastName = string.Empty;
     private string _newFirstName = string.Empty;
@@ -246,6 +258,7 @@
         }
 
         _editName = _department.Name;
+        _editStaffCount = _department.StaffCount;
         await ReloadEmployeesAsync();
         if (_tab == "analytics")
         {
@@ -306,15 +319,24 @@
         }
     }
 
-    private async Task RenameAsync()
+    private async Task SaveDepartmentAsync()
     {
         _isSaving = true;
         try
         {
-            await OrganizationService.RenameDepartmentAsync(DepartmentId, _editName);
+            await OrganizationService.UpdateDepartmentAsync(DepartmentId, _editName, _editStaffCount);
             _department = await OrganizationService.GetDepartmentAsync(DepartmentId);
+            if (_department is not null)
+            {
+                _editStaffCount = _department.StaffCount;
+            }
+
             _formIsError = false;
-            _formMessage = "Назву оновлено.";
+            _formMessage = "Дані підрозділу оновлено.";
+            if (_tab == "analytics")
+            {
+                await ReloadAnalyticsAsync();
+            }
         }
         catch (Exception ex)
         {

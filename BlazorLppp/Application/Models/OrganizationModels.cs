@@ -11,6 +11,8 @@ public class DepartmentListItem
     public int Number { get; init; }
 
     public int EmployeeCount { get; init; }
+
+    public int StaffCount { get; init; }
 }
 
 public class EmployeeListItem

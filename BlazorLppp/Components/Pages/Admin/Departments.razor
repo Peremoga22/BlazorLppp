@@ -31,6 +31,13 @@
             <input class="admin-input"
                    @bind="_newDepartmentName"
                    placeholder="Порожньо = наступний (Підрозділ N)" />
+            <input class="admin-input admin-input--staff"
+                   type="number"
+                   min="0"
+                   step="1"
+                   @bind="_newStaffCount"
+                   placeholder="Чисельність"
+                   title="Скільки працівників у підрозділі (штат)" />
             <button type="button"
                     class="admin-btn"
                     disabled="@_isSaving"
@@ -38,6 +45,9 @@
                 Додати
             </button>
         </div>
+        <p class="admin-page__muted">
+            Чисельність (штат) потрібна для коефіцієнта проходження: протестовані працівники / штат.
+        </p>
         @if (!string.IsNullOrEmpty(_formMessage))
         {
             <p class="@(_formIsError ? "admin-page__error" : "admin-page__muted")" role="status">@_formMessage</p>
@@ -75,7 +85,16 @@
                         </button>
                     </div>
                     <strong class="dept-card__name">@dept.Name</strong>
-                    <span class="dept-card__meta">Працівників: @dept.EmployeeCount</span>
+                    <span class="dept-card__meta">
+                        У списку: @dept.EmployeeCount
+                        · Штат: @(dept.StaffCount > 0 ? dept.StaffCount.ToString() : "не вказано")
+                    </span>
+                    @if (CoverageFor(dept.Id) is { } coverage)
+                    {
+                        <span class="dept-card__meta">
+                            Коефіцієнт проходження: @coverage.CompletionRateDisplay
+                        </span>
+                    }
                     <a class="dept-card__action" href="@($"/admin/departments/{dept.Id}")">Відкрити →</a>
                 </article>
             }
@@ -95,12 +114,20 @@
             {
                 <div class="analytics-kpi">
                     <article class="analytics-kpi__card">
+                        <strong>@_overview.Summary.StaffTotal</strong>
+                        <span>Штат</span>
+                    </article>
+                    <article class="analytics-kpi__card">
                         <strong>@_overview.Summary.EmployeesTotal</strong>
-                        <span>Працівників</span>
+                        <span>У списку</span>
                     </article>
                     <article class="analytics-kpi__card">
                         <strong>@_overview.Summary.EmployeesTested</strong>
                         <span>Протестовано</span>
+                    </article>
+                    <article class="analytics-kpi__card">
+                        <strong>@_overview.Summary.CompletionRateDisplay</strong>
+                        <span>Коефіцієнт проходження</span>
                     </article>
                     <article class="analytics-kpi__card">
                         <strong>@_overview.Summary.CompletionsTotal</strong>
@@ -114,17 +141,21 @@
 
                 <div class="analytics-split">
                     <div class="analytics-block">
-                        <h3 class="analytics-block__title">Охоплення тестуванням по підрозділах</h3>
+                        <h3 class="analytics-block__title">Коефіцієнт проходження по підрозділах</h3>
                         <ul class="analytics-bars">
                             @foreach (var row in _overview.DepartmentCoverage)
                             {
                                 <li class="analytics-bars__item">
                                     <div class="analytics-bars__label">
                                         <a href="@($"/admin/departments/{row.DepartmentId}")">@row.DepartmentName</a>
-                                        <span>@row.EmployeesTested із @row.EmployeesTotal · @row.CoveragePercent.ToString("0.#")%</span>
+                                        <span>
+                                            @row.EmployeesTested із @(row.StaffCount > 0 ? row.StaffCount : row.EmployeesTotal)
+                                            @(row.StaffCount > 0 ? "штату" : "у списку")
+                                            · @row.CompletionRateDisplay
+                                        </span>
                                     </div>
                                     <div class="analytics-bars__track" aria-hidden="true">
-                                        <span class="analytics-bars__fill" style="@($"width:{Math.Clamp(row.CoveragePercent, 0, 100)}%")"></span>
+                                        <span class="analytics-bars__fill" style="@($"width:{Math.Clamp(row.BarPercent, 0, 100)}%")"></span>
                                     </div>
                                 </li>
                             }
@@ -173,6 +204,7 @@
     private string? _formMessage;
     private bool _formIsError;
     private string _newDepartmentName = string.Empty;
+    private int _newStaffCount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -208,8 +240,9 @@
         _formMessage = null;
         try
         {
-            var created = await OrganizationService.CreateDepartmentAsync(_newDepartmentName);
+            var created = await OrganizationService.CreateDepartmentAsync(_newDepartmentName, _newStaffCount);
             _newDepartmentName = string.Empty;
+            _newStaffCount = 0;
             _formIsError = false;
             _formMessage = $"Створено «{created.Name}».";
             await ReloadAsync();
@@ -271,4 +304,7 @@
             _isDeleting = false;
         }
     }
+
+    private DepartmentCoverageDto? CoverageFor(Guid departmentId)
+        => _overview?.DepartmentCoverage.FirstOrDefault(row => row.DepartmentId == departmentId);
 }

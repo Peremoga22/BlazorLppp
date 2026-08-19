@@ -43,6 +43,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(e => e.CreatedAt)
                 .IsRequired();
 
+            entity.Property(e => e.StaffCount)
+                .IsRequired()
+                .HasDefaultValue(0);
+
             entity.HasIndex(e => e.Number).IsUnique();
             entity.HasIndex(e => e.Name);
         });

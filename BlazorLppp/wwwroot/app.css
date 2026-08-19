@@ -1406,6 +1406,12 @@ h1:focus {
     color: var(--admin-ink);
 }
 
+.admin-input--staff {
+    flex: 0 0 8.75rem;
+    min-width: 8.75rem;
+    max-width: 10rem;
+}
+
 .dept-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

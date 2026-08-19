@@ -28,9 +28,19 @@ public class AnalyticsSummaryDto
 
     public int AttentionRequiredEmployees { get; init; }
 
+    public int StaffTotal { get; init; }
+
     public double CoveragePercent => EmployeesTotal <= 0
         ? 0
         : Math.Round(EmployeesTested * 100.0 / EmployeesTotal, 1);
+
+    public double? CompletionRatePercent => StaffTotal <= 0
+        ? null
+        : Math.Round(EmployeesTested * 100.0 / StaffTotal, 1);
+
+    public string CompletionRateDisplay => CompletionRatePercent is null
+        ? "—"
+        : $"{CompletionRatePercent.Value:0.#}%";
 }
 
 public class DepartmentCoverageDto
@@ -49,11 +59,23 @@ public class DepartmentCoverageDto
 
     public int AttentionRequiredEmployees { get; init; }
 
+    public int StaffCount { get; init; }
+
     public int UntestedEmployees => Math.Max(0, EmployeesTotal - EmployeesTested);
 
     public double CoveragePercent => EmployeesTotal <= 0
         ? 0
         : Math.Round(EmployeesTested * 100.0 / EmployeesTotal, 1);
+
+    public double? CompletionRatePercent => StaffCount <= 0
+        ? null
+        : Math.Round(EmployeesTested * 100.0 / StaffCount, 1);
+
+    public string CompletionRateDisplay => CompletionRatePercent is null
+        ? "—"
+        : $"{CompletionRatePercent.Value:0.#}%";
+
+    public double BarPercent => CompletionRatePercent ?? CoveragePercent;
 }
 
 public class TestCompletionsDto

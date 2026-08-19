@@ -9,9 +9,16 @@ public interface IOrganizationService
 
     Task<Department?> GetDepartmentAsync(Guid departmentId, CancellationToken cancellationToken = default);
 
-    Task<Department> CreateDepartmentAsync(string? name = null, CancellationToken cancellationToken = default);
+    Task<Department> CreateDepartmentAsync(
+        string? name = null,
+        int staffCount = 0,
+        CancellationToken cancellationToken = default);
 
-    Task RenameDepartmentAsync(Guid departmentId, string name, CancellationToken cancellationToken = default);
+    Task UpdateDepartmentAsync(
+        Guid departmentId,
+        string name,
+        int staffCount,
+        CancellationToken cancellationToken = default);
 
     Task DeleteDepartmentAsync(Guid departmentId, CancellationToken cancellationToken = default);
 

@@ -60,12 +60,21 @@ public class AnalyticsService(IDbContextFactory<ApplicationDbContext> dbContextF
             .Distinct()
             .Count();
 
+        var staffQuery = db.Departments.AsNoTracking();
+        if (filter.DepartmentId.HasValue)
+        {
+            staffQuery = staffQuery.Where(d => d.Id == filter.DepartmentId.Value);
+        }
+
+        var staffTotal = await staffQuery.SumAsync(d => d.StaffCount, cancellationToken);
+
         return new AnalyticsSummaryDto
         {
             EmployeesTotal = employeesTotal,
             EmployeesTested = testedIds.Count,
             CompletionsTotal = completionsTotal,
-            AttentionRequiredEmployees = attentionEmployees
+            AttentionRequiredEmployees = attentionEmployees,
+            StaffTotal = staffTotal
         };
     }
 
@@ -78,7 +87,7 @@ public class AnalyticsService(IDbContextFactory<ApplicationDbContext> dbContextF
 
         var departments = await db.Departments.AsNoTracking()
             .OrderBy(d => d.Number)
-            .Select(d => new { d.Id, d.Name, d.Number })
+            .Select(d => new { d.Id, d.Name, d.Number, d.StaffCount })
             .ToListAsync(cancellationToken);
 
         if (filter.DepartmentId.HasValue)
@@ -126,13 +135,16 @@ public class AnalyticsService(IDbContextFactory<ApplicationDbContext> dbContextF
                 EmployeesTotal = deptEmployees.Count,
                 EmployeesTested = tested,
                 CompletionsTotal = completions,
-                AttentionRequiredEmployees = attentionCount
+                AttentionRequiredEmployees = attentionCount,
+                StaffCount = dept.StaffCount
             });
         }
 
         return sortBy switch
         {
             "employees" => result.OrderByDescending(x => x.EmployeesTotal).ThenBy(x => x.DepartmentNumber).ToList(),
+            "staff" => result.OrderByDescending(x => x.StaffCount).ThenBy(x => x.DepartmentNumber).ToList(),
+            "rate" => result.OrderByDescending(x => x.CompletionRatePercent ?? -1).ThenBy(x => x.DepartmentNumber).ToList(),
             "completions" => result.OrderByDescending(x => x.CompletionsTotal).ThenBy(x => x.DepartmentNumber).ToList(),
             "name" => result.OrderBy(x => x.DepartmentName).ToList(),
             "number" => result.OrderBy(x => x.DepartmentNumber).ToList(),

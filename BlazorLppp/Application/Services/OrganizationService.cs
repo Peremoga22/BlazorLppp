@@ -109,7 +109,8 @@ public class OrganizationService(
                 Id = d.Id,
                 Name = d.Name,
                 Number = d.Number,
-                EmployeeCount = d.Employees.Count
+                EmployeeCount = d.Employees.Count,
+                StaffCount = d.StaffCount
             })
             .ToListAsync(cancellationToken);
     }
@@ -126,8 +127,11 @@ public class OrganizationService(
 
     public async Task<Department> CreateDepartmentAsync(
         string? name = null,
+        int staffCount = 0,
         CancellationToken cancellationToken = default)
     {
+        staffCount = NormalizeStaffCount(staffCount);
+
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var nextNumber = await db.Departments.AnyAsync(cancellationToken)
             ? await db.Departments.MaxAsync(d => d.Number, cancellationToken) + 1
@@ -161,6 +165,7 @@ public class OrganizationService(
             Id = Guid.NewGuid(),
             Name = finalName,
             Number = nextNumber,
+            StaffCount = staffCount,
             CreatedAt = DateTime.Now
         };
 
@@ -182,9 +187,10 @@ public class OrganizationService(
         return int.TryParse(suffix, out _);
     }
 
-    public async Task RenameDepartmentAsync(
+    public async Task UpdateDepartmentAsync(
         Guid departmentId,
         string name,
+        int staffCount,
         CancellationToken cancellationToken = default)
     {
         var trimmed = name.Trim();
@@ -193,13 +199,31 @@ public class OrganizationService(
             throw new InvalidOperationException("Вкажіть назву підрозділу.");
         }
 
+        staffCount = NormalizeStaffCount(staffCount);
+
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var department = await db.Departments
             .FirstOrDefaultAsync(d => d.Id == departmentId, cancellationToken)
             ?? throw new InvalidOperationException("Підрозділ не знайдено.");
 
         department.Name = trimmed;
+        department.StaffCount = staffCount;
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static int NormalizeStaffCount(int staffCount)
+    {
+        if (staffCount < 0)
+        {
+            throw new InvalidOperationException("Чисельність підрозділу не може бути від’ємною.");
+        }
+
+        if (staffCount > 100_000)
+        {
+            throw new InvalidOperationException("Чисельність підрозділу занадто велика.");
+        }
+
+        return staffCount;
     }
 
     public async Task<IReadOnlyList<EmployeeListItem>> ListEmployeesAsync(
