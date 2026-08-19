@@ -108,10 +108,30 @@
                 <div>
                     <h2 id="results-heading" class="admin-upload__title">Результати тестів</h2>
                     <p class="admin-page__muted">
-                        @(_selectedUnit is null
-                            ? "Завершені тести по всіх підрозділах. Файли: «Прізвище_І_П.docx»"
-                            : $"Завершені тести підрозділу {_selectedUnit}. Файли: «Прізвище_І_П.docx»")
+                        @ResultsSubtitle
                     </p>
+                </div>
+                <div class="admin-home-results__toolbar">
+                    <label class="admin-home-results__month">
+                        <span>Місяць</span>
+                        <select class="admin-select admin-home-results__month-select"
+                                @bind="_selectedMonth"
+                                @bind:after="OnMonthFilterChangedAsync"
+                                aria-label="Фільтр результатів за місяцем">
+                            <option value="">Усі місяці</option>
+                            @foreach (var option in _monthOptions)
+                            {
+                                <option value="@option.Value">@option.Label</option>
+                            }
+                        </select>
+                    </label>
+                    <a class="admin-btn admin-btn--sm"
+                       href="@DownloadAllHref"
+                       hidden="@(_results.Count == 0)"
+                       title="Зібрати відфільтровані результати в один Word-документ і завантажити">
+                        <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
+                        Усі в один документ
+                    </a>
                 </div>
             </header>
 
@@ -121,7 +141,7 @@
             }
             else if (_results.Count == 0)
             {
-                <p class="admin-page__muted">Завершених тестів ще немає.</p>
+                <p class="admin-page__muted">@EmptyResultsMessage</p>
             }
             else
             {
@@ -134,14 +154,7 @@
                                 <th>Підрозділ</th>
                                 <th>Файл</th>
                                 <th>Завершено</th>
-                                <th class="admin-table__actions-head">
-                                    <a class="admin-btn admin-btn--sm"
-                                       href="@DownloadAllHref"
-                                       title="Зібрати всі результати в один Word-документ і завантажити">
-                                        <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
-                                        Усі в один документ
-                                    </a>
-                                </th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -213,15 +226,60 @@
     private int? _selectedUnit;
     private TestAttemptStats? _stats;
     private readonly List<TestResultListItem> _results = [];
+    private readonly IReadOnlyList<(string Value, string Label)> _monthOptions = BuildMonthOptions();
+    private string _selectedMonth = DateTime.Now.ToString("yyyy-MM");
     private bool _isLoading = true;
     private bool _isDeleting;
     private string? _errorMessage;
     private string? _resultsError;
 
-    private string DownloadAllHref =>
-        _selectedUnit is null
-            ? "/admin/results/download-all"
-            : $"/admin/results/download-all?numberUnit={_selectedUnit.Value}";
+    private DateOnly? SelectedMonthFilter => ParseMonth(_selectedMonth);
+
+    private string DownloadAllHref
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (_selectedUnit.HasValue)
+            {
+                parts.Add($"numberUnit={_selectedUnit.Value}");
+            }
+
+            if (SelectedMonthFilter is { } month)
+            {
+                parts.Add($"year={month.Year}");
+                parts.Add($"month={month.Month}");
+            }
+
+            return parts.Count == 0
+                ? "/admin/results/download-all"
+                : $"/admin/results/download-all?{string.Join("&", parts)}";
+        }
+    }
+
+    private string ResultsSubtitle
+    {
+        get
+        {
+            var scope = _selectedUnit is null
+                ? "Завершені тести по всіх підрозділах"
+                : $"Завершені тести підрозділу {_selectedUnit}";
+            var period = SelectedMonthLabel is { } label
+                ? $" за {label}"
+                : string.Empty;
+            return $"{scope}{period}. Файли: «Прізвище_І_П.docx»";
+        }
+    }
+
+    private string EmptyResultsMessage
+        => SelectedMonthLabel is { } label
+            ? $"За {label} завершених тестів немає."
+            : "Завершених тестів ще немає.";
+
+    private string? SelectedMonthLabel
+        => _monthOptions.FirstOrDefault(o => o.Value == _selectedMonth).Label is { Length: > 0 } label
+            ? label.ToLowerInvariant()
+            : null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -272,7 +330,7 @@
     private async Task RefreshDataAsync()
     {
         var statsTask = TestAttemptService.GetStatsAsync(_selectedUnit);
-        var resultsTask = TestAttemptService.GetCompletedResultsAsync(_selectedUnit);
+        var resultsTask = TestAttemptService.GetCompletedResultsAsync(_selectedUnit, SelectedMonthFilter);
         await Task.WhenAll(statsTask, resultsTask);
 
         _stats = await statsTask;
@@ -286,7 +344,7 @@
         try
         {
             await TestAttemptService.EnsureResultFileAsync(attemptId);
-            var items = await TestAttemptService.GetCompletedResultsAsync(_selectedUnit);
+            var items = await TestAttemptService.GetCompletedResultsAsync(_selectedUnit, SelectedMonthFilter);
             _results.Clear();
             _results.AddRange(items);
             _resultsError = null;
@@ -333,5 +391,55 @@
         {
             _isDeleting = false;
         }
+    }
+
+    private async Task OnMonthFilterChangedAsync()
+    {
+        _resultsError = null;
+        try
+        {
+            var items = await TestAttemptService.GetCompletedResultsAsync(_selectedUnit, SelectedMonthFilter);
+            _results.Clear();
+            _results.AddRange(items);
+        }
+        catch (Exception)
+        {
+            _resultsError = "Не вдалося відфільтрувати результати.";
+        }
+    }
+
+    private static DateOnly? ParseMonth(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length != 7 || value[4] != '-')
+        {
+            return null;
+        }
+
+        if (!int.TryParse(value[..4], out var year) ||
+            !int.TryParse(value[5..], out var month) ||
+            month is < 1 or > 12)
+        {
+            return null;
+        }
+
+        return new DateOnly(year, month, 1);
+    }
+
+    private static IReadOnlyList<(string Value, string Label)> BuildMonthOptions()
+    {
+        var uk = System.Globalization.CultureInfo.GetCultureInfo("uk-UA");
+        var start = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+        var items = new List<(string Value, string Label)>(24);
+        for (var i = 0; i < 24; i++)
+        {
+            var date = start.AddMonths(-i);
+            var raw = date.ToString("MMMM yyyy", uk);
+            var label = string.IsNullOrEmpty(raw)
+                ? date.ToString("yyyy-MM")
+                : char.ToUpper(raw[0], uk) + raw[1..];
+            items.Add((date.ToString("yyyy-MM"), label));
+        }
+
+        return items;
     }
 }

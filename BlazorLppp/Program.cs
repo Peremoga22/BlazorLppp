@@ -129,11 +129,19 @@ app.MapAdditionalIdentityEndpoints();
 
 app.MapGet("/admin/results/download-all", async (
     int? numberUnit,
+    int? year,
+    int? month,
     ITestAttemptService attemptService,
     ITestResultDocumentService resultDocumentService,
     CancellationToken cancellationToken) =>
 {
-    var results = await attemptService.GetCompletedResultsAsync(numberUnit, cancellationToken);
+    DateOnly? monthFilter = null;
+    if (year is int y && month is int m && m is >= 1 and <= 12 && y is >= 2000 and <= 2100)
+    {
+        monthFilter = new DateOnly(y, m, 1);
+    }
+
+    var results = await attemptService.GetCompletedResultsAsync(numberUnit, monthFilter, cancellationToken);
     if (results.Count == 0)
     {
         return Results.NotFound();
@@ -144,7 +152,7 @@ app.MapGet("/admin/results/download-all", async (
         await attemptService.EnsureResultFileAsync(item.AttemptId, cancellationToken);
     }
 
-    results = await attemptService.GetCompletedResultsAsync(numberUnit, cancellationToken);
+    results = await attemptService.GetCompletedResultsAsync(numberUnit, monthFilter, cancellationToken);
     var paths = results
         .OrderBy(r => r.CompletedAt ?? r.StartedAt)
         .Select(r => r.ResultRelativePath)
@@ -160,6 +168,10 @@ app.MapGet("/admin/results/download-all", async (
     var hint = numberUnit is null
         ? "Результати_усі"
         : $"Результати_підрозділ_{numberUnit.Value}";
+    if (monthFilter.HasValue)
+    {
+        hint = $"{hint}_{monthFilter.Value:yyyy-MM}";
+    }
 
     var (absolutePath, downloadName) = await resultDocumentService.CombineResultDocumentsAsync(
         paths,
