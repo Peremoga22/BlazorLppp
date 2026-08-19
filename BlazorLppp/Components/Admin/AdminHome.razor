@@ -9,6 +9,7 @@
 
 @inject ITestAttemptService TestAttemptService
 @inject IJSRuntime JsRuntime
+@inject NavigationManager Navigation
 
 <PageTitle>Адмін-панель</PageTitle>
 
@@ -125,13 +126,14 @@
                             }
                         </select>
                     </label>
-                    <a class="admin-btn admin-btn--sm"
-                       href="@DownloadAllHref"
-                       hidden="@(_results.Count == 0)"
-                       title="Зібрати відфільтровані результати в один Word-документ і завантажити">
+                    <button type="button"
+                            class="admin-btn admin-btn--sm"
+                            disabled="@(_results.Count == 0)"
+                            title="Зібрати відфільтровані результати в один Word-документ і завантажити"
+                            @onclick="DownloadFilteredAsync">
                         <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
                         Усі в один документ
-                    </a>
+                    </button>
                 </div>
             </header>
 
@@ -251,10 +253,25 @@
                 parts.Add($"month={month.Month}");
             }
 
+            if (_results.Count > 0)
+            {
+                parts.Add($"ids={string.Join(",", _results.Select(item => item.AttemptId))}");
+            }
+
             return parts.Count == 0
                 ? "/admin/results/download-all"
                 : $"/admin/results/download-all?{string.Join("&", parts)}";
         }
+    }
+
+    private void DownloadFilteredAsync()
+    {
+        if (_results.Count == 0)
+        {
+            return;
+        }
+
+        Navigation.NavigateTo(DownloadAllHref, forceLoad: true);
     }
 
     private string ResultsSubtitle

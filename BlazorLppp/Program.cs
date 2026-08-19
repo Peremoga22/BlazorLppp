@@ -131,6 +131,7 @@ app.MapGet("/admin/results/download-all", async (
     int? numberUnit,
     int? year,
     int? month,
+    string? ids,
     ITestAttemptService attemptService,
     ITestResultDocumentService resultDocumentService,
     CancellationToken cancellationToken) =>
@@ -141,7 +142,12 @@ app.MapGet("/admin/results/download-all", async (
         monthFilter = new DateOnly(y, m, 1);
     }
 
-    var results = await attemptService.GetCompletedResultsAsync(numberUnit, monthFilter, cancellationToken);
+    var attemptIds = ParseAttemptIds(ids);
+    var results = await attemptService.GetCompletedResultsAsync(
+        numberUnit,
+        monthFilter,
+        attemptIds,
+        cancellationToken);
     if (results.Count == 0)
     {
         return Results.NotFound();
@@ -152,7 +158,11 @@ app.MapGet("/admin/results/download-all", async (
         await attemptService.EnsureResultFileAsync(item.AttemptId, cancellationToken);
     }
 
-    results = await attemptService.GetCompletedResultsAsync(numberUnit, monthFilter, cancellationToken);
+    results = await attemptService.GetCompletedResultsAsync(
+        numberUnit,
+        monthFilter,
+        attemptIds,
+        cancellationToken);
     var paths = results
         .OrderBy(r => r.CompletedAt ?? r.StartedAt)
         .Select(r => r.ResultRelativePath)
@@ -213,5 +223,22 @@ app.MapGet("/admin/results/{attemptId:guid}/download", async (
         downloadName);
 })
 .RequireAuthorization(policy => policy.RequireRole(AppRoles.Admin));
+
+static IReadOnlyCollection<Guid>? ParseAttemptIds(string? ids)
+{
+    if (string.IsNullOrWhiteSpace(ids))
+    {
+        return null;
+    }
+
+    var parsed = ids
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(value => Guid.TryParse(value, out var id) ? id : Guid.Empty)
+        .Where(id => id != Guid.Empty)
+        .Distinct()
+        .ToList();
+
+    return parsed.Count == 0 ? null : parsed;
+}
 
 app.Run();

@@ -348,6 +348,7 @@ public class TestAttemptService(
     public async Task<IReadOnlyList<TestResultListItem>> GetCompletedResultsAsync(
         int? numberUnit = null,
         DateOnly? month = null,
+        IReadOnlyCollection<Guid>? attemptIds = null,
         CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -368,6 +369,11 @@ public class TestAttemptService(
             var end = start.AddMonths(1);
             query = query.Where(a => (a.CompletedAt ?? a.StartedAt) >= start &&
                                      (a.CompletedAt ?? a.StartedAt) < end);
+        }
+
+        if (attemptIds is { Count: > 0 })
+        {
+            query = query.Where(a => attemptIds.Contains(a.Id));
         }
 
         var items = await query

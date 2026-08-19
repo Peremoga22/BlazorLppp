@@ -33,6 +33,7 @@ public interface ITestAttemptService
     Task<IReadOnlyList<TestResultListItem>> GetCompletedResultsAsync(
         int? numberUnit = null,
         DateOnly? month = null,
+        IReadOnlyCollection<Guid>? attemptIds = null,
         CancellationToken cancellationToken = default);
 
     Task<TestResultDetails?> GetResultDetailsAsync(
