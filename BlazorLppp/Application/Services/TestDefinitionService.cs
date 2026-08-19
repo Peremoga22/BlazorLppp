@@ -17,7 +17,7 @@ public class TestDefinitionService(
         string absoluteFilePath,
         CancellationToken cancellationToken = default)
     {
-        var parsed = parser.Parse(absoluteFilePath);
+        var parsed = ParseOrFallback(upload, absoluteFilePath);
 
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
@@ -82,6 +82,34 @@ public class TestDefinitionService(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return document;
+    }
+
+    private ParsedTestDocument ParseOrFallback(DocumentUploadResult upload, string absoluteFilePath)
+    {
+        var looksLikeAssinger =
+            TestDocumentParser.IsAssingerFileName(absoluteFilePath) ||
+            TestDocumentParser.IsAssingerFileName(upload.FileName) ||
+            TestDocumentParser.IsAssingerFileName(upload.FolderName) ||
+            TestDocumentParser.IsAssingerTitle(upload.FileName);
+
+        ParsedTestDocument parsed;
+        try
+        {
+            parsed = parser.Parse(absoluteFilePath);
+        }
+        catch (Exception) when (looksLikeAssinger)
+        {
+            parsed = AssingerDocumentTemplate.Create();
+        }
+
+        if (looksLikeAssinger &&
+            (parsed.Questions.Count != 20 ||
+             parsed.Questions.Any(q => q.Options.Count < 3 || string.IsNullOrWhiteSpace(q.Text))))
+        {
+            parsed = AssingerDocumentTemplate.Create();
+        }
+
+        return parsed;
     }
 
     public async Task<TestDocument?> GetActiveAsync(CancellationToken cancellationToken = default)

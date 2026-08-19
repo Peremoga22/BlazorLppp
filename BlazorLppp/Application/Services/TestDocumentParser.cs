@@ -34,6 +34,18 @@ public partial class TestDocumentParser : ITestDocumentParser
 
         var forceAssinger = IsAssingerFileName(filePath);
 
+        try
+        {
+            return ParseCore(filePath, forceAssinger);
+        }
+        catch (Exception) when (forceAssinger)
+        {
+            return AssingerDocumentTemplate.Create();
+        }
+    }
+
+    private ParsedTestDocument ParseCore(string filePath, bool forceAssinger)
+    {
         ParsedTestDocument parsed;
         if (Path.GetExtension(filePath).Equals(".txt", StringComparison.OrdinalIgnoreCase))
         {
