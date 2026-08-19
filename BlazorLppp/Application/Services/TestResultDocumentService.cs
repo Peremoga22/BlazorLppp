@@ -85,6 +85,7 @@ public partial class TestResultDocumentService(
             var isAdaptivity200 = Adaptivity200Document.IsAdaptivity200(document, questions);
             var isZbroya = ZbroyaScoring.CanScore(document, questions);
             var isNpna = NpnaScoring.CanScore(document, questions);
+            var isSzch = SzchScoring.CanScore(document, questions);
 
             if (isAnonymousSurvey)
             {
@@ -105,6 +106,11 @@ public partial class TestResultDocumentService(
             {
                 var scoring = NpnaScoring.Evaluate(questions, answersByQuestion);
                 AppendNpnaBlank(body, attempt, fullName, examDate, questions, answersByQuestion, scoring);
+            }
+            else if (isSzch)
+            {
+                var scoring = SzchScoring.Evaluate(questions, answersByQuestion);
+                AppendSzchBlank(body, attempt, fullName, examDate, questions, answersByQuestion, scoring);
             }
             else
             {
@@ -1255,6 +1261,86 @@ public partial class TestResultDocumentService(
             Space = 0,
             Color = "000000"
         };
+
+    private static void AppendSzchBlank(
+        Body body,
+        TestAttempt attempt,
+        string fullName,
+        string examDate,
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion,
+        SzchScoringResult scoring)
+    {
+        AppendCenteredParagraph(body, SzchDocumentTemplate.CanonicalTitle, bold: true, fontSize: TitleFontSize);
+        AppendCenteredParagraph(body, "Реєстраційний бланк", bold: true, fontSize: BodyFontSize);
+        AppendEmptyParagraph(body);
+
+        AppendFieldLine(body, [("П.І.Б. (повністю)", fullName)]);
+        AppendFieldLine(body,
+        [
+            ("Дата обстеження", examDate),
+            ("Вік", string.Empty),
+            ("Стать", string.Empty)
+        ]);
+        AppendFieldLine(body, [("Посада (підрозділ)", attempt.NumberUnit.ToString())]);
+        AppendFieldLine(body,
+        [
+            ("Спеціальність", string.Empty),
+            ("Військове звання", string.Empty)
+        ]);
+        AppendEmptyParagraph(body);
+        AppendInstructionParagraph(body, SzchDocumentTemplate.CanonicalInstruction);
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            "Позначення в сітці: «+» — відповідь «Так», «−» — відповідь «Ні».",
+            bold: true);
+        body.AppendChild(BuildAdaptivityAnswerGrid(questions, answersByQuestion, 50, 10));
+        AppendEmptyParagraph(body);
+
+        AppendSzchScoringSection(body, scoring);
+
+        AppendEmptyParagraph(body);
+        AppendCenteredParagraph(body, "Відповіді за питаннями", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+        body.AppendChild(BuildAnswersTable(questions, answersByQuestion));
+    }
+
+    private static void AppendSzchScoringSection(Body body, SzchScoringResult scoring)
+    {
+        AppendCenteredParagraph(body, "Оцінка результатів", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            "Обробка виконана за ключем методики СЗЧ-4. Спочатку перевіряється шкала щирості " +
+            "(питання 1, 2, 4, 5, 6, 7, 11, 13, 37, 40). Якщо збігів з ключем менше ніж 3, " +
+            "подальший аналіз не проводиться.");
+
+        AppendBodyParagraph(
+            body,
+            $"Шкала щирості: {scoring.SincerityMatches} з {scoring.SincerityMax}. {scoring.ReliabilityNote}",
+            bold: true);
+
+        if (scoring.IsScorable)
+        {
+            AppendBodyParagraph(
+                body,
+                $"Показник СЗЧ: {scoring.Score} з {scoring.ScoreMax} ({scoring.LevelName} ймовірність самовільного залишення частини).",
+                bold: true);
+        }
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Психологічний висновок", bold: true);
+        AppendBodyParagraph(body, scoring.Conclusion);
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Орієнтири інтерпретації", bold: true);
+        AppendBodyParagraph(body, "До 15 балів — ймовірність вкрай низька, спеціальна робота не потрібна;");
+        AppendBodyParagraph(body, "Від 15 до 25 балів — ймовірність низька, потрібна спеціальна індивідуальна робота;");
+        AppendBodyParagraph(body, "Більше 25 балів — ймовірність велика, потрібні постійна увага і контроль.");
+    }
 
     private static void AppendHorskaScoringSection(Body body, HorskaScoringResult scoring)
     {

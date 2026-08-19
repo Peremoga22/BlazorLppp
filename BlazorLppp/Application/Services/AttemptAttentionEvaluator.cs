@@ -227,6 +227,32 @@ public static class AttemptAttentionEvaluator
             };
         }
 
+        if (SzchScoring.CanScore(document, questions))
+        {
+            var scoring = SzchScoring.Evaluate(questions, answersByQuestion);
+            var needs = !scoring.IsScorable || scoring.Score >= 15;
+            var reason = !scoring.IsScorable
+                ? "Недостовірний результат (шкала щирості СЗЧ-4) — потрібен повторний перегляд"
+                : scoring.Score > 25
+                    ? "Висока ймовірність самовільного залишення частини — потребує додаткової уваги"
+                    : scoring.Score >= 15
+                        ? "За СЗЧ-4 потрібна спеціальна індивідуальна робота"
+                        : string.Empty;
+
+            return new AttemptAttentionResult
+            {
+                NeedsAttention = needs,
+                IsUnreliable = !scoring.IsScorable,
+                Reason = reason,
+                LevelName = scoring.LevelName,
+                ScaleRaw = new Dictionary<string, double>
+                {
+                    ["Щирість"] = scoring.SincerityMatches,
+                    ["СЗЧ"] = scoring.Score
+                }
+            };
+        }
+
         if (AnonymousSurveyScoring.CanScore(document, questions))
         {
             return new AttemptAttentionResult();

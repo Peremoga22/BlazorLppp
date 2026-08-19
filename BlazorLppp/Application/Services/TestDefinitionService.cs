@@ -104,6 +104,12 @@ public class TestDefinitionService(
             TestDocumentParser.IsAnonymousSurveyFileName(upload.FolderName) ||
             TestDocumentParser.IsAnonymousSurveyTitle(upload.FileName);
 
+        var looksLikeSzch =
+            TestDocumentParser.IsSzchFileName(absoluteFilePath) ||
+            TestDocumentParser.IsSzchFileName(upload.FileName) ||
+            TestDocumentParser.IsSzchFileName(upload.FolderName) ||
+            TestDocumentParser.IsSzchTitle(upload.FileName);
+
         ParsedTestDocument parsed;
         try
         {
@@ -120,6 +126,10 @@ public class TestDefinitionService(
         catch (Exception) when (looksLikeAnonymous)
         {
             parsed = AnonymousSurveyDocumentTemplate.Create();
+        }
+        catch (Exception) when (looksLikeSzch)
+        {
+            parsed = SzchDocumentTemplate.Create();
         }
 
         if (looksLikeAssinger &&
@@ -139,6 +149,11 @@ public class TestDefinitionService(
         if (looksLikeAnonymous)
         {
             parsed = AnonymousSurveyDocumentTemplate.Create();
+        }
+
+        if (looksLikeSzch)
+        {
+            parsed = SzchDocumentTemplate.Create();
         }
 
         return parsed;

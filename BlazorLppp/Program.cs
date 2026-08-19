@@ -101,6 +101,7 @@ using (var scope = app.Services.CreateScope())
     await HorskaDocumentSeeder.SeedAsync(scope.ServiceProvider);
     await AssingerDocumentSeeder.SeedAsync(scope.ServiceProvider);
     await NpnaDocumentSeeder.SeedAsync(scope.ServiceProvider);
+    await SzchDocumentSeeder.SeedAsync(scope.ServiceProvider);
     await AnonymousSurveyDocumentSeeder.SeedAsync(scope.ServiceProvider);
 }
 

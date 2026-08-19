@@ -35,10 +35,11 @@ public partial class TestDocumentParser : ITestDocumentParser
         var forceAssinger = IsAssingerFileName(filePath);
         var forceNpna = IsNpnaFileName(filePath);
         var forceAnonymous = IsAnonymousSurveyFileName(filePath);
+        var forceSzch = IsSzchFileName(filePath);
 
         try
         {
-            return ParseCore(filePath, forceAssinger, forceNpna, forceAnonymous);
+            return ParseCore(filePath, forceAssinger, forceNpna, forceAnonymous, forceSzch);
         }
         catch (Exception) when (forceAssinger)
         {
@@ -52,9 +53,18 @@ public partial class TestDocumentParser : ITestDocumentParser
         {
             return AnonymousSurveyDocumentTemplate.Create();
         }
+        catch (Exception) when (forceSzch)
+        {
+            return SzchDocumentTemplate.Create();
+        }
     }
 
-    private ParsedTestDocument ParseCore(string filePath, bool forceAssinger, bool forceNpna, bool forceAnonymous = false)
+    private ParsedTestDocument ParseCore(
+        string filePath,
+        bool forceAssinger,
+        bool forceNpna,
+        bool forceAnonymous = false,
+        bool forceSzch = false)
     {
         ParsedTestDocument parsed;
         if (Path.GetExtension(filePath).Equals(".txt", StringComparison.OrdinalIgnoreCase))
@@ -137,6 +147,21 @@ public partial class TestDocumentParser : ITestDocumentParser
             IsAnonymousSurveyTitle(parsed.Title))
         {
             return AnonymousSurveyDocumentTemplate.Create();
+        }
+
+        if (forceSzch ||
+            IsSzchFileName(filePath) ||
+            IsSzchTitle(parsed.Title) ||
+            IsCompleteSzchDocument(parsed))
+        {
+            if (IsCompleteSzchDocument(parsed))
+            {
+                parsed.Title = SzchDocumentTemplate.CanonicalTitle;
+                parsed.Instruction ??= SzchDocumentTemplate.CanonicalInstruction;
+                return parsed;
+            }
+
+            return SzchDocumentTemplate.Create();
         }
 
         var isZbroyaSource =
@@ -1140,6 +1165,12 @@ public partial class TestDocumentParser : ITestDocumentParser
                 return;
             }
 
+            if (IsSzchTitle(line))
+            {
+                result.Title = SzchDocumentTemplate.CanonicalTitle;
+                return;
+            }
+
             if (line.Contains("Методика виявлення схильності до суїцидальних", StringComparison.OrdinalIgnoreCase) ||
                 line.Contains("Методика выявления склонности к суицидальным", StringComparison.OrdinalIgnoreCase))
             {
@@ -1201,6 +1232,31 @@ public partial class TestDocumentParser : ITestDocumentParser
         => !string.IsNullOrWhiteSpace(value) &&
            (value.Contains("Анонімне опитуван", StringComparison.OrdinalIgnoreCase) ||
             value.Contains("анонімне анкетуван", StringComparison.OrdinalIgnoreCase));
+
+    internal static bool IsSzchFileName(string filePath)
+    {
+        var name = Path.GetFileNameWithoutExtension(filePath);
+        var compact = name.Replace(" ", string.Empty).Replace("-", string.Empty).Replace("_", string.Empty);
+        return compact.Contains("сзч", StringComparison.OrdinalIgnoreCase)
+               || compact.Contains("szch", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("залишити частину", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("самовільн", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsSzchTitle(string? value)
+        => !string.IsNullOrWhiteSpace(value) &&
+           (value.Contains("СЗЧ", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("SZCH", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("залишити частину", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("самовільного залишення", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("самовільне залишення", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsCompleteSzchDocument(ParsedTestDocument parsed)
+        => parsed.Questions.Count == SzchDocumentTemplate.QuestionCount &&
+           parsed.Questions.All(q =>
+               q.Type is QuestionType.YesNo or QuestionType.SingleChoice &&
+               !string.IsNullOrWhiteSpace(q.Text) &&
+               q.Text.Any(char.IsLetter));
 
     internal static bool IsAssingerFileName(string filePath)
     {
@@ -1623,6 +1679,7 @@ public partial class TestDocumentParser : ITestDocumentParser
            || ScaleFooter().IsMatch(line)
            || line.StartsWith("Методика", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Ключ", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Аркуш для відповідей", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Обробка", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Шкала", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Інтерпретація", StringComparison.OrdinalIgnoreCase)
@@ -1643,7 +1700,8 @@ public partial class TestDocumentParser : ITestDocumentParser
            || IsZbroyaTitle(line)
            || IsHorskaTitle(line)
            || IsAssingerTitle(line)
-           || IsNpnaTitle(line);
+           || IsNpnaTitle(line)
+           || IsSzchTitle(line);
 
     private static string CleanTitle(string line)
     {
