@@ -139,60 +139,31 @@
                         <div class="test-start__anonymous">
                             <p class="test-start__anonymous-label">Тест анонімний</p>
                             <p class="test-start__hint">Прізвище, ім’я, по батькові та підрозділ не збираються.</p>
-
-                            <div class="test-start__unlock">
-                                <label class="test-start__label" for="anon-unlock">Проведіть повзунок праворуч</label>
-                                <div class="test-start__unlock-track">
-                                    <input id="anon-unlock"
-                                           class="test-start__unlock-range"
-                                           type="range"
-                                           min="0"
-                                           max="100"
-                                           step="1"
-                                           value="@_unlockProgress"
-                                           style="@($"--progress:{_unlockProgress}%")"
-                                           aria-valuemin="0"
-                                           aria-valuemax="100"
-                                           aria-valuenow="@_unlockProgress"
-                                           aria-valuetext="@(_anonymousUnlocked ? "Розблоковано" : "Заблоковано")"
-                                           @oninput="OnUnlockInput"
-                                           @onchange="OnUnlockChange" />
-                                    <span class="test-start__unlock-caption" aria-hidden="true">
-                                        @(_anonymousUnlocked ? "Розблоковано" : "Посуньте →")
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div class="test-start__anonymous-rest @(_anonymousUnlocked ? null : "is-locked")">
-                                <fieldset class="test-start__rank" disabled="@(!_anonymousUnlocked)">
-                                    <legend class="test-start__label">Оберіть категорію</legend>
-                                    <label class="test-start__rank-option">
-                                        <input type="radio"
-                                               name="anonymous-rank"
-                                               disabled="@(!_anonymousUnlocked)"
-                                               checked="@(Model.AnonymousRank == AnonymousRank.Soldier)"
-                                               @onchange="() => SetAnonymousRank(AnonymousRank.Soldier)" />
-                                        <span>Солдат</span>
-                                    </label>
-                                    <label class="test-start__rank-option">
-                                        <input type="radio"
-                                               name="anonymous-rank"
-                                               disabled="@(!_anonymousUnlocked)"
-                                               checked="@(Model.AnonymousRank == AnonymousRank.Sergeant)"
-                                               @onchange="() => SetAnonymousRank(AnonymousRank.Sergeant)" />
-                                        <span>Сержант</span>
-                                    </label>
-                                    <label class="test-start__rank-option">
-                                        <input type="radio"
-                                               name="anonymous-rank"
-                                               disabled="@(!_anonymousUnlocked)"
-                                               checked="@(Model.AnonymousRank == AnonymousRank.Officer)"
-                                               @onchange="() => SetAnonymousRank(AnonymousRank.Officer)" />
-                                        <span>Офіцер</span>
-                                    </label>
-                                </fieldset>
-                                <ValidationMessage For="() => Model.AnonymousRank" class="test-start__error" />
-                            </div>
+                            <fieldset class="test-start__rank">
+                                <legend class="test-start__label">Оберіть категорію</legend>
+                                <label class="test-start__rank-option">
+                                    <input type="radio"
+                                           name="anonymous-rank"
+                                           checked="@(Model.AnonymousRank == AnonymousRank.Soldier)"
+                                           @onchange="() => SetAnonymousRank(AnonymousRank.Soldier)" />
+                                    <span>Солдат</span>
+                                </label>
+                                <label class="test-start__rank-option">
+                                    <input type="radio"
+                                           name="anonymous-rank"
+                                           checked="@(Model.AnonymousRank == AnonymousRank.Sergeant)"
+                                           @onchange="() => SetAnonymousRank(AnonymousRank.Sergeant)" />
+                                    <span>Сержант</span>
+                                </label>
+                                <label class="test-start__rank-option">
+                                    <input type="radio"
+                                           name="anonymous-rank"
+                                           checked="@(Model.AnonymousRank == AnonymousRank.Officer)"
+                                           @onchange="() => SetAnonymousRank(AnonymousRank.Officer)" />
+                                    <span>Офіцер</span>
+                                </label>
+                            </fieldset>
+                            <ValidationMessage For="() => Model.AnonymousRank" class="test-start__error" />
                         </div>
                     }
                     else
@@ -320,8 +291,6 @@
     private bool _isTestMenuOpen;
     private string? _errorMessage;
     private CancellationTokenSource? _incompleteLookupCts;
-    private bool _anonymousUnlocked;
-    private int _unlockProgress;
 
     private bool HasSelectedTest =>
         Model.TestDocumentId.HasValue && Model.TestDocumentId.Value != Guid.Empty;
@@ -348,7 +317,7 @@
     private bool CanStart =>
         HasSelectedTest &&
         (IsAnonymousSelected
-            ? _anonymousUnlocked && Model.AnonymousRank is not null
+            ? Model.AnonymousRank is not null
             : !string.IsNullOrWhiteSpace(Model.LastName) &&
               !string.IsNullOrWhiteSpace(Model.FirstName) &&
               UnitNumbers.IsValid(Model.NumberUnit) &&
@@ -452,73 +421,19 @@
         Model.IsAnonymous = IsAnonymousSelected;
         if (Model.IsAnonymous)
         {
-            ResetAnonymousUnlock();
             _incompleteAttempt = null;
             _isCheckingIncomplete = false;
             return;
         }
 
-        ResetAnonymousUnlock();
         Model.AnonymousRank = null;
         await ScheduleIncompleteCheckAsync();
     }
 
     private void SetAnonymousRank(AnonymousRank rank)
     {
-        if (!_anonymousUnlocked)
-        {
-            return;
-        }
-
         Model.AnonymousRank = rank;
         Model.IsAnonymous = true;
-    }
-
-    private void OnUnlockInput(ChangeEventArgs e)
-    {
-        if (!int.TryParse(e.Value?.ToString(), out var value))
-        {
-            return;
-        }
-
-        ApplyUnlockProgress(value, snap: false);
-    }
-
-    private void OnUnlockChange(ChangeEventArgs e)
-    {
-        if (!int.TryParse(e.Value?.ToString(), out var value))
-        {
-            value = _unlockProgress;
-        }
-
-        ApplyUnlockProgress(value, snap: true);
-    }
-
-    private void ApplyUnlockProgress(int value, bool snap)
-    {
-        if (value >= 90)
-        {
-            _unlockProgress = 100;
-            _anonymousUnlocked = true;
-            return;
-        }
-
-        _anonymousUnlocked = false;
-        _unlockProgress = snap ? 0 : Math.Max(0, value);
-        if (snap)
-        {
-            Model.AnonymousRank = null;
-        }
-    }
-
-    private void ResetAnonymousUnlock()
-    {
-        _anonymousUnlocked = false;
-        _unlockProgress = 0;
-        if (IsAnonymousSelected)
-        {
-            Model.AnonymousRank = null;
-        }
     }
 
     private void OnTestMenuKeyDown(KeyboardEventArgs e)
