@@ -1,0 +1,26 @@
+@inject NavigationManager Navigation
+
+<a class="@CssClass"
+   href="@Href"
+   data-enhance-nav="false"
+   download
+   title="@Title"
+   aria-label="@ResolvedAriaLabel"
+   @onclick="OnClick"
+   @onclick:preventDefault>
+    @ChildContent
+</a>
+
+@code {
+    [Parameter] public Guid AttemptId { get; set; }
+    [Parameter] public string CssClass { get; set; } = string.Empty;
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? AriaLabel { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string Href => $"/admin/results/{AttemptId}/download";
+
+    private string ResolvedAriaLabel => AriaLabel ?? Title ?? "Завантажити";
+
+    private void OnClick() => Navigation.NavigateTo(Href, forceLoad: true);
+}

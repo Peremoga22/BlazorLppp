@@ -187,12 +187,12 @@
                                             </a>
                                             @if (item.HasResultFile)
                                             {
-                                                <a class="admin-icon-btn admin-icon-btn--download"
-                                                   href="@($"/admin/results/{item.AttemptId}/download")"
-                                                   title="Завантажити"
-                                                   aria-label="Завантажити">
+                                                <ResultDownloadLink AttemptId="item.AttemptId"
+                                                                    CssClass="admin-icon-btn admin-icon-btn--download"
+                                                                    Title="Завантажити"
+                                                                    AriaLabel="Завантажити">
                                                     <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
-                                                </a>
+                                                </ResultDownloadLink>
                                             }
                                             else
                                             {

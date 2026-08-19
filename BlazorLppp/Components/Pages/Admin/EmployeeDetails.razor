@@ -104,7 +104,11 @@
                                         <a class="admin-link" href="@($"/admin/results/{session.AttemptId}")">Відкрити</a>
                                         @if (session.IsCompleted)
                                         {
-                                            <a class="admin-link" href="@($"/admin/results/{session.AttemptId}/download")">Документ</a>
+                                            <ResultDownloadLink AttemptId="session.AttemptId"
+                                                                CssClass="admin-link"
+                                                                Title="Завантажити документ">
+                                                Документ
+                                            </ResultDownloadLink>
                                         }
                                         <button type="button"
                                                 class="admin-icon-btn admin-icon-btn--danger"

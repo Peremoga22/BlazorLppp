@@ -164,11 +164,11 @@
                                                title="Деталі">
                                                 <span class="admin-btn__icon admin-btn__icon--eye" aria-hidden="true"></span>
                                             </a>
-                                            <a class="admin-icon-btn admin-icon-btn--download"
-                                               href="@($"/admin/results/{item.AttemptId}/download")"
-                                               title="Завантажити">
+                                            <ResultDownloadLink AttemptId="item.AttemptId"
+                                                                CssClass="admin-icon-btn admin-icon-btn--download"
+                                                                Title="Завантажити">
                                                 <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
-                                            </a>
+                                            </ResultDownloadLink>
                                         </div>
                                     </td>
                                 </tr>

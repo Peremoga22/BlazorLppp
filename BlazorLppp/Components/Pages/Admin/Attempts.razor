@@ -104,12 +104,12 @@
                                     </a>
                                     @if (item.Status == TestAttemptStatus.Completed)
                                     {
-                                        <a class="admin-icon-btn admin-icon-btn--download"
-                                           href="@($"/admin/results/{item.Id}/download")"
-                                           title="Завантажити документ"
-                                           aria-label="Завантажити документ">
+                                        <ResultDownloadLink AttemptId="item.Id"
+                                                            CssClass="admin-icon-btn admin-icon-btn--download"
+                                                            Title="Завантажити документ"
+                                                            AriaLabel="Завантажити документ">
                                             <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
-                                        </a>
+                                        </ResultDownloadLink>
                                     }
                                     <button type="button"
                                             class="admin-icon-btn admin-icon-btn--danger"

@@ -61,11 +61,12 @@
                         <code>@($"{_details.FileBaseName}.docx")</code>
                         @if (_details.HasResultFile)
                         {
-                            <a class="admin-btn admin-btn--download admin-btn--sm"
-                               href="@($"/admin/results/{AttemptId}/download")">
+                            <ResultDownloadLink AttemptId="AttemptId"
+                                                CssClass="admin-btn admin-btn--download admin-btn--sm"
+                                                Title="Завантажити">
                                 <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
                                 Завантажити
-                            </a>
+                            </ResultDownloadLink>
                         }
                         else
                         {

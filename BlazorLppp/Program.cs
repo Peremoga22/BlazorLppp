@@ -115,7 +115,9 @@ else
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseWhen(
+    context => !IsResultFileDownload(context.Request.Path),
+    branch => branch.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true));
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
@@ -124,11 +126,6 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
-
-// Add additional endpoints required by the Identity /Account Razor components.
-app.MapAdditionalIdentityEndpoints();
 
 app.MapGet("/admin/results/download-all", async (
     int? numberUnit,
@@ -276,6 +273,12 @@ app.MapGet("/admin/results/{attemptId:guid}/download", async (
 })
 .RequireAuthorization(policy => policy.RequireRole(AppRoles.Admin));
 
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
+
+// Add additional endpoints required by the Identity /Account Razor components.
+app.MapAdditionalIdentityEndpoints();
+
 static IReadOnlyCollection<Guid>? ParseAttemptIds(string? ids)
 {
     if (string.IsNullOrWhiteSpace(ids))
@@ -291,6 +294,24 @@ static IReadOnlyCollection<Guid>? ParseAttemptIds(string? ids)
         .ToList();
 
     return parsed.Count == 0 ? null : parsed;
+}
+
+static bool IsResultFileDownload(PathString path)
+{
+    var value = path.Value;
+    if (string.IsNullOrEmpty(value))
+    {
+        return false;
+    }
+
+    if (value.Equals("/admin/results/download-all", StringComparison.OrdinalIgnoreCase) ||
+        value.Equals("/admin/anonymous/download-all", StringComparison.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    return value.StartsWith("/admin/results/", StringComparison.OrdinalIgnoreCase) &&
+           value.EndsWith("/download", StringComparison.OrdinalIgnoreCase);
 }
 
 app.Run();

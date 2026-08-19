@@ -163,7 +163,7 @@ public partial class TestResultDocumentService(
             mainPart.Document.Save();
         }
 
-        return Path.Combine(baseName, fileName).Replace('\\', '/');
+        return Path.GetRelativePath(root, absolutePath).Replace('\\', '/');
     }
 
     public string GetAbsolutePath(string relativePath)
