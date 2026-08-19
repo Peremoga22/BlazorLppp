@@ -36,6 +36,10 @@ public sealed class NpnaScoringResult
 
     public bool IsResultUnreliable { get; init; }
 
+    public bool IsUnscorable { get; init; }
+
+    public int AnsweredCount { get; init; }
+
     public string Conclusion { get; init; } = string.Empty;
 
     public IReadOnlyList<NpnaScaleScore> Scales =>
@@ -154,28 +158,34 @@ public static class NpnaScoring
 
     public static bool CanScore(TestDocument? document, IReadOnlyCollection<TestQuestion> questions)
     {
-        if (document is null || questions.Count == 0)
+        if (questions.Count is < 250 or > 280)
         {
             return false;
         }
 
-        if (!LooksLikeNpna(document))
-        {
-            return false;
-        }
-
-        return questions.Count is >= 250 and <= 280 &&
-               questions.All(q => q.Type is QuestionType.YesNo or QuestionType.SingleChoice);
+        return LooksLikeNpna(document, questions);
     }
 
-    public static bool LooksLikeNpna(TestDocument document)
-        => ContainsIgnoreCase(document.RelativePath, "нпн") ||
-           ContainsIgnoreCase(document.RelativePath, "npn") ||
-           ContainsIgnoreCase(document.OriginalFileName, "нпн") ||
-           ContainsIgnoreCase(document.OriginalFileName, "npn") ||
-           ContainsIgnoreCase(document.Title, "НПН") ||
-           ContainsIgnoreCase(document.Title, "NPN") ||
-           ContainsIgnoreCase(document.Title, "нервово-психічн");
+    public static bool LooksLikeNpna(TestDocument? document, IEnumerable<TestQuestion>? questions = null)
+    {
+        if (document is not null &&
+            (ContainsIgnoreCase(document.RelativePath, "нпн") ||
+             ContainsIgnoreCase(document.RelativePath, "npn") ||
+             ContainsIgnoreCase(document.OriginalFileName, "нпн") ||
+             ContainsIgnoreCase(document.OriginalFileName, "npn") ||
+             ContainsIgnoreCase(document.Title, "НПН") ||
+             ContainsIgnoreCase(document.Title, "NPN") ||
+             ContainsIgnoreCase(document.Title, "нервово-психічн") ||
+             ContainsIgnoreCase(document.Instruction, "обстежуваним")))
+        {
+            return true;
+        }
+
+        return questions is not null &&
+               questions.Any(q =>
+                   q.SortOrder == 1 &&
+                   ContainsIgnoreCase(q.Text, "негарні думки"));
+    }
 
     public static NpnaScoringResult Evaluate(
         IReadOnlyList<TestQuestion> questions,
@@ -185,8 +195,11 @@ public static class NpnaScoring
         foreach (var question in questions.OrderBy(q => q.SortOrder))
         {
             answersByQuestion.TryGetValue(question.Id, out var answer);
-            yesNoBySortOrder[question.SortOrder] = ResolveYesNo(answer);
+            yesNoBySortOrder[question.SortOrder] = ResolveYesNo(answer, question);
         }
+
+        var answeredCount = yesNoBySortOrder.Count(pair => pair.Value.HasValue);
+        var unscorable = answeredCount == 0;
 
         var reliability = BuildScale(
             "Д",
@@ -244,8 +257,18 @@ public static class NpnaScoring
             "Схильність до теоретичних побудов і несподіваних висновків, емоційна холодність або " +
             "підвищена вразливість, відчуженість, замкнутість, утруднення в спілкуванні.");
 
-        var unreliable = reliability.Raw >= ReliabilityRawThreshold;
-        var conclusion = BuildConclusion(unreliable, reliability, npn, hysteria, psychasthenia, psychopathy, paranoia, schizophrenia);
+        var unreliable = !unscorable && reliability.Raw >= ReliabilityRawThreshold;
+        var conclusion = BuildConclusion(
+            unscorable,
+            answeredCount,
+            unreliable,
+            reliability,
+            npn,
+            hysteria,
+            psychasthenia,
+            psychopathy,
+            paranoia,
+            schizophrenia);
 
         return new NpnaScoringResult
         {
@@ -257,40 +280,53 @@ public static class NpnaScoring
             Paranoia = paranoia,
             Schizophrenia = schizophrenia,
             IsResultUnreliable = unreliable,
+            IsUnscorable = unscorable,
+            AnsweredCount = answeredCount,
             Conclusion = conclusion
         };
     }
 
-    internal static bool? ResolveYesNo(TestAnswer? answer)
+    internal static bool? ResolveYesNo(TestAnswer? answer, TestQuestion? question = null)
     {
-        if (answer?.SelectedOption is null)
+        if (answer is null)
         {
             return null;
         }
 
-        var value = answer.SelectedOption.Key?.Trim();
-        if (string.IsNullOrWhiteSpace(value))
+        var option = answer.SelectedOption;
+        if (option is null && question is not null && answer.SelectedOptionId.HasValue)
         {
-            value = answer.SelectedOption.Text?.Trim();
+            option = question.Options.FirstOrDefault(o => o.Id == answer.SelectedOptionId.Value);
         }
 
+        if (option is null)
+        {
+            return null;
+        }
+
+        return ParseYesNoToken(option.Key) ?? ParseYesNoToken(option.Text);
+    }
+
+    private static bool? ParseYesNoToken(string? value)
+    {
         if (string.IsNullOrWhiteSpace(value))
         {
             return null;
         }
 
-        if (value.Equals("Так", StringComparison.OrdinalIgnoreCase) ||
-            value.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
-            value.Equals("+", StringComparison.Ordinal))
+        var token = value.Trim();
+        if (token.Equals("Так", StringComparison.OrdinalIgnoreCase) ||
+            token.Equals("Yes", StringComparison.OrdinalIgnoreCase) ||
+            token.Equals("+", StringComparison.Ordinal))
         {
             return true;
         }
 
-        if (value.Equals("Ні", StringComparison.OrdinalIgnoreCase) ||
-            value.Equals("No", StringComparison.OrdinalIgnoreCase) ||
-            value.Equals("-", StringComparison.Ordinal) ||
-            value.Equals("–", StringComparison.Ordinal) ||
-            value.Equals("−", StringComparison.Ordinal))
+        if (token.Equals("Ні", StringComparison.OrdinalIgnoreCase) ||
+            token.Equals("No", StringComparison.OrdinalIgnoreCase) ||
+            token.Equals("-", StringComparison.Ordinal) ||
+            token.Equals("–", StringComparison.Ordinal) ||
+            token.Equals("−", StringComparison.Ordinal))
         {
             return false;
         }
@@ -364,39 +400,50 @@ public static class NpnaScoring
     }
 
     private static string BuildConclusion(
+        bool unscorable,
+        int answeredCount,
         bool unreliable,
         NpnaScaleScore reliability,
         NpnaScaleScore npn,
         params NpnaScaleScore[] clinical)
     {
+        if (unscorable)
+        {
+            return
+                "Обробка за ключами «НПН-А» не виконана: у спробі немає відповідей «Так/Ні». " +
+                "Опитувальник передбачає лише відповіді «Так» або «Ні»; числова шкала для цієї методики не застосовується. " +
+                "Рекомендовано пройти тест повторно після оновлення бланка.";
+        }
+
         if (unreliable)
         {
             return
-                $"За шкалою достовірності отримано {reliability.Raw} сирих балів (8 і більше). " +
-                "Результат опитувальника «НПН-А» слід вважати недостовірним через прагнення відповідати " +
-                "соціально бажаному типу особистості. Рекомендовано повторне обстеження з роз’ясненням інструкції " +
-                "та індивідуальну бесіду з психологом.";
+                $"Оброблено {answeredCount} відповідей «Так/Ні». " +
+                $"За шкалою достовірності (Д) отримано {reliability.Raw} сирих балів, що відповідає {reliability.Sten} стенам. " +
+                "За методикою 8 і більше сирих балів Д означають недостовірність через соціально бажані відповіді. " +
+                "Інші шкали не інтерпретуються. Рекомендовано повторне обстеження та індивідуальну бесіду з психологом.";
         }
 
         var elevated = clinical
             .Where(scale => scale.Sten >= 8)
-            .Select(scale => $"{scale.Name} ({scale.Key}) — {scale.Sten} стенів")
+            .Select(scale => $"{scale.Name} ({scale.Key}): {scale.Raw} сирих / {scale.Sten} стенів — {scale.LevelName}. {scale.Description}")
             .ToList();
 
         var npnPart = npn.Sten >= 8
-            ? $"Виявлено значну вираженість нервово-психічної нестійкості ({npn.Sten} стенів, {npn.Raw} сирих балів). "
+            ? $"Інтегральна шкала НПН: {npn.Raw} сирих балів → {npn.Sten} стенів — значна вираженість нервово-психічної нестійкості. {npn.Description} "
             : npn.Sten >= 4
-                ? $"Показник НПН перебуває в межах допустимої норми ({npn.Sten} стенів, {npn.Raw} сирих балів). "
-                : $"Ознаки нервово-психічної нестійкості практично відсутні ({npn.Sten} стенів, {npn.Raw} сирих балів). ";
+                ? $"Інтегральна шкала НПН: {npn.Raw} сирих балів → {npn.Sten} стенів — середня (допустима) вираженість ознак. "
+                : $"Інтегральна шкала НПН: {npn.Raw} сирих балів → {npn.Sten} стенів — ознаки нервово-психічної нестійкості практично відсутні. ";
 
         var structure = elevated.Count > 0
-            ? "Структура акцентуації за підвищеними шкалами: " + string.Join("; ", elevated) + ". " +
-              "Рекомендовано індивідуальну бесіду з психологом та динамічний контроль стану."
-            : "Клінічні шкали акцентуації не сягають високого рівня. Рекомендовано звичайний психологічний супровід.";
+            ? "Високі стени (8–10) за шкалами акцентуації: " + string.Join(" ", elevated) +
+              " Рекомендовано індивідуальну бесіду з психологом та динамічний контроль стану."
+            : "Жодна зі шкал акцентуації (І, Пс, Пп, Пя, Ш) не сягає 8 стенів, тож високої акцентуації за цією методикою не виявлено. " +
+              "Рекомендовано звичайний психологічний супровід.";
 
         return
-            "Обробка виконана за сімома ключами опитувальника «НПН-А». " +
-            $"Шкала достовірності: {reliability.Raw} сирих балів ({reliability.Sten} стенів) — дані можна інтерпретувати. " +
+            $"Оброблено {answeredCount} відповідей «Так/Ні» за ключами «НПН-А». " +
+            $"Шкала достовірності Д = {reliability.Raw} сирих балів ({reliability.Sten} стенів) — нижче порогу 8, дані можна інтерпретувати. " +
             npnPart +
             structure;
     }

@@ -194,6 +194,16 @@ public static class AttemptAttentionEvaluator
         if (NpnaScoring.CanScore(document, questions))
         {
             var scoring = NpnaScoring.Evaluate(questions, answersByQuestion);
+            if (scoring.IsUnscorable)
+            {
+                return new AttemptAttentionResult
+                {
+                    NeedsAttention = true,
+                    Reason = "Немає відповідей «Так/Ні» — потрібен повторний прохід опитувальника «НПН-А»",
+                    LevelName = "Не оброблено"
+                };
+            }
+
             var highClinical = scoring.Scales.Any(s => s.Key != "Д" && s.Sten >= 8);
             var needs = scoring.IsResultUnreliable || scoring.Npn.Sten >= 8 || highClinical;
             var reason = scoring.IsResultUnreliable

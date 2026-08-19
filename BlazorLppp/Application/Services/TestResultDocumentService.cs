@@ -76,6 +76,7 @@ public partial class TestResultDocumentService(
             var examDate = (attempt.CompletedAt ?? attempt.StartedAt).ToString("dd.MM.yyyy");
             var isAdaptivity200 = Adaptivity200Document.IsAdaptivity200(document, questions);
             var isZbroya = ZbroyaScoring.CanScore(document, questions);
+            var isNpna = NpnaScoring.CanScore(document, questions);
 
             if (isAdaptivity200)
             {
@@ -86,6 +87,11 @@ public partial class TestResultDocumentService(
             {
                 var scoring = ZbroyaScoring.Evaluate(questions, answersByQuestion);
                 AppendZbroyaBlank(body, attempt, fullName, examDate, questions, answersByQuestion, scoring);
+            }
+            else if (isNpna)
+            {
+                var scoring = NpnaScoring.Evaluate(questions, answersByQuestion);
+                AppendNpnaBlank(body, attempt, fullName, examDate, questions, answersByQuestion, scoring);
             }
             else
             {
@@ -116,7 +122,6 @@ public partial class TestResultDocumentService(
 
                 var isHorska = HorskaScoring.CanScore(document, questions);
                 var isAssinger = AssingerScoring.CanScore(document, questions);
-                var isNpna = NpnaScoring.CanScore(document, questions);
                 body.AppendChild(isAssinger
                     ? BuildAssingerAnswersTable(questions, answersByQuestion)
                     : isHorska
@@ -137,11 +142,6 @@ public partial class TestResultDocumentService(
                 {
                     var scoring = AssingerScoring.Evaluate(questions, answersByQuestion);
                     AppendAssingerScoringSection(body, scoring);
-                }
-                else if (isNpna)
-                {
-                    var scoring = NpnaScoring.Evaluate(questions, answersByQuestion);
-                    AppendNpnaScoringSection(body, scoring);
                 }
             }
 
@@ -352,6 +352,83 @@ public partial class TestResultDocumentService(
                 Footer = 360
             });
 
+    private static void AppendNpnaBlank(
+        Body body,
+        TestAttempt attempt,
+        string fullName,
+        string examDate,
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion,
+        NpnaScoringResult scoring)
+    {
+        AppendCenteredParagraph(
+            body,
+            NpnaDocumentTemplate.CanonicalTitle,
+            bold: true,
+            fontSize: TitleFontSize);
+        AppendCenteredParagraph(body, "Реєстраційний бланк", bold: true, fontSize: BodyFontSize);
+        AppendEmptyParagraph(body);
+
+        AppendFieldLine(body, [("П.І.Б. (повністю)", fullName)]);
+        AppendFieldLine(body,
+        [
+            ("Дата обстеження", examDate),
+            ("Вік", string.Empty),
+            ("Стать", string.Empty)
+        ]);
+        AppendFieldLine(body, [("Посада (підрозділ)", attempt.NumberUnit.ToString())]);
+        AppendFieldLine(body,
+        [
+            ("Спеціальність", string.Empty),
+            ("Військове звання", string.Empty)
+        ]);
+        AppendEmptyParagraph(body);
+
+        AppendInstructionParagraph(body, NpnaDocumentTemplate.CanonicalInstruction);
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            "Позначення в сітці: «+» — відповідь «Так», «−» — відповідь «Ні».",
+            bold: true);
+        body.AppendChild(BuildAdaptivityAnswerGrid(questions, answersByQuestion, 276, 20));
+        AppendEmptyParagraph(body);
+
+        AppendNpnaScaleScoresLine(body, scoring);
+        AppendNpnaScoringSection(body, scoring);
+
+        AppendEmptyParagraph(body);
+        AppendCenteredParagraph(body, "Відповіді за питаннями", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+        body.AppendChild(BuildAnswersTable(questions, answersByQuestion));
+    }
+
+    private static void AppendNpnaScaleScoresLine(Body body, NpnaScoringResult scoring)
+    {
+        if (scoring.IsUnscorable)
+        {
+            AppendBodyParagraph(
+                body,
+                $"Відповідей «Так/Ні»: {scoring.AnsweredCount} із {NpnaDocumentTemplate.QuestionCount}. " +
+                "Сирі бали та стени не розраховуються.",
+                bold: true);
+            return;
+        }
+
+        var raw = string.Join(
+            "  ",
+            scoring.Scales.Select(s => $"{s.Key}{s.Raw}"));
+        var stens = string.Join(
+            "  ",
+            scoring.Scales.Select(s => $"{s.Key}{s.Sten}"));
+
+        AppendBodyParagraph(body, $"Сирі бали: {raw}", bold: true);
+        AppendBodyParagraph(body, $"Стени: {stens}", bold: true);
+        AppendBodyParagraph(
+            body,
+            $"Відповідей «Так/Ні»: {scoring.AnsweredCount} із {NpnaDocumentTemplate.QuestionCount}.");
+    }
+
     private static void AppendAdaptivity200Blank(
         Body body,
         TestAttempt attempt,
@@ -376,7 +453,7 @@ public partial class TestResultDocumentService(
         body.AppendChild(titleParagraph);
         AppendEmptyParagraph(body);
 
-        body.AppendChild(BuildAdaptivityAnswerGrid(questions, answersByQuestion));
+        body.AppendChild(BuildAdaptivityAnswerGrid(questions, answersByQuestion, 200, 20));
         AppendEmptyParagraph(body);
 
         AppendAdaptivityScaleScoresLine(body, scoring);
@@ -474,7 +551,9 @@ public partial class TestResultDocumentService(
 
     private static Table BuildAdaptivityAnswerGrid(
         IReadOnlyList<TestQuestion> questions,
-        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion,
+        int totalItems = 200,
+        int columns = 20)
     {
         var marksByOrder = questions.ToDictionary(
             q => q.SortOrder,
@@ -507,8 +586,7 @@ public partial class TestResultDocumentService(
                 CreateBorder<InsideVerticalBorder>()),
             new TableLayout { Type = TableLayoutValues.Fixed }));
 
-        const int columns = 20;
-        const int rows = 10;
+        var rows = (int)Math.Ceiling(totalItems / (double)columns);
         const string cellWidth = "480";
 
         var grid = new TableGrid();
@@ -525,6 +603,12 @@ public partial class TestResultDocumentService(
             for (var col = 0; col < columns; col++)
             {
                 var number = row * columns + col + 1;
+                if (number > totalItems)
+                {
+                    tableRow.AppendChild(CreateCell(string.Empty, center: true, width: cellWidth));
+                    continue;
+                }
+
                 marksByOrder.TryGetValue(number, out var mark);
                 var text = string.IsNullOrWhiteSpace(mark)
                     ? number.ToString()
@@ -1050,7 +1134,7 @@ public partial class TestResultDocumentService(
         string? fallbackAnswer)
     {
         var questionText = question.Text;
-        if (!string.IsNullOrWhiteSpace(fallbackAnswer))
+        if (!string.IsNullOrWhiteSpace(fallbackAnswer) && !int.TryParse(fallbackAnswer, out _))
         {
             questionText = $"{question.Text} ({fallbackAnswer})";
         }
@@ -1074,21 +1158,24 @@ public partial class TestResultDocumentService(
 
         if (question.Type is QuestionType.YesNo or QuestionType.SingleChoice)
         {
-            var optionText = answer.SelectedOption?.Text?.Trim()
-                ?? answer.SelectedOption?.Key?.Trim()
+            var option = answer.SelectedOption
+                ?? question.Options.FirstOrDefault(o => o.Id == answer.SelectedOptionId);
+            var optionText = option?.Text?.Trim()
+                ?? option?.Key?.Trim()
                 ?? string.Empty;
+            var optionKey = option?.Key?.Trim();
 
-            if (IsYes(optionText) || IsYes(answer.SelectedOption?.Key))
+            if (IsYes(optionText) || IsYes(optionKey))
             {
                 return ("+", string.Empty, null);
             }
 
-            if (IsNo(optionText) || IsNo(answer.SelectedOption?.Key))
+            if (IsNo(optionText) || IsNo(optionKey))
             {
-                return (string.Empty, "-", null);
+                return (string.Empty, "−", null);
             }
 
-            if (!string.IsNullOrWhiteSpace(optionText))
+            if (!string.IsNullOrWhiteSpace(optionText) && !int.TryParse(optionText, out _))
             {
                 return (string.Empty, string.Empty, optionText);
             }
@@ -1113,7 +1200,8 @@ public partial class TestResultDocumentService(
            (value.Equals("Ні", StringComparison.OrdinalIgnoreCase) ||
             value.Equals("No", StringComparison.OrdinalIgnoreCase) ||
             value.Equals("-", StringComparison.Ordinal) ||
-            value.Equals("–", StringComparison.Ordinal));
+            value.Equals("–", StringComparison.Ordinal) ||
+            value.Equals("−", StringComparison.Ordinal));
 
     private static TableCell CreateCell(
         string text,
@@ -1230,6 +1318,11 @@ public partial class TestResultDocumentService(
 
         foreach (var scale in scoring.Scales)
         {
+            if (scoring.IsUnscorable)
+            {
+                break;
+            }
+
             AppendBodyParagraph(
                 body,
                 $"{scale.Name} ({scale.Key}): {scale.Raw} сирих балів → {scale.Sten} стенів ({scale.LevelName}).");
@@ -1238,32 +1331,27 @@ public partial class TestResultDocumentService(
         AppendEmptyParagraph(body);
         AppendBodyParagraph(
             body,
-            scoring.IsResultUnreliable
-                ? $"Достовірність: {scoring.ReliabilityD.Raw} сирих балів (8 і більше) — результат недостовірний."
-                : $"Достовірність: {scoring.ReliabilityD.Raw} сирих балів — дані можна інтерпретувати.",
+            scoring.IsUnscorable
+                ? "Ключі застосовано не можна: немає відповідей «Так/Ні»."
+                : scoring.IsResultUnreliable
+                    ? $"Достовірність Д = {scoring.ReliabilityD.Raw} сирих балів ({scoring.ReliabilityD.Sten} стенів) — результат недостовірний (поріг 8)."
+                    : $"Достовірність Д = {scoring.ReliabilityD.Raw} сирих балів ({scoring.ReliabilityD.Sten} стенів) — дані можна інтерпретувати.",
             bold: true);
 
         AppendEmptyParagraph(body);
         AppendBodyParagraph(body, "Психологічний висновок", bold: true);
         AppendBodyParagraph(body, scoring.Conclusion);
 
-        AppendEmptyParagraph(body);
-        AppendBodyParagraph(body, "Орієнтири інтерпретації стенів", bold: true);
-        AppendBodyParagraph(body, "8, 9, 10 стенів — висока вираженість відповідних ознак;");
-        AppendBodyParagraph(body, "4, 5, 6, 7 стенів — середні показники, допустима норма;");
-        AppendBodyParagraph(body, "менше 4 стенів — практична відсутність указаних ознак.");
-        AppendBodyParagraph(
-            body,
-            "Шкала достовірності: 8 і більше сирих балів — дані недостовірні через соціально бажані відповіді.");
-
-        if (!scoring.IsResultUnreliable)
+        if (!scoring.IsUnscorable)
         {
             AppendEmptyParagraph(body);
-            AppendBodyParagraph(body, "Короткий зміст шкал", bold: true);
-            foreach (var scale in scoring.Scales.Where(s => s.Key != "Д"))
-            {
-                AppendBodyParagraph(body, $"{scale.Name}. {scale.Description}");
-            }
+            AppendBodyParagraph(body, "Орієнтири інтерпретації стенів", bold: true);
+            AppendBodyParagraph(body, "8, 9, 10 стенів — висока вираженість відповідних ознак;");
+            AppendBodyParagraph(body, "4, 5, 6, 7 стенів — середні показники, допустима норма;");
+            AppendBodyParagraph(body, "менше 4 стенів — практична відсутність указаних ознак.");
+            AppendBodyParagraph(
+                body,
+                "Шкала достовірності: 8 і більше сирих балів — дані недостовірні через соціально бажані відповіді.");
         }
     }
 

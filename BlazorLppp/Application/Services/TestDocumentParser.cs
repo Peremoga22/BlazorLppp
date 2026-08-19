@@ -348,6 +348,12 @@ public partial class TestDocumentParser : ITestDocumentParser
                 "Вам пропонуються твердження. Якщо твердження відповідає Вам — оберіть «Так», якщо ні — «Ні». " +
                 "Над відповідями довго не замислюйтеся; правильних або неправильних відповідей немає.";
         }
+        else if (isNpna ||
+                 IsNpnaTitle(result.Title) ||
+                 lines.Any(IsNpnaTitle))
+        {
+            EnableNpnaMode(result, ref isNpna, ref defaultType);
+        }
         else if (IsZbroyaTitle(result.Title) ||
                  lines.Any(IsZbroyaTitle) ||
                  lines.Any(IsZbroyaInstructionLine) ||
@@ -374,12 +380,6 @@ public partial class TestDocumentParser : ITestDocumentParser
                  lines.Any(LooksLikeAssingerQuestionLine))
         {
             EnableAssingerMode(result, ref isAssinger);
-        }
-        else if (isNpna ||
-                 IsNpnaTitle(result.Title) ||
-                 lines.Any(IsNpnaTitle))
-        {
-            EnableNpnaMode(result, ref isNpna, ref defaultType);
         }
 
         foreach (var line in lines)
@@ -459,7 +459,7 @@ public partial class TestDocumentParser : ITestDocumentParser
                     line.StartsWith("Инструкция", StringComparison.OrdinalIgnoreCase))
                 {
                     var instruction = InstructionPrefix().Replace(line, string.Empty).Trim();
-                    if (!string.IsNullOrWhiteSpace(instruction))
+                    if (!isNpna && !string.IsNullOrWhiteSpace(instruction) && instruction.Length >= 40)
                     {
                         result.Instruction = instruction;
                     }
@@ -768,6 +768,11 @@ public partial class TestDocumentParser : ITestDocumentParser
         if (isAssinger)
         {
             FinalizeAssingerQuestions(result);
+        }
+
+        if (isNpna)
+        {
+            FinalizeNpnaQuestions(result);
         }
 
         if (result.Questions.Count == 0)
@@ -1241,7 +1246,7 @@ public partial class TestDocumentParser : ITestDocumentParser
         isNpna = true;
         defaultType = QuestionType.YesNo;
         result.Title = NpnaDocumentTemplate.CanonicalTitle;
-        result.Instruction ??= NpnaDocumentTemplate.CanonicalInstruction;
+        result.Instruction = NpnaDocumentTemplate.CanonicalInstruction;
     }
 
     private static bool IsNpnaInstructionLine(string line)
@@ -1278,6 +1283,29 @@ public partial class TestDocumentParser : ITestDocumentParser
            !IsNpnaNoiseLine(line) &&
            !NumberOnlyQuestion().IsMatch(line) &&
            !NumberedQuestion().IsMatch(line);
+
+    private static void FinalizeNpnaQuestions(ParsedTestDocument result)
+    {
+        result.Title = NpnaDocumentTemplate.CanonicalTitle;
+        result.Instruction = NpnaDocumentTemplate.CanonicalInstruction;
+
+        foreach (var question in result.Questions.OrderBy(q => q.SortOrder))
+        {
+            question.Type = QuestionType.YesNo;
+            question.ScaleMin = null;
+            question.ScaleMax = null;
+            question.Hint = null;
+            if (question.Options.Count == 0 ||
+                question.Options.All(o =>
+                    !o.Text.Equals("Так", StringComparison.OrdinalIgnoreCase) &&
+                    !o.Key.Equals("Так", StringComparison.OrdinalIgnoreCase)))
+            {
+                question.Options.Clear();
+                question.Options.Add(new ParsedTestOption { SortOrder = 1, Key = "Так", Text = "Так" });
+                question.Options.Add(new ParsedTestOption { SortOrder = 2, Key = "Ні", Text = "Ні" });
+            }
+        }
+    }
 
     private static bool IsAssingerInstructionLine(string line)
         => line.StartsWith("Виберіть одну з відповідей", StringComparison.OrdinalIgnoreCase);
