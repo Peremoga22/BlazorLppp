@@ -23,44 +23,56 @@
         </div>
     </header>
 
-    <section class="admin-panel analytics-filters">
-        <div class="analytics-filters__grid">
-            <label class="analytics-filters__field">
-                <span>Період від</span>
-                <InputDate class="admin-input" @bind-Value="_dateFrom" />
+    <section class="filter-bar" aria-label="Фільтри аналітики">
+        <div class="filter-bar__row">
+            <div class="filter-bar__cluster">
+                <span class="filter-bar__kicker">Період</span>
+                <div class="filter-bar__dates">
+                    <AdminDateField @bind-Value="_dateFrom" Placeholder="Від" AriaLabel="Період від" />
+                    <span class="filter-bar__dash" aria-hidden="true">—</span>
+                    <AdminDateField @bind-Value="_dateTo" Placeholder="До" AriaLabel="Період до" />
+                </div>
+            </div>
+
+            <AdminSelectMenu @bind-Value="_departmentId"
+                             Label="Підрозділ"
+                             Placeholder="Усі підрозділи"
+                             AriaLabel="Підрозділ"
+                             Options="_departmentOptions" />
+
+            <AdminSelectMenu @bind-Value="_testId"
+                             Label="Тест"
+                             Placeholder="Усі тести"
+                             AriaLabel="Тест"
+                             Searchable="@(_tests.Count > 6)"
+                             Options="_testOptions" />
+
+            <label class="filter-bar__search">
+                <span class="filter-bar__kicker">Працівник</span>
+                <span class="filter-bar__search-field">
+                    <span class="filter-bar__search-icon" aria-hidden="true"></span>
+                    <input class="filter-bar__search-input"
+                           @bind="_employeeSearch"
+                           @bind:event="oninput"
+                           placeholder="ПІБ"
+                           aria-label="Пошук працівника за ПІБ" />
+                </span>
             </label>
-            <label class="analytics-filters__field">
-                <span>Період до</span>
-                <InputDate class="admin-input" @bind-Value="_dateTo" />
-            </label>
-            <label class="analytics-filters__field">
-                <span>Підрозділ</span>
-                <select class="admin-select" @bind="_departmentId">
-                    <option value="">Усі підрозділи</option>
-                    @foreach (var dept in _departments)
-                    {
-                        <option value="@dept.Id">@dept.Name</option>
-                    }
-                </select>
-            </label>
-            <label class="analytics-filters__field">
-                <span>Тест</span>
-                <select class="admin-select" @bind="_testId">
-                    <option value="">Усі тести</option>
-                    @foreach (var test in _tests)
-                    {
-                        <option value="@test.Id">@test.Title</option>
-                    }
-                </select>
-            </label>
-            <label class="analytics-filters__field analytics-filters__field--wide">
-                <span>Працівник (пошук)</span>
-                <input class="admin-input" @bind="_employeeSearch" placeholder="ПІБ" />
-            </label>
-        </div>
-        <div class="admin-actions">
-            <button type="button" class="admin-btn" disabled="@_isLoading" @onclick="ApplyAsync">Застосувати</button>
-            <button type="button" class="admin-btn admin-btn--secondary" disabled="@_isLoading" @onclick="ResetAsync">Скинути</button>
+
+            <div class="filter-bar__actions">
+                <button type="button"
+                        class="admin-btn admin-btn--secondary admin-btn--sm"
+                        disabled="@_isLoading"
+                        @onclick="ResetAsync">
+                    Скинути
+                </button>
+                <button type="button"
+                        class="admin-btn admin-btn--sm"
+                        disabled="@_isLoading"
+                        @onclick="ApplyAsync">
+                    Застосувати
+                </button>
+            </div>
         </div>
     </section>
 
@@ -247,6 +259,18 @@
     private string _departmentId = string.Empty;
     private string _testId = string.Empty;
     private string _employeeSearch = string.Empty;
+
+    private IReadOnlyList<(string Value, string Label)> _departmentOptions =>
+    [
+        ("", "Усі підрозділи"),
+        .. _departments.Select(d => (d.Id.ToString(), d.Name))
+    ];
+
+    private IReadOnlyList<(string Value, string Label)> _testOptions =>
+    [
+        ("", "Усі тести"),
+        .. _tests.Select(t => (t.Id.ToString(), t.Title))
+    ];
 
     protected override async Task OnInitializedAsync()
     {

@@ -1,0 +1,112 @@
+<div class="ui-select @(_open ? "ui-select--open" : null)">
+    @if (_open)
+    {
+        <button type="button"
+                class="ui-pop-backdrop"
+                tabindex="-1"
+                aria-label="Закрити список"
+                @onclick="Close"></button>
+    }
+
+    <button type="button"
+            class="ui-select__trigger"
+            aria-haspopup="listbox"
+            aria-expanded="@_open"
+            aria-label="@AriaLabel"
+            @onclick="Toggle">
+        <span class="ui-select__meta">
+            @if (!string.IsNullOrWhiteSpace(Label))
+            {
+                <span class="ui-select__label">@Label</span>
+            }
+            <span class="ui-select__value @(IsPlaceholder ? "ui-select__value--placeholder" : null)">@SelectedLabel</span>
+        </span>
+        <span class="ui-select__chevron" aria-hidden="true"></span>
+    </button>
+
+    @if (_open)
+    {
+        <div class="ui-select__menu" role="listbox">
+            @if (Searchable)
+            {
+                <input class="ui-select__search"
+                       @bind="_query"
+                       @bind:event="oninput"
+                       placeholder="Пошук"
+                       aria-label="Пошук у списку" />
+            }
+
+            @foreach (var option in VisibleOptions)
+            {
+                var selected = string.Equals(option.Value, Value, StringComparison.Ordinal);
+                <button type="button"
+                        class="ui-select__option @(selected ? "ui-select__option--selected" : null)"
+                        role="option"
+                        aria-selected="@selected"
+                        @onclick="() => Choose(option.Value)">
+                    @option.Label
+                </button>
+            }
+
+            @if (!VisibleOptions.Any())
+            {
+                <p class="ui-select__empty">Нічого не знайдено</p>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _open;
+    private string _query = string.Empty;
+
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public string Placeholder { get; set; } = "Оберіть";
+    [Parameter] public string AriaLabel { get; set; } = "Список";
+    [Parameter] public bool Searchable { get; set; }
+    [Parameter] public IReadOnlyList<(string Value, string Label)> Options { get; set; } = [];
+
+    private bool IsPlaceholder => string.IsNullOrEmpty(Value);
+
+    private string SelectedLabel
+    {
+        get
+        {
+            var match = Options.FirstOrDefault(o => string.Equals(o.Value, Value, StringComparison.Ordinal));
+            return string.IsNullOrEmpty(match.Label) ? Placeholder : match.Label;
+        }
+    }
+
+    private IEnumerable<(string Value, string Label)> VisibleOptions
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_query))
+            {
+                return Options;
+            }
+
+            return Options.Where(o => o.Label.Contains(_query.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private void Toggle()
+    {
+        _open = !_open;
+        if (_open)
+        {
+            _query = string.Empty;
+        }
+    }
+
+    private void Close() => _open = false;
+
+    private async Task Choose(string value)
+    {
+        await ValueChanged.InvokeAsync(value);
+        _open = false;
+        _query = string.Empty;
+    }
+}

@@ -1,0 +1,152 @@
+@using System.Globalization
+
+<div class="ui-date @(_open ? "ui-date--open" : null)">
+    @if (_open)
+    {
+        <button type="button"
+                class="ui-pop-backdrop"
+                tabindex="-1"
+                aria-label="Закрити календар"
+                @onclick="Close"></button>
+    }
+
+    <button type="button"
+            class="ui-date__trigger"
+            aria-haspopup="dialog"
+            aria-expanded="@_open"
+            aria-label="@AriaLabel"
+            @onclick="Toggle">
+        <span class="ui-date__icon" aria-hidden="true"></span>
+        <span class="ui-date__text @(Value is null ? "ui-date__text--placeholder" : null)">@DisplayText</span>
+    </button>
+
+    @if (_open)
+    {
+        <div class="ui-cal" role="dialog" aria-label="Календар">
+            <div class="ui-cal__nav">
+                <button type="button" class="ui-cal__nav-btn" @onclick="PrevMonth" aria-label="Попередній місяць">‹</button>
+                <strong class="ui-cal__caption">@_caption</strong>
+                <button type="button" class="ui-cal__nav-btn" @onclick="NextMonth" aria-label="Наступний місяць">›</button>
+            </div>
+            <div class="ui-cal__week" aria-hidden="true">
+                @foreach (var day in Weekdays)
+                {
+                    <span>@day</span>
+                }
+            </div>
+            <div class="ui-cal__grid">
+                @foreach (var cell in _cells)
+                {
+                    <button type="button"
+                            class="@cell.Css"
+                            @onclick="() => Pick(cell.Date)">
+                        @cell.Day
+                    </button>
+                }
+            </div>
+            <div class="ui-cal__foot">
+                <button type="button" class="ui-cal__link" @onclick="PickToday">Сьогодні</button>
+                <button type="button" class="ui-cal__link" @onclick="Clear">Очистити</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly string[] Weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
+    private static readonly CultureInfo Uk = CultureInfo.GetCultureInfo("uk-UA");
+
+    private bool _open;
+    private DateTime _view = DateTime.Today;
+    private readonly List<CalCell> _cells = [];
+    private string _caption = string.Empty;
+
+    [Parameter] public DateTime? Value { get; set; }
+    [Parameter] public EventCallback<DateTime?> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Оберіть дату";
+    [Parameter] public string AriaLabel { get; set; } = "Дата";
+
+    private string DisplayText =>
+        Value is DateTime date ? date.ToString("dd.MM.yyyy") : Placeholder;
+
+    protected override void OnParametersSet() => Rebuild();
+
+    private void Toggle()
+    {
+        _open = !_open;
+        if (_open)
+        {
+            _view = (Value ?? DateTime.Today).Date;
+            Rebuild();
+        }
+    }
+
+    private void Close() => _open = false;
+
+    private void PrevMonth()
+    {
+        _view = _view.AddMonths(-1);
+        Rebuild();
+    }
+
+    private void NextMonth()
+    {
+        _view = _view.AddMonths(1);
+        Rebuild();
+    }
+
+    private async Task Pick(DateTime date)
+    {
+        await ValueChanged.InvokeAsync(date.Date);
+        _open = false;
+    }
+
+    private Task PickToday() => Pick(DateTime.Today);
+
+    private async Task Clear()
+    {
+        await ValueChanged.InvokeAsync(null);
+        _open = false;
+    }
+
+    private void Rebuild()
+    {
+        var month = new DateTime(_view.Year, _view.Month, 1);
+        var raw = Uk.DateTimeFormat.GetMonthName(month.Month);
+        var monthName = string.IsNullOrEmpty(raw)
+            ? month.ToString("MMMM")
+            : char.ToUpper(raw[0], Uk) + raw[1..];
+        _caption = $"{monthName} {month.Year}";
+
+        var offset = ((int)month.DayOfWeek + 6) % 7;
+        var start = month.AddDays(-offset);
+        var today = DateTime.Today;
+        var selected = Value?.Date;
+
+        _cells.Clear();
+        for (var i = 0; i < 42; i++)
+        {
+            var date = start.AddDays(i);
+            var inMonth = date.Month == month.Month;
+            var css = "ui-cal__day";
+            if (!inMonth)
+            {
+                css += " ui-cal__day--muted";
+            }
+
+            if (date == today)
+            {
+                css += " ui-cal__day--today";
+            }
+
+            if (selected is DateTime picked && date == picked)
+            {
+                css += " ui-cal__day--selected";
+            }
+
+            _cells.Add(new CalCell(date.Day, date, css));
+        }
+    }
+
+    private readonly record struct CalCell(int Day, DateTime Date, string Css);
+}
