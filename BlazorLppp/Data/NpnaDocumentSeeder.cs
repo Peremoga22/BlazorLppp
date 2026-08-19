@@ -27,51 +27,30 @@ public static class NpnaDocumentSeeder
         }
 
         await using var dbContext = await dbFactory.CreateDbContextAsync(cancellationToken);
-        var candidates = await dbContext.TestDocuments
-            .Include(d => d.Questions)
-            .ThenInclude(q => q.Options)
-            .Where(d =>
-                d.RelativePath == RelativePath ||
-                d.OriginalFileName == DisplayFileName ||
-                d.OriginalFileName.Contains("НПН") ||
-                d.OriginalFileName.Contains("нпн") ||
-                d.OriginalFileName.Contains("NPN") ||
-                d.Title.Contains("НПН") ||
-                d.Title.Contains("нервово-психічн") ||
-                d.RelativePath.Contains("НПН") ||
-                d.RelativePath.Contains("нпн") ||
-                (d.Instruction != null && d.Instruction.Contains("обстежуваним")))
-            .ToListAsync(cancellationToken);
+        var candidateIds = await FindCandidateIdsAsync(dbContext, cancellationToken);
 
-        var byShape = await dbContext.TestDocuments
-            .Include(d => d.Questions)
-            .ThenInclude(q => q.Options)
-            .Where(d => d.Questions.Count == NpnaDocumentTemplate.QuestionCount)
-            .ToListAsync(cancellationToken);
-
-        foreach (var extra in byShape.Where(d => NpnaScoring.LooksLikeNpna(d, d.Questions)))
+        foreach (var documentId in candidateIds)
         {
-            if (candidates.All(c => c.Id != extra.Id))
+            await RepairDocumentAsync(dbContext, documentId, cancellationToken);
+        }
+
+        var hasComplete = false;
+        foreach (var documentId in candidateIds)
+        {
+            var snapshot = await dbContext.TestDocuments
+                .AsNoTracking()
+                .Include(d => d.Questions)
+                .ThenInclude(q => q.Options)
+                .FirstOrDefaultAsync(d => d.Id == documentId, cancellationToken);
+
+            if (snapshot is not null && IsCompleteNpnaDocument(snapshot))
             {
-                candidates.Add(extra);
+                hasComplete = true;
+                break;
             }
         }
 
-        var repaired = false;
-        foreach (var document in candidates)
-        {
-            if (RepairInPlace(document))
-            {
-                repaired = true;
-            }
-        }
-
-        if (repaired)
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-
-        if (candidates.Any(IsCompleteNpnaDocument))
+        if (hasComplete)
         {
             return;
         }
@@ -94,69 +73,142 @@ public static class NpnaDocumentSeeder
         await definitionService.ImportUploadedDocumentAsync(upload, destinationPath, cancellationToken);
     }
 
-    private static bool RepairInPlace(TestDocument document)
+    private static async Task<List<Guid>> FindCandidateIdsAsync(
+        ApplicationDbContext dbContext,
+        CancellationToken cancellationToken)
     {
-        var changed = false;
-        if (!string.Equals(document.Title, NpnaDocumentTemplate.CanonicalTitle, StringComparison.Ordinal))
-        {
-            document.Title = NpnaDocumentTemplate.CanonicalTitle;
-            changed = true;
-        }
+        var byName = await dbContext.TestDocuments
+            .AsNoTracking()
+            .Where(d =>
+                d.RelativePath == RelativePath ||
+                d.OriginalFileName == DisplayFileName ||
+                d.OriginalFileName.Contains("НПН") ||
+                d.OriginalFileName.Contains("нпн") ||
+                d.OriginalFileName.Contains("NPN") ||
+                d.Title.Contains("НПН") ||
+                d.Title.Contains("нервово-психічн") ||
+                d.RelativePath.Contains("НПН") ||
+                d.RelativePath.Contains("нпн") ||
+                (d.Instruction != null && d.Instruction.Contains("обстежуваним")))
+            .Select(d => d.Id)
+            .ToListAsync(cancellationToken);
 
-        if (!string.Equals(document.Instruction, NpnaDocumentTemplate.CanonicalInstruction, StringComparison.Ordinal))
-        {
-            document.Instruction = NpnaDocumentTemplate.CanonicalInstruction;
-            changed = true;
-        }
-
-        foreach (var question in document.Questions)
-        {
-            if (question.Type != QuestionType.YesNo ||
-                question.ScaleMin.HasValue ||
-                question.ScaleMax.HasValue)
+        var byShape = await dbContext.TestDocuments
+            .AsNoTracking()
+            .Where(d => d.Questions.Count == NpnaDocumentTemplate.QuestionCount)
+            .Select(d => new
             {
-                question.Type = QuestionType.YesNo;
-                question.ScaleMin = null;
-                question.ScaleMax = null;
-                question.Hint = null;
-                changed = true;
-            }
+                d.Id,
+                FirstText = d.Questions
+                    .Where(q => q.SortOrder == 1)
+                    .Select(q => q.Text)
+                    .FirstOrDefault()
+            })
+            .ToListAsync(cancellationToken);
 
-            var hasYes = question.Options.Any(o =>
-                o.Key.Equals("Так", StringComparison.OrdinalIgnoreCase) ||
-                o.Text.Equals("Так", StringComparison.OrdinalIgnoreCase));
-            var hasNo = question.Options.Any(o =>
-                o.Key.Equals("Ні", StringComparison.OrdinalIgnoreCase) ||
-                o.Text.Equals("Ні", StringComparison.OrdinalIgnoreCase));
+        var ids = new HashSet<Guid>(byName);
+        foreach (var item in byShape)
+        {
+            if (!string.IsNullOrWhiteSpace(item.FirstText) &&
+                item.FirstText.Contains("негарні думки", StringComparison.OrdinalIgnoreCase))
+            {
+                ids.Add(item.Id);
+            }
+        }
+
+        return ids.ToList();
+    }
+
+    private static async Task RepairDocumentAsync(
+        ApplicationDbContext dbContext,
+        Guid documentId,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.TestDocuments
+            .Where(d => d.Id == documentId)
+            .ExecuteUpdateAsync(
+                s => s
+                    .SetProperty(d => d.Title, NpnaDocumentTemplate.CanonicalTitle)
+                    .SetProperty(d => d.Instruction, NpnaDocumentTemplate.CanonicalInstruction),
+                cancellationToken);
+
+        await dbContext.TestQuestions
+            .Where(q => q.TestDocumentId == documentId)
+            .ExecuteUpdateAsync(
+                s => s
+                    .SetProperty(q => q.Type, QuestionType.YesNo)
+                    .SetProperty(q => q.ScaleMin, (int?)null)
+                    .SetProperty(q => q.ScaleMax, (int?)null)
+                    .SetProperty(q => q.Hint, (string?)null),
+                cancellationToken);
+
+        var questionIds = await dbContext.TestQuestions
+            .AsNoTracking()
+            .Where(q => q.TestDocumentId == documentId)
+            .Select(q => q.Id)
+            .ToListAsync(cancellationToken);
+
+        if (questionIds.Count == 0)
+        {
+            return;
+        }
+
+        var existingKeys = await dbContext.TestOptions
+            .AsNoTracking()
+            .Where(o => questionIds.Contains(o.TestQuestionId))
+            .Select(o => new { o.TestQuestionId, o.Key, o.Text })
+            .ToListAsync(cancellationToken);
+
+        var keysByQuestion = existingKeys
+            .GroupBy(o => o.TestQuestionId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var toAdd = new List<TestOption>();
+        foreach (var questionId in questionIds)
+        {
+            keysByQuestion.TryGetValue(questionId, out var options);
+            options ??= [];
+
+            var hasYes = options.Any(o =>
+                string.Equals(o.Key, "Так", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(o.Text, "Так", StringComparison.OrdinalIgnoreCase));
+            var hasNo = options.Any(o =>
+                string.Equals(o.Key, "Ні", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(o.Text, "Ні", StringComparison.OrdinalIgnoreCase));
 
             if (!hasYes)
             {
-                question.Options.Add(new TestOption
+                toAdd.Add(new TestOption
                 {
                     Id = Guid.NewGuid(),
-                    TestQuestionId = question.Id,
+                    TestQuestionId = questionId,
                     SortOrder = 1,
                     Key = "Так",
                     Text = "Так"
                 });
-                changed = true;
             }
 
             if (!hasNo)
             {
-                question.Options.Add(new TestOption
+                toAdd.Add(new TestOption
                 {
                     Id = Guid.NewGuid(),
-                    TestQuestionId = question.Id,
+                    TestQuestionId = questionId,
                     SortOrder = 2,
                     Key = "Ні",
                     Text = "Ні"
                 });
-                changed = true;
             }
         }
 
-        return changed;
+        if (toAdd.Count == 0)
+        {
+            return;
+        }
+
+        dbContext.TestOptions.AddRange(toAdd);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        dbContext.ChangeTracker.Clear();
     }
 
     private static bool IsCompleteNpnaDocument(TestDocument document)
