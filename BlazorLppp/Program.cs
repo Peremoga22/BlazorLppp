@@ -99,6 +99,7 @@ using (var scope = app.Services.CreateScope())
     await ZbroyaDocumentSeeder.SeedAsync(scope.ServiceProvider);
     await HorskaDocumentSeeder.SeedAsync(scope.ServiceProvider);
     await AssingerDocumentSeeder.SeedAsync(scope.ServiceProvider);
+    await NpnaDocumentSeeder.SeedAsync(scope.ServiceProvider);
 }
 
 // Configure the HTTP request pipeline.

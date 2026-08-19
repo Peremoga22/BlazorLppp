@@ -33,23 +33,28 @@ public partial class TestDocumentParser : ITestDocumentParser
         }
 
         var forceAssinger = IsAssingerFileName(filePath);
+        var forceNpna = IsNpnaFileName(filePath);
 
         try
         {
-            return ParseCore(filePath, forceAssinger);
+            return ParseCore(filePath, forceAssinger, forceNpna);
         }
         catch (Exception) when (forceAssinger)
         {
             return AssingerDocumentTemplate.Create();
         }
+        catch (Exception) when (forceNpna)
+        {
+            return NpnaDocumentTemplate.Create();
+        }
     }
 
-    private ParsedTestDocument ParseCore(string filePath, bool forceAssinger)
+    private ParsedTestDocument ParseCore(string filePath, bool forceAssinger, bool forceNpna)
     {
         ParsedTestDocument parsed;
         if (Path.GetExtension(filePath).Equals(".txt", StringComparison.OrdinalIgnoreCase))
         {
-            parsed = ParseLines(ReadTxtLines(filePath), forceAssinger);
+            parsed = ParseLines(ReadTxtLines(filePath), forceAssinger, forceNpna);
         }
         else if (WordDocConverter.IsDocExtension(filePath))
         {
@@ -58,7 +63,7 @@ public partial class TestDocumentParser : ITestDocumentParser
                 var convertedPath = WordDocConverter.ConvertToDocx(filePath);
                 try
                 {
-                    parsed = ParseLines(ReadDocxLines(convertedPath), forceAssinger);
+                    parsed = ParseLines(ReadDocxLines(convertedPath), forceAssinger, forceNpna);
                 }
                 finally
                 {
@@ -68,7 +73,7 @@ public partial class TestDocumentParser : ITestDocumentParser
             catch (Exception)
             {
                 // На Linux / без Word читаємо текст напряму з OLE .doc
-                parsed = ParseLines(DocBinaryTextReader.ReadLines(filePath), forceAssinger);
+                parsed = ParseLines(DocBinaryTextReader.ReadLines(filePath), forceAssinger, forceNpna);
             }
 
             // Якщо .doc Адаптивності розібрався погано — беремо канонічний .docx із SeedDocuments.
@@ -77,13 +82,13 @@ public partial class TestDocumentParser : ITestDocumentParser
                 var fallback = ResolveAdaptivity200SeedDocx(filePath);
                 if (fallback is not null)
                 {
-                    parsed = ParseLines(ReadDocxLines(fallback), forceAssinger);
+                    parsed = ParseLines(ReadDocxLines(fallback), forceAssinger, forceNpna);
                 }
             }
         }
         else
         {
-            parsed = ParseLines(ReadDocxLines(filePath), forceAssinger);
+            parsed = ParseLines(ReadDocxLines(filePath), forceAssinger, forceNpna);
         }
 
         if (IsAdaptivity200FileName(filePath) ||
@@ -106,6 +111,20 @@ public partial class TestDocumentParser : ITestDocumentParser
             }
 
             return AssingerDocumentTemplate.Create();
+        }
+
+        if (forceNpna ||
+            IsNpnaTitle(parsed.Title) ||
+            IsCompleteNpnaDocument(parsed))
+        {
+            if (IsCompleteNpnaDocument(parsed))
+            {
+                parsed.Title = NpnaDocumentTemplate.CanonicalTitle;
+                parsed.Instruction ??= NpnaDocumentTemplate.CanonicalInstruction;
+                return parsed;
+            }
+
+            return NpnaDocumentTemplate.Create();
         }
 
         var isZbroyaSource =
@@ -142,6 +161,11 @@ public partial class TestDocumentParser : ITestDocumentParser
     private static bool LooksLikeZbroyaDocument(ParsedTestDocument parsed)
     {
         if (IsAdaptivity200Title(parsed.Title) || IsCompleteAdaptivity200Document(parsed))
+        {
+            return false;
+        }
+
+        if (IsNpnaTitle(parsed.Title) || IsCompleteNpnaDocument(parsed))
         {
             return false;
         }
@@ -292,7 +316,10 @@ public partial class TestDocumentParser : ITestDocumentParser
         }
     }
 
-    internal static ParsedTestDocument ParseLines(IReadOnlyList<string> rawLines, bool forceAssinger = false)
+    internal static ParsedTestDocument ParseLines(
+        IReadOnlyList<string> rawLines,
+        bool forceAssinger = false,
+        bool forceNpna = false)
     {
         var lines = rawLines
             .Select(NormalizeLine)
@@ -309,6 +336,7 @@ public partial class TestDocumentParser : ITestDocumentParser
         var isZbroya = false;
         var isHorska = false;
         var isAssinger = forceAssinger;
+        var isNpna = forceNpna;
 
         TryAssignTitleFromDocument(lines, result);
         if (IsAdaptivity200Title(result.Title) || lines.Any(IsAdaptivity200Title))
@@ -347,6 +375,12 @@ public partial class TestDocumentParser : ITestDocumentParser
         {
             EnableAssingerMode(result, ref isAssinger);
         }
+        else if (isNpna ||
+                 IsNpnaTitle(result.Title) ||
+                 lines.Any(IsNpnaTitle))
+        {
+            EnableNpnaMode(result, ref isNpna, ref defaultType);
+        }
 
         foreach (var line in lines)
         {
@@ -370,6 +404,11 @@ public partial class TestDocumentParser : ITestDocumentParser
                 break;
             }
 
+            if (isNpna && result.Questions.Count >= NpnaDocumentTemplate.QuestionCount)
+            {
+                break;
+            }
+
             if (IsAssingerInstructionLine(line))
             {
                 result.Instruction = AssingerDocumentTemplate.CanonicalInstruction;
@@ -377,6 +416,17 @@ public partial class TestDocumentParser : ITestDocumentParser
             }
 
             if (isAssinger && IsAssingerNoiseLine(line))
+            {
+                continue;
+            }
+
+            if (isNpna && IsNpnaInstructionLine(line))
+            {
+                result.Instruction = NpnaDocumentTemplate.CanonicalInstruction;
+                continue;
+            }
+
+            if (isNpna && IsNpnaNoiseLine(line))
             {
                 continue;
             }
@@ -461,6 +511,10 @@ public partial class TestDocumentParser : ITestDocumentParser
                 {
                     result.Title = AssingerDocumentTemplate.CanonicalTitle;
                 }
+                else if (isNpna)
+                {
+                    result.Title = NpnaDocumentTemplate.CanonicalTitle;
+                }
                 else
                 {
                     result.Title = CleanTitle(line);
@@ -486,7 +540,7 @@ public partial class TestDocumentParser : ITestDocumentParser
             var romanQuestion = RomanQuestion().Match(line);
             if (romanQuestion.Success)
             {
-                if (!isAssinger && !isAdaptivity200 && !isZbroya && !isHorska)
+                if (!isAssinger && !isAdaptivity200 && !isZbroya && !isHorska && !isNpna)
                 {
                     EnableAssingerMode(result, ref isAssinger);
                 }
@@ -552,7 +606,7 @@ public partial class TestDocumentParser : ITestDocumentParser
 
                 // Увімкнути режим ЗБРОЯ щойно з’явилось перше відоме твердження —
                 // інакше клітинки 1..4 після Q1 обривають розбір.
-                if (!isZbroya && !isAdaptivity200 && !isHorska &&
+                if (!isZbroya && !isAdaptivity200 && !isHorska && !isNpna && !isAssinger &&
                     ZbroyaDocumentTemplate.IsKnownReactiveItem(text))
                 {
                     EnableZbroyaMode(result, ref isZbroya);
@@ -582,7 +636,7 @@ public partial class TestDocumentParser : ITestDocumentParser
 
             if (pendingNumber.HasValue)
             {
-                if (!isZbroya && !isAdaptivity200 && !isHorska &&
+                if (!isZbroya && !isAdaptivity200 && !isHorska && !isNpna && !isAssinger &&
                     ZbroyaDocumentTemplate.IsKnownReactiveItem(line))
                 {
                     EnableZbroyaMode(result, ref isZbroya);
@@ -619,6 +673,19 @@ public partial class TestDocumentParser : ITestDocumentParser
                 current = CreateQuestion(result.Questions.Count + 1, line, QuestionType.Scale);
                 ApplyHorskaScale(current);
                 result.Questions.Add(current);
+                continue;
+            }
+
+            // У бланку НПН-А питання 191 без номера — наступне твердження після 190.
+            if (isNpna &&
+                current is not null &&
+                !string.IsNullOrWhiteSpace(current.Text) &&
+                LooksLikeNpnaStatement(line) &&
+                result.Questions.Count < NpnaDocumentTemplate.QuestionCount)
+            {
+                current = CreateQuestion(result.Questions.Count + 1, line, QuestionType.YesNo);
+                result.Questions.Add(current);
+                pendingNumber = null;
                 continue;
             }
 
@@ -708,6 +775,11 @@ public partial class TestDocumentParser : ITestDocumentParser
             if (isAssinger)
             {
                 return AssingerDocumentTemplate.Create();
+            }
+
+            if (isNpna)
+            {
+                return NpnaDocumentTemplate.Create();
             }
 
             throw new InvalidOperationException(
@@ -1045,6 +1117,12 @@ public partial class TestDocumentParser : ITestDocumentParser
                 return;
             }
 
+            if (IsNpnaTitle(line))
+            {
+                result.Title = NpnaDocumentTemplate.CanonicalTitle;
+                return;
+            }
+
             if (line.Contains("Методика виявлення схильності до суїцидальних", StringComparison.OrdinalIgnoreCase) ||
                 line.Contains("Методика выявления склонности к суицидальным", StringComparison.OrdinalIgnoreCase))
             {
@@ -1127,6 +1205,79 @@ public partial class TestDocumentParser : ITestDocumentParser
 
     private static bool LooksLikeAssingerQuestionLine(string line)
         => RomanQuestion().IsMatch(line);
+
+    internal static bool IsNpnaFileName(string filePath)
+    {
+        var name = Path.GetFileNameWithoutExtension(filePath);
+        var compact = name.Replace(" ", string.Empty).Replace("-", string.Empty).Replace("_", string.Empty);
+        return compact.Contains("нпна", StringComparison.OrdinalIgnoreCase)
+               || compact.Contains("npna", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("нпн", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("npn", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsNpnaTitle(string? value)
+        => !string.IsNullOrWhiteSpace(value) &&
+           (value.Contains("НПН-А", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("НПН А", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("НПНА", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("NPN-A", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("NPNA", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("нервово-психічн", StringComparison.OrdinalIgnoreCase) ||
+            (value.Contains("НПН", StringComparison.OrdinalIgnoreCase) &&
+             (value.Contains("опитувальник", StringComparison.OrdinalIgnoreCase) ||
+              value.Contains("акцентуац", StringComparison.OrdinalIgnoreCase))));
+
+    private static bool IsCompleteNpnaDocument(ParsedTestDocument parsed)
+        => parsed.Questions.Count == NpnaDocumentTemplate.QuestionCount &&
+           parsed.Questions.All(q =>
+               q.Type is QuestionType.YesNo or QuestionType.SingleChoice &&
+               !string.IsNullOrWhiteSpace(q.Text) &&
+               q.Text.Any(char.IsLetter) &&
+               q.Text.Length >= 8);
+
+    private static void EnableNpnaMode(ParsedTestDocument result, ref bool isNpna, ref QuestionType? defaultType)
+    {
+        isNpna = true;
+        defaultType = QuestionType.YesNo;
+        result.Title = NpnaDocumentTemplate.CanonicalTitle;
+        result.Instruction ??= NpnaDocumentTemplate.CanonicalInstruction;
+    }
+
+    private static bool IsNpnaInstructionLine(string line)
+        => line.Contains("немає правильних або неправильних відповідей", StringComparison.OrdinalIgnoreCase) ||
+           (line.StartsWith("Зараз Вам буде запропоновано", StringComparison.OrdinalIgnoreCase) &&
+            line.Contains("самопочуття", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsNpnaNoiseLine(string line)
+        => line.Equals("Текст опитувальника", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("Запитання", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("Відповідь", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("+", StringComparison.Ordinal)
+           || line.Equals("−", StringComparison.Ordinal)
+           || line.Equals("–", StringComparison.Ordinal)
+           || line.Equals("+/-", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("+/−", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Опитувальник призначений", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Опитувальник містить", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("достовірності,", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("нервово-психічної нестійкості,", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("істерії,", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("психастенії,", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("психопатії,", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("параної,", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("шизофренії.", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("шизофренії", StringComparison.OrdinalIgnoreCase)
+           || (line.StartsWith("(нервово-психічна", StringComparison.OrdinalIgnoreCase));
+
+    private static bool LooksLikeNpnaStatement(string line)
+        => line.Length >= 20 &&
+           char.IsLetter(line[0]) &&
+           !IsEndOfQuestionsSection(line) &&
+           !IsMetadataLine(line) &&
+           !IsNpnaNoiseLine(line) &&
+           !NumberOnlyQuestion().IsMatch(line) &&
+           !NumberedQuestion().IsMatch(line);
 
     private static bool IsAssingerInstructionLine(string line)
         => line.StartsWith("Виберіть одну з відповідей", StringComparison.OrdinalIgnoreCase);
@@ -1390,6 +1541,7 @@ public partial class TestDocumentParser : ITestDocumentParser
            || line.StartsWith("№з/п", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Питання і твердження", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Текст опитувальника", StringComparison.OrdinalIgnoreCase)
+           || line.Equals("Запитання", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Дата", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Вік", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Інструкція", StringComparison.OrdinalIgnoreCase)
@@ -1437,7 +1589,8 @@ public partial class TestDocumentParser : ITestDocumentParser
            || IsAdaptivity200Title(line)
            || IsZbroyaTitle(line)
            || IsHorskaTitle(line)
-           || IsAssingerTitle(line);
+           || IsAssingerTitle(line)
+           || IsNpnaTitle(line);
 
     private static string CleanTitle(string line)
     {

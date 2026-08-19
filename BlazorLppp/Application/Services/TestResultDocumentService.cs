@@ -116,6 +116,7 @@ public partial class TestResultDocumentService(
 
                 var isHorska = HorskaScoring.CanScore(document, questions);
                 var isAssinger = AssingerScoring.CanScore(document, questions);
+                var isNpna = NpnaScoring.CanScore(document, questions);
                 body.AppendChild(isAssinger
                     ? BuildAssingerAnswersTable(questions, answersByQuestion)
                     : isHorska
@@ -136,6 +137,11 @@ public partial class TestResultDocumentService(
                 {
                     var scoring = AssingerScoring.Evaluate(questions, answersByQuestion);
                     AppendAssingerScoringSection(body, scoring);
+                }
+                else if (isNpna)
+                {
+                    var scoring = NpnaScoring.Evaluate(questions, answersByQuestion);
+                    AppendNpnaScoringSection(body, scoring);
                 }
             }
 
@@ -1209,6 +1215,56 @@ public partial class TestResultDocumentService(
         AppendBodyParagraph(body, "45 і більше балів — надмірна агресивність;");
         AppendBodyParagraph(body, "36–44 бали — помірна агресивність;");
         AppendBodyParagraph(body, "35 і менше балів — надмірна миролюбність.");
+    }
+
+    private static void AppendNpnaScoringSection(Body body, NpnaScoringResult scoring)
+    {
+        AppendEmptyParagraph(body);
+        AppendCenteredParagraph(body, "Оцінка результатів", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            "Обробка виконана за сімома ключами особистісного опитувальника «НПН-А». " +
+            "Кожний збіг відповіді з ключем оцінюється в один сирий бал, після чого показники переводяться у стени.");
+
+        foreach (var scale in scoring.Scales)
+        {
+            AppendBodyParagraph(
+                body,
+                $"{scale.Name} ({scale.Key}): {scale.Raw} сирих балів → {scale.Sten} стенів ({scale.LevelName}).");
+        }
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(
+            body,
+            scoring.IsResultUnreliable
+                ? $"Достовірність: {scoring.ReliabilityD.Raw} сирих балів (8 і більше) — результат недостовірний."
+                : $"Достовірність: {scoring.ReliabilityD.Raw} сирих балів — дані можна інтерпретувати.",
+            bold: true);
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Психологічний висновок", bold: true);
+        AppendBodyParagraph(body, scoring.Conclusion);
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Орієнтири інтерпретації стенів", bold: true);
+        AppendBodyParagraph(body, "8, 9, 10 стенів — висока вираженість відповідних ознак;");
+        AppendBodyParagraph(body, "4, 5, 6, 7 стенів — середні показники, допустима норма;");
+        AppendBodyParagraph(body, "менше 4 стенів — практична відсутність указаних ознак.");
+        AppendBodyParagraph(
+            body,
+            "Шкала достовірності: 8 і більше сирих балів — дані недостовірні через соціально бажані відповіді.");
+
+        if (!scoring.IsResultUnreliable)
+        {
+            AppendEmptyParagraph(body);
+            AppendBodyParagraph(body, "Короткий зміст шкал", bold: true);
+            foreach (var scale in scoring.Scales.Where(s => s.Key != "Д"))
+            {
+                AppendBodyParagraph(body, $"{scale.Name}. {scale.Description}");
+            }
+        }
     }
 
     private static void AppendScoringSection(Body body, SuicideRiskScoringResult scoring)

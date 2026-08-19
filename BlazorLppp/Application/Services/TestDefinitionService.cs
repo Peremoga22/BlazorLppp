@@ -92,6 +92,12 @@ public class TestDefinitionService(
             TestDocumentParser.IsAssingerFileName(upload.FolderName) ||
             TestDocumentParser.IsAssingerTitle(upload.FileName);
 
+        var looksLikeNpna =
+            TestDocumentParser.IsNpnaFileName(absoluteFilePath) ||
+            TestDocumentParser.IsNpnaFileName(upload.FileName) ||
+            TestDocumentParser.IsNpnaFileName(upload.FolderName) ||
+            TestDocumentParser.IsNpnaTitle(upload.FileName);
+
         ParsedTestDocument parsed;
         try
         {
@@ -101,12 +107,23 @@ public class TestDefinitionService(
         {
             parsed = AssingerDocumentTemplate.Create();
         }
+        catch (Exception) when (looksLikeNpna)
+        {
+            parsed = NpnaDocumentTemplate.Create();
+        }
 
         if (looksLikeAssinger &&
             (parsed.Questions.Count != 20 ||
              parsed.Questions.Any(q => q.Options.Count < 3 || string.IsNullOrWhiteSpace(q.Text))))
         {
             parsed = AssingerDocumentTemplate.Create();
+        }
+
+        if (looksLikeNpna &&
+            (parsed.Questions.Count != NpnaDocumentTemplate.QuestionCount ||
+             parsed.Questions.Any(q => string.IsNullOrWhiteSpace(q.Text) || !q.Text.Any(char.IsLetter))))
+        {
+            parsed = NpnaDocumentTemplate.Create();
         }
 
         return parsed;

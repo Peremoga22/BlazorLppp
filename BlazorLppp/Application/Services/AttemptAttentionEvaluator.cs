@@ -191,6 +191,32 @@ public static class AttemptAttentionEvaluator
             };
         }
 
+        if (NpnaScoring.CanScore(document, questions))
+        {
+            var scoring = NpnaScoring.Evaluate(questions, answersByQuestion);
+            var highClinical = scoring.Scales.Any(s => s.Key != "Д" && s.Sten >= 8);
+            var needs = scoring.IsResultUnreliable || scoring.Npn.Sten >= 8 || highClinical;
+            var reason = scoring.IsResultUnreliable
+                ? "Недостовірний результат (шкала Д) — потрібен повторний перегляд"
+                : scoring.Npn.Sten >= 8
+                    ? "Високий показник нервово-психічної нестійкості — потребує додаткової уваги"
+                    : highClinical
+                        ? "Високі стени за шкалами акцентуації — потребує додаткової уваги"
+                        : string.Empty;
+
+            return new AttemptAttentionResult
+            {
+                NeedsAttention = needs,
+                IsUnreliable = scoring.IsResultUnreliable,
+                Reason = reason,
+                LevelName = scoring.IsResultUnreliable
+                    ? "Недостовірний"
+                    : scoring.Npn.LevelName,
+                ScaleRaw = scoring.Scales.ToDictionary(s => s.Key, s => (double)s.Raw),
+                ScaleSten = scoring.Scales.ToDictionary(s => s.Key, s => (double)s.Sten)
+            };
+        }
+
         return new AttemptAttentionResult();
     }
 }
