@@ -129,6 +129,11 @@ public partial class TestResultDocumentService(
                     var scoring = SuicideRiskScoring.Evaluate(questions, answersByQuestion);
                     AppendScoringSection(body, scoring);
                 }
+                else if (AssingerScoring.CanScore(document, questions))
+                {
+                    var scoring = AssingerScoring.Evaluate(questions, answersByQuestion);
+                    AppendAssingerScoringSection(body, scoring);
+                }
             }
 
             body.AppendChild(CreateSectionProperties());
@@ -1112,6 +1117,34 @@ public partial class TestResultDocumentService(
             body,
             $"{scale.Name}: {scale.Points} балів — {scale.LevelName}. {scale.Description}" +
             (string.IsNullOrWhiteSpace(scale.Note) ? string.Empty : $" {scale.Note}"));
+    }
+
+    private static void AppendAssingerScoringSection(Body body, AssingerScoringResult scoring)
+    {
+        AppendEmptyParagraph(body);
+        AppendCenteredParagraph(body, "Оцінка результатів", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            "Обробка виконана за методикою А. Ассингера (оцінка агресивності у відносинах). " +
+            "Підраховано суму номерів обраних відповідей (1, 2 або 3).");
+
+        AppendBodyParagraph(
+            body,
+            $"Сума балів: {scoring.TotalPoints} ({scoring.LevelName}). " +
+            $"Відповідей «3»: {scoring.ScoreThreeCount}; відповідей «1»: {scoring.ScoreOneCount}.",
+            bold: true);
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Психологічний висновок", bold: true);
+        AppendBodyParagraph(body, scoring.Conclusion);
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Орієнтири інтерпретації", bold: true);
+        AppendBodyParagraph(body, "45 і більше балів — надмірна агресивність;");
+        AppendBodyParagraph(body, "36–44 бали — помірна агресивність;");
+        AppendBodyParagraph(body, "35 і менше балів — надмірна миролюбність.");
     }
 
     private static void AppendScoringSection(Body body, SuicideRiskScoringResult scoring)

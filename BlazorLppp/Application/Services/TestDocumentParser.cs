@@ -32,10 +32,12 @@ public partial class TestDocumentParser : ITestDocumentParser
                 "Автоматичний розбір підтримується для файлів .docx, .doc та .txt.");
         }
 
+        var forceAssinger = IsAssingerFileName(filePath);
+
         ParsedTestDocument parsed;
         if (Path.GetExtension(filePath).Equals(".txt", StringComparison.OrdinalIgnoreCase))
         {
-            parsed = ParseLines(ReadTxtLines(filePath));
+            parsed = ParseLines(ReadTxtLines(filePath), forceAssinger);
         }
         else if (WordDocConverter.IsDocExtension(filePath))
         {
@@ -44,7 +46,7 @@ public partial class TestDocumentParser : ITestDocumentParser
                 var convertedPath = WordDocConverter.ConvertToDocx(filePath);
                 try
                 {
-                    parsed = ParseLines(ReadDocxLines(convertedPath));
+                    parsed = ParseLines(ReadDocxLines(convertedPath), forceAssinger);
                 }
                 finally
                 {
@@ -54,7 +56,7 @@ public partial class TestDocumentParser : ITestDocumentParser
             catch (Exception)
             {
                 // На Linux / без Word читаємо текст напряму з OLE .doc
-                parsed = ParseLines(DocBinaryTextReader.ReadLines(filePath));
+                parsed = ParseLines(DocBinaryTextReader.ReadLines(filePath), forceAssinger);
             }
 
             // Якщо .doc Адаптивності розібрався погано — беремо канонічний .docx із SeedDocuments.
@@ -63,13 +65,13 @@ public partial class TestDocumentParser : ITestDocumentParser
                 var fallback = ResolveAdaptivity200SeedDocx(filePath);
                 if (fallback is not null)
                 {
-                    parsed = ParseLines(ReadDocxLines(fallback));
+                    parsed = ParseLines(ReadDocxLines(fallback), forceAssinger);
                 }
             }
         }
         else
         {
-            parsed = ParseLines(ReadDocxLines(filePath));
+            parsed = ParseLines(ReadDocxLines(filePath), forceAssinger);
         }
 
         if (IsAdaptivity200FileName(filePath) ||
@@ -78,6 +80,20 @@ public partial class TestDocumentParser : ITestDocumentParser
         {
             parsed.Title = "Адаптивність-200 (БОО)";
             return parsed;
+        }
+
+        if (forceAssinger ||
+            IsAssingerTitle(parsed.Title) ||
+            IsCompleteAssingerDocument(parsed))
+        {
+            if (IsCompleteAssingerDocument(parsed))
+            {
+                parsed.Title = AssingerDocumentTemplate.CanonicalTitle;
+                parsed.Instruction ??= AssingerDocumentTemplate.CanonicalInstruction;
+                return parsed;
+            }
+
+            return AssingerDocumentTemplate.Create();
         }
 
         var isZbroyaSource =
@@ -264,7 +280,7 @@ public partial class TestDocumentParser : ITestDocumentParser
         }
     }
 
-    internal static ParsedTestDocument ParseLines(IReadOnlyList<string> rawLines)
+    internal static ParsedTestDocument ParseLines(IReadOnlyList<string> rawLines, bool forceAssinger = false)
     {
         var lines = rawLines
             .Select(NormalizeLine)
@@ -280,6 +296,7 @@ public partial class TestDocumentParser : ITestDocumentParser
         var isAdaptivity200 = false;
         var isZbroya = false;
         var isHorska = false;
+        var isAssinger = forceAssinger;
 
         TryAssignTitleFromDocument(lines, result);
         if (IsAdaptivity200Title(result.Title) || lines.Any(IsAdaptivity200Title))
@@ -311,6 +328,13 @@ public partial class TestDocumentParser : ITestDocumentParser
                 "Проти кожного твердження поставте оцінку за таким принципом: якщо твердження вам підходить — ставте оцінку 2, " +
                 "якщо не зовсім підходить — ставте оцінку 1, якщо зовсім не підходить — ставте 0.";
         }
+        else if (isAssinger ||
+                 IsAssingerTitle(result.Title) ||
+                 lines.Any(IsAssingerTitle) ||
+                 lines.Any(LooksLikeAssingerQuestionLine))
+        {
+            EnableAssingerMode(result, ref isAssinger);
+        }
 
         foreach (var line in lines)
         {
@@ -332,6 +356,17 @@ public partial class TestDocumentParser : ITestDocumentParser
             if (isHorska && result.Questions.Count >= 40)
             {
                 break;
+            }
+
+            if (IsAssingerInstructionLine(line))
+            {
+                result.Instruction = AssingerDocumentTemplate.CanonicalInstruction;
+                continue;
+            }
+
+            if (isAssinger && IsAssingerNoiseLine(line))
+            {
+                continue;
             }
 
             if (IsHorskaInstructionLine(line))
@@ -410,12 +445,54 @@ public partial class TestDocumentParser : ITestDocumentParser
                 {
                     result.Title = "Адаптивність-200 (БОО)";
                 }
+                else if (isAssinger)
+                {
+                    result.Title = AssingerDocumentTemplate.CanonicalTitle;
+                }
                 else
                 {
                     result.Title = CleanTitle(line);
                 }
 
                 continue;
+            }
+
+            if (isAssinger && current is not null)
+            {
+                var assingerOption = AssingerOption().Match(line);
+                if (assingerOption.Success)
+                {
+                    AddAssingerOption(
+                        current,
+                        int.Parse(assingerOption.Groups[1].Value),
+                        assingerOption.Groups[2].Value.Trim());
+                    pendingNumber = null;
+                    continue;
+                }
+            }
+
+            var romanQuestion = RomanQuestion().Match(line);
+            if (romanQuestion.Success)
+            {
+                if (!isAssinger && !isAdaptivity200 && !isZbroya && !isHorska)
+                {
+                    EnableAssingerMode(result, ref isAssinger);
+                }
+
+                if (isAssinger)
+                {
+                    var sortOrder = RomanToInt(romanQuestion.Groups[1].Value);
+                    if (sortOrder is < 1 or > 20)
+                    {
+                        continue;
+                    }
+
+                    var romanText = romanQuestion.Groups[2].Value.Trim();
+                    pendingNumber = null;
+                    current = CreateQuestion(sortOrder, romanText, QuestionType.SingleChoice);
+                    result.Questions.Add(current);
+                    continue;
+                }
             }
 
             var numberOnly = NumberOnlyQuestion().Match(line);
@@ -453,6 +530,13 @@ public partial class TestDocumentParser : ITestDocumentParser
             {
                 var sortOrder = int.Parse(questionMatch.Groups[1].Value);
                 var text = questionMatch.Groups[2].Value.Trim();
+
+                if (isAssinger && current is not null && sortOrder is >= 1 and <= 3)
+                {
+                    AddAssingerOption(current, sortOrder, text);
+                    pendingNumber = null;
+                    continue;
+                }
 
                 // Увімкнути режим ЗБРОЯ щойно з’явилось перше відоме твердження —
                 // інакше клітинки 1..4 після Q1 обривають розбір.
@@ -588,6 +672,11 @@ public partial class TestDocumentParser : ITestDocumentParser
                 continue;
             }
 
+            if (isAssinger)
+            {
+                continue;
+            }
+
             current.Text = $"{current.Text} {line}".Trim();
         }
 
@@ -597,8 +686,18 @@ public partial class TestDocumentParser : ITestDocumentParser
             FinalizeZbroyaQuestions(result);
         }
 
+        if (isAssinger)
+        {
+            FinalizeAssingerQuestions(result);
+        }
+
         if (result.Questions.Count == 0)
         {
+            if (isAssinger)
+            {
+                return AssingerDocumentTemplate.Create();
+            }
+
             throw new InvalidOperationException(
                 "У документі не знайдено питань. Очікується нумерація на кшталт «1. Текст питання?».");
         }
@@ -928,6 +1027,12 @@ public partial class TestDocumentParser : ITestDocumentParser
                 return;
             }
 
+            if (IsAssingerTitle(line))
+            {
+                result.Title = AssingerDocumentTemplate.CanonicalTitle;
+                return;
+            }
+
             if (line.Contains("Методика виявлення схильності до суїцидальних", StringComparison.OrdinalIgnoreCase) ||
                 line.Contains("Методика выявления склонности к суицидальным", StringComparison.OrdinalIgnoreCase))
             {
@@ -976,6 +1081,173 @@ public partial class TestDocumentParser : ITestDocumentParser
            (value.Contains("Горськ", StringComparison.OrdinalIgnoreCase) ||
             value.Contains("М.В. Горська", StringComparison.OrdinalIgnoreCase) ||
             value.Contains("вивчення схильності до суїцидальної поведінки", StringComparison.OrdinalIgnoreCase));
+
+    internal static bool IsAssingerFileName(string filePath)
+    {
+        var name = Path.GetFileNameWithoutExtension(filePath);
+        return name.Contains("агресивн", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("ассингер", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("assinger", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsAssingerTitle(string? value)
+        => !string.IsNullOrWhiteSpace(value) &&
+           (value.Contains("Ассингер", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("Assinger", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("оцінка агресивності", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("агресивності у відношен", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("агресивності у відносинах", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsCompleteAssingerDocument(ParsedTestDocument parsed)
+        => parsed.Questions.Count == 20 &&
+           parsed.Questions.All(q =>
+               q.Type == QuestionType.SingleChoice &&
+               q.Options.Count >= 3 &&
+               !string.IsNullOrWhiteSpace(q.Text) &&
+               q.Text.Any(char.IsLetter));
+
+    private static void EnableAssingerMode(ParsedTestDocument result, ref bool isAssinger)
+    {
+        isAssinger = true;
+        result.Title = AssingerDocumentTemplate.CanonicalTitle;
+        result.Instruction ??= AssingerDocumentTemplate.CanonicalInstruction;
+    }
+
+    private static bool LooksLikeAssingerQuestionLine(string line)
+        => RomanQuestion().IsMatch(line);
+
+    private static bool IsAssingerInstructionLine(string line)
+        => line.StartsWith("Виберіть одну з відповідей", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsAssingerNoiseLine(string line)
+        => line.Equals("Текст опитувальника", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Флегматична людина", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Тест А.Ассингера дозволяє", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Тест А. Ассингера дозволяє", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Для більшої об'єктивності", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Для більшої об’єктивності", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Уважно проглянете", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("45 і більше", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("36 - 44", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("36-44", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("35 і менше", StringComparison.OrdinalIgnoreCase);
+
+    private static void AddAssingerOption(ParsedTestQuestion question, int number, string text)
+    {
+        if (number is < 1 or > 3 || string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        question.Type = QuestionType.SingleChoice;
+        var key = number.ToString();
+        var existing = question.Options.FirstOrDefault(o => o.Key == key || o.SortOrder == number);
+        if (existing is not null)
+        {
+            if (existing.Text.Length < text.Length)
+            {
+                existing.Text = text;
+            }
+
+            return;
+        }
+
+        question.Options.Add(new ParsedTestOption
+        {
+            SortOrder = number,
+            Key = key,
+            Text = text
+        });
+    }
+
+    private static void FinalizeAssingerQuestions(ParsedTestDocument result)
+    {
+        var template = AssingerDocumentTemplate.Create();
+        foreach (var question in result.Questions.OrderBy(q => q.SortOrder))
+        {
+            question.Type = QuestionType.SingleChoice;
+            question.ScaleMin = null;
+            question.ScaleMax = null;
+
+            var ordered = question.Options
+                .OrderBy(o => o.SortOrder)
+                .Take(3)
+                .ToList();
+            question.Options.Clear();
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                var number = i + 1;
+                question.Options.Add(new ParsedTestOption
+                {
+                    SortOrder = number,
+                    Key = number.ToString(),
+                    Text = ordered[i].Text
+                });
+            }
+
+            if (question.Options.Count >= 3)
+            {
+                continue;
+            }
+
+            var templateQuestion = template.Questions.FirstOrDefault(q => q.SortOrder == question.SortOrder);
+            if (templateQuestion is null)
+            {
+                continue;
+            }
+
+            question.Options.Clear();
+            foreach (var option in templateQuestion.Options)
+            {
+                question.Options.Add(new ParsedTestOption
+                {
+                    SortOrder = option.SortOrder,
+                    Key = option.Key,
+                    Text = option.Text
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(question.Text) || question.Text.Length < templateQuestion.Text.Length / 2)
+            {
+                question.Text = templateQuestion.Text;
+            }
+        }
+    }
+
+    private static int RomanToInt(string roman)
+    {
+        var normalized = roman.Trim()
+            .Replace('\u0406', 'I')
+            .Replace('\u0456', 'I')
+            .Replace('\u0425', 'X')
+            .Replace('\u0445', 'X')
+            .ToUpperInvariant();
+
+        return normalized switch
+        {
+            "I" => 1,
+            "II" => 2,
+            "III" => 3,
+            "IV" => 4,
+            "V" => 5,
+            "VI" => 6,
+            "VII" => 7,
+            "VIII" => 8,
+            "IX" => 9,
+            "X" => 10,
+            "XI" => 11,
+            "XII" => 12,
+            "XIII" => 13,
+            "XIV" => 14,
+            "XV" => 15,
+            "XVI" => 16,
+            "XVII" => 17,
+            "XVIII" => 18,
+            "XIX" => 19,
+            "XX" => 20,
+            _ => 0
+        };
+    }
 
     private static bool IsHorskaInstructionLine(string line)
         => line.Contains("якщо твердження вам підходить", StringComparison.OrdinalIgnoreCase) ||
@@ -1105,6 +1377,7 @@ public partial class TestDocumentParser : ITestDocumentParser
            || line.StartsWith("Реєстраційний", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("№з/п", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Питання і твердження", StringComparison.OrdinalIgnoreCase)
+           || line.StartsWith("Текст опитувальника", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Дата", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Вік", StringComparison.OrdinalIgnoreCase)
            || line.StartsWith("Інструкція", StringComparison.OrdinalIgnoreCase)
@@ -1151,7 +1424,8 @@ public partial class TestDocumentParser : ITestDocumentParser
            || line.Contains("Самооцінка", StringComparison.OrdinalIgnoreCase)
            || IsAdaptivity200Title(line)
            || IsZbroyaTitle(line)
-           || IsHorskaTitle(line);
+           || IsHorskaTitle(line)
+           || IsAssingerTitle(line);
 
     private static string CleanTitle(string line)
     {
@@ -1171,6 +1445,12 @@ public partial class TestDocumentParser : ITestDocumentParser
 
     [GeneratedRegex(@"^(\d+)\.\s+(.*)$")]
     private static partial Regex NumberedQuestion();
+
+    [GeneratedRegex(@"^([IVXІХivxіх]{1,6})\.\s*(.+)$")]
+    private static partial Regex RomanQuestion();
+
+    [GeneratedRegex(@"^([1-3])\.\s*(.+)$")]
+    private static partial Regex AssingerOption();
 
     [GeneratedRegex(@"^(\d+)\.?\s*$")]
     private static partial Regex NumberOnlyQuestion();

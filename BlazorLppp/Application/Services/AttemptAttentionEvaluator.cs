@@ -166,6 +166,31 @@ public static class AttemptAttentionEvaluator
             };
         }
 
+        if (AssingerScoring.CanScore(document, questions))
+        {
+            var scoring = AssingerScoring.Evaluate(questions, answersByQuestion);
+            var destructive = scoring.ScoreThreeCount >= 7 && scoring.ScoreOneCount < 7;
+            var needs = scoring.TotalPoints >= 45 || destructive;
+            var reason = scoring.TotalPoints >= 45
+                ? "Надмірна агресивність за тестом Ассингера — потребує додаткової уваги"
+                : destructive
+                    ? "Руйнівний характер агресивних реакцій — потребує додаткової уваги"
+                    : string.Empty;
+
+            return new AttemptAttentionResult
+            {
+                NeedsAttention = needs,
+                Reason = reason,
+                LevelName = scoring.LevelName,
+                ScaleRaw = new Dictionary<string, double>
+                {
+                    ["Сума"] = scoring.TotalPoints,
+                    ["Відповідей 3"] = scoring.ScoreThreeCount,
+                    ["Відповідей 1"] = scoring.ScoreOneCount
+                }
+            };
+        }
+
         return new AttemptAttentionResult();
     }
 }
