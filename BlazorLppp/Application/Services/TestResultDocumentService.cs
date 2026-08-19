@@ -115,9 +115,12 @@ public partial class TestResultDocumentService(
                 AppendEmptyParagraph(body);
 
                 var isHorska = HorskaScoring.CanScore(document, questions);
-                body.AppendChild(isHorska
-                    ? BuildScaleAnswersTable(questions, answersByQuestion)
-                    : BuildAnswersTable(questions, answersByQuestion));
+                var isAssinger = AssingerScoring.CanScore(document, questions);
+                body.AppendChild(isAssinger
+                    ? BuildAssingerAnswersTable(questions, answersByQuestion)
+                    : isHorska
+                        ? BuildScaleAnswersTable(questions, answersByQuestion)
+                        : BuildAnswersTable(questions, answersByQuestion));
 
                 if (isHorska)
                 {
@@ -129,7 +132,7 @@ public partial class TestResultDocumentService(
                     var scoring = SuicideRiskScoring.Evaluate(questions, answersByQuestion);
                     AppendScoringSection(body, scoring);
                 }
-                else if (AssingerScoring.CanScore(document, questions))
+                else if (isAssinger)
                 {
                     var scoring = AssingerScoring.Evaluate(questions, answersByQuestion);
                     AppendAssingerScoringSection(body, scoring);
@@ -923,6 +926,67 @@ public partial class TestResultDocumentService(
             row.AppendChild(CreateCell(question.SortOrder.ToString(), center: true, width: "700"));
             row.AppendChild(CreateCell(question.Text, width: "7800"));
             row.AppendChild(CreateCell(mark, center: true, bold: !string.IsNullOrWhiteSpace(mark), width: "1200"));
+            table.AppendChild(row);
+        }
+
+        return table;
+    }
+
+    private static Table BuildAssingerAnswersTable(
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
+    {
+        var table = new Table();
+        table.AppendChild(new TableProperties(
+            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct },
+            new TableBorders(
+                CreateBorder<TopBorder>(),
+                CreateBorder<LeftBorder>(),
+                CreateBorder<BottomBorder>(),
+                CreateBorder<RightBorder>(),
+                CreateBorder<InsideHorizontalBorder>(),
+                CreateBorder<InsideVerticalBorder>()),
+            new TableLayout { Type = TableLayoutValues.Fixed }));
+
+        table.AppendChild(new TableGrid(
+            new GridColumn { Width = "600" },
+            new GridColumn { Width = "5200" },
+            new GridColumn { Width = "700" },
+            new GridColumn { Width = "700" },
+            new GridColumn { Width = "700" },
+            new GridColumn { Width = "1800" }));
+
+        var header = new TableRow();
+        header.AppendChild(CreateCell("№з/п", bold: true, center: true, width: "600"));
+        header.AppendChild(CreateCell("Питання", bold: true, center: true, width: "5200"));
+        header.AppendChild(CreateCell("1", bold: true, center: true, width: "700"));
+        header.AppendChild(CreateCell("2", bold: true, center: true, width: "700"));
+        header.AppendChild(CreateCell("3", bold: true, center: true, width: "700"));
+        header.AppendChild(CreateCell("Відповідь", bold: true, center: true, width: "1800"));
+        table.AppendChild(header);
+
+        foreach (var question in questions.OrderBy(q => q.SortOrder))
+        {
+            answersByQuestion.TryGetValue(question.Id, out var answer);
+            var choice = AssingerScoring.ResolveScore(question, answer);
+            var optionText = string.Empty;
+            if (choice is >= 1 and <= 3)
+            {
+                var option = question.Options
+                    .OrderBy(o => o.SortOrder)
+                    .FirstOrDefault(o => o.SortOrder == choice || o.Key == choice.Value.ToString());
+                optionText = string.IsNullOrWhiteSpace(option?.Text)
+                    ? choice.Value.ToString()
+                    : $"{choice}. {option.Text.Trim()}";
+            }
+
+            var row = new TableRow();
+            row.AppendChild(CreateCell(question.SortOrder.ToString(), center: true, width: "600"));
+            row.AppendChild(CreateCell(question.Text, width: "5200"));
+            row.AppendChild(CreateCell(choice == 1 ? "+" : string.Empty, center: true, bold: choice == 1, width: "700"));
+            row.AppendChild(CreateCell(choice == 2 ? "+" : string.Empty, center: true, bold: choice == 2, width: "700"));
+            row.AppendChild(CreateCell(choice == 3 ? "+" : string.Empty, center: true, bold: choice == 3, width: "700"));
+            row.AppendChild(CreateCell(optionText, width: "1800"));
             table.AppendChild(row);
         }
 

@@ -85,7 +85,7 @@ public static class AssingerScoring
         };
     }
 
-    private static int? ResolveScore(TestQuestion question, TestAnswer? answer)
+    internal static int? ResolveScore(TestQuestion question, TestAnswer? answer)
     {
         if (answer?.SelectedOption is null)
         {
