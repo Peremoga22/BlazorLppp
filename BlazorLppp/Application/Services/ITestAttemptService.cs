@@ -38,6 +38,13 @@ public interface ITestAttemptService
         bool includeAnonymous = false,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Завершені спроби за тими ж фільтрами, що й журнал спроб (пошук, статус, місяць), без пагінації.
+    /// </summary>
+    Task<IReadOnlyList<TestResultListItem>> GetFilteredCompletedResultsAsync(
+        TestAttemptListQuery query,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<TestResultListItem>> GetAnonymousResultsAsync(
         AnonymousRank? rank = null,
         int? monthOfYear = null,

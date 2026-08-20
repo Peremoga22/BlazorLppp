@@ -1465,6 +1465,9 @@ h1:focus {
 
 .admin-table__actions-head .admin-btn {
     margin-left: auto;
+    text-transform: none;
+    letter-spacing: 0.02em;
+    color: var(--admin-btn-color);
 }
 
 @media (prefers-reduced-motion: reduce) {

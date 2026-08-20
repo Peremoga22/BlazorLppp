@@ -23,6 +23,9 @@ public class TestAttemptListResult
 
     public int TotalCount { get; init; }
 
+    /// <summary>Кількість завершених спроб у поточному фільтрі (їх можна зібрати в один документ).</summary>
+    public int CompletedCount { get; init; }
+
     public int Page { get; init; }
 
     public int PageSize { get; init; }

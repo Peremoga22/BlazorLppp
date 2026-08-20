@@ -419,6 +419,29 @@ public class TestAttemptService(
         return items.Select(MapResultListItem).ToList();
     }
 
+    public async Task<IReadOnlyList<TestResultListItem>> GetFilteredCompletedResultsAsync(
+        TestAttemptListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        if (query.Status == TestAttemptStatus.InProgress)
+        {
+            return [];
+        }
+
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var attempts = ApplyAttemptListFilters(
+            dbContext.TestAttempts.AsNoTracking().Include(a => a.TestDocument),
+            query,
+            forceCompleted: true);
+
+        var items = await attempts
+            .OrderBy(a => a.CompletedAt ?? a.StartedAt)
+            .ToListAsync(cancellationToken);
+
+        return items.Select(MapResultListItem).ToList();
+    }
+
     public async Task<IReadOnlyList<TestResultListItem>> GetAnonymousResultsAsync(
         AnonymousRank? rank = null,
         int? monthOfYear = null,
@@ -670,29 +693,18 @@ public class TestAttemptService(
         var page = query.Page < 1 ? 1 : query.Page;
         var pageSize = query.PageSize is < 1 or > 100 ? 20 : query.PageSize;
 
-        var attempts = dbContext.TestAttempts.AsNoTracking().AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(query.Search))
-        {
-            var term = query.Search.Trim();
-            attempts = attempts.Where(a =>
-                a.LastName.Contains(term) ||
-                a.FirstName.Contains(term) ||
-                a.MiddleName.Contains(term));
-        }
-
-        if (query.Status.HasValue)
-        {
-            attempts = attempts.Where(a => a.Status == query.Status.Value);
-        }
-
-        if (query.Month is >= 1 and <= 12)
-        {
-            var month = query.Month.Value;
-            attempts = attempts.Where(a => (a.CompletedAt ?? a.StartedAt).Month == month);
-        }
+        var attempts = ApplyAttemptListFilters(
+            dbContext.TestAttempts.AsNoTracking(),
+            query,
+            forceCompleted: false);
 
         var totalCount = await attempts.CountAsync(cancellationToken);
+        var completedCount = query.Status switch
+        {
+            TestAttemptStatus.InProgress => 0,
+            TestAttemptStatus.Completed => totalCount,
+            _ => await attempts.CountAsync(a => a.Status == TestAttemptStatus.Completed, cancellationToken)
+        };
 
         var items = await attempts
             .OrderByDescending(a => a.StartedAt)
@@ -704,9 +716,42 @@ public class TestAttemptService(
         {
             Items = items,
             TotalCount = totalCount,
+            CompletedCount = completedCount,
             Page = page,
             PageSize = pageSize
         };
+    }
+
+    private static IQueryable<TestAttempt> ApplyAttemptListFilters(
+        IQueryable<TestAttempt> attempts,
+        TestAttemptListQuery query,
+        bool forceCompleted)
+    {
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var term = query.Search.Trim();
+            attempts = attempts.Where(a =>
+                a.LastName.Contains(term) ||
+                a.FirstName.Contains(term) ||
+                a.MiddleName.Contains(term));
+        }
+
+        if (forceCompleted)
+        {
+            attempts = attempts.Where(a => a.Status == TestAttemptStatus.Completed);
+        }
+        else if (query.Status.HasValue)
+        {
+            attempts = attempts.Where(a => a.Status == query.Status.Value);
+        }
+
+        if (query.Month is >= 1 and <= 12)
+        {
+            var month = query.Month.Value;
+            attempts = attempts.Where(a => (a.CompletedAt ?? a.StartedAt).Month == month);
+        }
+
+        return attempts;
     }
 
     public async Task<TestAttemptStats> GetStatsAsync(

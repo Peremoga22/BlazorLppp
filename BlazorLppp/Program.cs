@@ -245,6 +245,68 @@ app.MapGet("/admin/anonymous/download-all", async (
 })
 .RequireAuthorization(policy => policy.RequireRole(AppRoles.Admin));
 
+app.MapGet("/admin/attempts/download-all", async (
+    string? search,
+    int? status,
+    int? month,
+    ITestAttemptService attemptService,
+    ITestResultDocumentService resultDocumentService,
+    CancellationToken cancellationToken) =>
+{
+    TestAttemptStatus? statusFilter = null;
+    if (status is int statusValue && Enum.IsDefined(typeof(TestAttemptStatus), statusValue))
+    {
+        statusFilter = (TestAttemptStatus)statusValue;
+    }
+
+    var query = new TestAttemptListQuery
+    {
+        Search = search,
+        Status = statusFilter,
+        Month = month is >= 1 and <= 12 ? month : null
+    };
+
+    var results = await attemptService.GetFilteredCompletedResultsAsync(query, cancellationToken);
+    if (results.Count == 0)
+    {
+        return Results.NotFound();
+    }
+
+    foreach (var item in results)
+    {
+        await attemptService.EnsureResultFileAsync(item.AttemptId, cancellationToken);
+    }
+
+    results = await attemptService.GetFilteredCompletedResultsAsync(query, cancellationToken);
+    var paths = results
+        .Select(r => r.ResultRelativePath)
+        .Where(p => !string.IsNullOrWhiteSpace(p))
+        .Cast<string>()
+        .ToList();
+
+    if (paths.Count == 0)
+    {
+        return Results.NotFound();
+    }
+
+    var hint = "Спроби";
+    if (query.Month is int selectedMonth)
+    {
+        hint = $"{hint}_{selectedMonth:00}";
+    }
+
+    var (absolutePath, downloadName) = await resultDocumentService.CombineResultDocumentsAsync(
+        paths,
+        hint,
+        cancellationToken);
+
+    return Results.File(
+        absolutePath,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        downloadName);
+})
+.RequireAuthorization(policy => policy.RequireRole(AppRoles.Admin));
+
 app.MapGet("/admin/results/{attemptId:guid}/download", async (
     Guid attemptId,
     ITestAttemptService attemptService,
@@ -306,7 +368,8 @@ static bool IsResultFileDownload(PathString path)
     }
 
     if (value.Equals("/admin/results/download-all", StringComparison.OrdinalIgnoreCase) ||
-        value.Equals("/admin/anonymous/download-all", StringComparison.OrdinalIgnoreCase))
+        value.Equals("/admin/anonymous/download-all", StringComparison.OrdinalIgnoreCase) ||
+        value.Equals("/admin/attempts/download-all", StringComparison.OrdinalIgnoreCase))
     {
         return true;
     }

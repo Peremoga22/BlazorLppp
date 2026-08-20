@@ -11,6 +11,7 @@
 
 @inject ITestAttemptService TestAttemptService
 @inject IJSRuntime JsRuntime
+@inject NavigationManager Navigation
 
 <PageTitle>Спроби тестування</PageTitle>
 
@@ -75,7 +76,17 @@
                         <th>Статус</th>
                         <th>Початок</th>
                         <th>Завершення</th>
-                        <th></th>
+                        <th class="admin-table__actions-head">
+                            <button type="button"
+                                    class="admin-btn admin-btn--sm admin-btn--download"
+                                    disabled="@(!CanDownloadFiltered)"
+                                    title="@DownloadFilteredTitle"
+                                    aria-label="Завантажити всі відфільтровані в один документ"
+                                    @onclick="DownloadFiltered">
+                                <span class="admin-btn__icon admin-btn__icon--download" aria-hidden="true"></span>
+                                Усі
+                            </button>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -168,6 +179,69 @@
         }
     }
 
+    private bool CanDownloadFiltered => (_result?.CompletedCount ?? 0) > 0;
+
+    private string DownloadFilteredTitle => CanDownloadFiltered
+        ? "Зібрати всі відфільтровані результати в один Word-документ і завантажити"
+        : "Немає завершених спроб серед поточного фільтра";
+
+    private TestAttemptListQuery CurrentListQuery
+    {
+        get
+        {
+            TestAttemptStatus? status = null;
+            if (int.TryParse(_statusFilter, out var statusValue) &&
+                Enum.IsDefined(typeof(TestAttemptStatus), statusValue))
+            {
+                status = (TestAttemptStatus)statusValue;
+            }
+
+            return new TestAttemptListQuery
+            {
+                Search = _search,
+                Status = status,
+                Month = MonthFilter.Parse(_selectedMonth)
+            };
+        }
+    }
+
+    private string DownloadFilteredHref
+    {
+        get
+        {
+            var query = CurrentListQuery;
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(query.Search))
+            {
+                parts.Add($"search={Uri.EscapeDataString(query.Search.Trim())}");
+            }
+
+            if (query.Status is TestAttemptStatus status)
+            {
+                parts.Add($"status={(int)status}");
+            }
+
+            if (query.Month is int month)
+            {
+                parts.Add($"month={month}");
+            }
+
+            return parts.Count == 0
+                ? "/admin/attempts/download-all"
+                : $"/admin/attempts/download-all?{string.Join("&", parts)}";
+        }
+    }
+
+    private void DownloadFiltered()
+    {
+        if (!CanDownloadFiltered)
+        {
+            return;
+        }
+
+        Navigation.NavigateTo(DownloadFilteredHref, forceLoad: true);
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
@@ -254,21 +328,10 @@
 
         try
         {
-            TestAttemptStatus? status = null;
-            if (int.TryParse(_statusFilter, out var statusValue) &&
-                Enum.IsDefined(typeof(TestAttemptStatus), statusValue))
-            {
-                status = (TestAttemptStatus)statusValue;
-            }
-
-            _result = await TestAttemptService.GetListAsync(new TestAttemptListQuery
-            {
-                Search = _search,
-                Status = status,
-                Month = MonthFilter.Parse(_selectedMonth),
-                Page = _page,
-                PageSize = 20
-            }, cancellationToken);
+            var query = CurrentListQuery;
+            query.Page = _page;
+            query.PageSize = 20;
+            _result = await TestAttemptService.GetListAsync(query, cancellationToken);
         }
         catch (OperationCanceledException)
         {
