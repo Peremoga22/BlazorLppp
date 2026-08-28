@@ -164,7 +164,16 @@
                                     <p class="test-form__hint">@question.Hint</p>
                                 }
 
-                                @if (question.Type is QuestionType.SingleChoice or QuestionType.YesNo)
+                                @if (UsesAnswerStyle(question))
+                                {
+                                    <AnswerChoiceBar Style="question.AnswerStyle"
+                                                     Items="ChoiceItems(question)"
+                                                     SelectedIndex="ChoiceIndex(question)"
+                                                     SelectedIndexChanged="index => ApplyChoice(question, index)"
+                                                     Interactive="@(!_form.IsCompleted)"
+                                                     AriaLabel="@question.Text" />
+                                }
+                                else if (question.Type is QuestionType.SingleChoice or QuestionType.YesNo)
                                 {
                                     <div class="test-form__options" role="radiogroup" aria-label="@question.Text">
                                         @foreach (var option in question.Options)
@@ -314,6 +323,125 @@
         {
             _isSubmitting = false;
         }
+    }
+
+    private static bool UsesAnswerStyle(TestFormQuestionModel question) =>
+        question.AnswerStyle != AnswerOptionStyle.Default &&
+        question.Type != QuestionType.MultiChoice;
+
+    private static IReadOnlyList<AnswerChoiceItem> ChoiceItems(TestFormQuestionModel question)
+    {
+        if (question.Options.Count > 0)
+        {
+            return question.Options
+                .Select(o => new AnswerChoiceItem(
+                    string.IsNullOrWhiteSpace(o.Text) ? o.Key : o.Text,
+                    o.Text))
+                .ToList();
+        }
+
+        if (question.Type != QuestionType.Scale)
+        {
+            return [];
+        }
+
+        var min = question.ScaleMin ?? 1;
+        var max = question.ScaleMax ?? 5;
+        return Enumerable.Range(min, Math.Max(0, max - min + 1))
+            .Select(value => new AnswerChoiceItem(value.ToString()))
+            .ToList();
+    }
+
+    private static int ChoiceIndex(TestFormQuestionModel question)
+    {
+        if (question.Options.Count > 0)
+        {
+            if (question.SelectedOptionId is Guid selected)
+            {
+                for (var i = 0; i < question.Options.Count; i++)
+                {
+                    if (question.Options[i].Id == selected)
+                    {
+                        return i;
+                    }
+                }
+            }
+
+            if (question.Type == QuestionType.Scale && question.ScaleValue is int scale)
+            {
+                for (var i = 0; i < question.Options.Count; i++)
+                {
+                    var option = question.Options[i];
+                    if (int.TryParse(option.Key, out var key) && key == scale)
+                    {
+                        return i;
+                    }
+
+                    if (int.TryParse(option.Text, out var text) && text == scale)
+                    {
+                        return i;
+                    }
+                }
+
+                return scale - (question.ScaleMin ?? 1);
+            }
+
+            return -1;
+        }
+
+        if (question.Type == QuestionType.Scale && question.ScaleValue is int value)
+        {
+            return value - (question.ScaleMin ?? 1);
+        }
+
+        return -1;
+    }
+
+    private static void ApplyChoice(TestFormQuestionModel question, int index)
+    {
+        if (index < 0)
+        {
+            return;
+        }
+
+        if (question.Options.Count > 0)
+        {
+            if (index >= question.Options.Count)
+            {
+                return;
+            }
+
+            var option = question.Options[index];
+            question.SelectedOptionId = option.Id;
+            if (question.Type == QuestionType.Scale)
+            {
+                question.ScaleValue = ParseChoiceScaleValue(question, option, index);
+            }
+
+            return;
+        }
+
+        if (question.Type == QuestionType.Scale)
+        {
+            question.ScaleValue = (question.ScaleMin ?? 1) + index;
+        }
+    }
+
+    private static int ParseChoiceScaleValue(TestFormQuestionModel question, TestFormOptionModel option, int index)
+    {
+        var min = question.ScaleMin ?? 1;
+        var max = question.ScaleMax ?? 10;
+        if (int.TryParse(option.Key, out var fromKey) && fromKey >= min && fromKey <= max)
+        {
+            return fromKey;
+        }
+
+        if (int.TryParse(option.Text, out var fromText) && fromText >= min && fromText <= max)
+        {
+            return fromText;
+        }
+
+        return min + index;
     }
 
     private static void ToggleMulti(TestFormQuestionModel question, Guid optionId, ChangeEventArgs e)

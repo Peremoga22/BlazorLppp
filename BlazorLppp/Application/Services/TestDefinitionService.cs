@@ -1,6 +1,7 @@
 using BlazorLppp.Application.Models;
 using BlazorLppp.Data;
 using BlazorLppp.Domain.Entities;
+using BlazorLppp.Domain.Enums;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -258,6 +259,7 @@ public class TestDefinitionService(
         }
 
         var relativePath = document.RelativePath;
+        var isManual = document.IsManual;
         dbContext.TestDocuments.Remove(document);
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -266,9 +268,298 @@ public class TestDefinitionService(
             await resultDocumentService.DeleteAsync(resultPath!, cancellationToken);
         }
 
-        if (!string.IsNullOrWhiteSpace(relativePath))
+        if (!isManual && !string.IsNullOrWhiteSpace(relativePath))
         {
             await documentStorageService.DeleteAsync(relativePath, cancellationToken);
         }
+    }
+
+    public async Task<TestDocument> CreateManualAsync(
+        string title,
+        string? instruction = null,
+        CancellationToken cancellationToken = default)
+    {
+        var trimmedTitle = title.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedTitle))
+        {
+            throw new InvalidOperationException("Вкажіть назву тесту.");
+        }
+
+        if (trimmedTitle.Length > 300)
+        {
+            throw new InvalidOperationException("Назва тесту задовга.");
+        }
+
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var id = Guid.NewGuid();
+        var document = new TestDocument
+        {
+            Id = id,
+            Title = trimmedTitle,
+            Instruction = NormalizeInstruction(instruction),
+            OriginalFileName = "constructor",
+            FolderName = $"constructor-{id:N}",
+            RelativePath = $"constructor/{id:N}",
+            UploadedAt = DateTime.Now,
+            IsActive = false,
+            IsRequired = false,
+            IsManual = true
+        };
+
+        dbContext.TestDocuments.Add(document);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return document;
+    }
+
+    public async Task<ConstructorTestDraft?> GetConstructorDraftAsync(
+        Guid documentId,
+        CancellationToken cancellationToken = default)
+    {
+        var document = await GetByIdAsync(documentId, cancellationToken);
+        if (document is null)
+        {
+            return null;
+        }
+
+        return new ConstructorTestDraft
+        {
+            Id = document.Id,
+            Title = document.Title,
+            Instruction = document.Instruction,
+            IsActive = document.IsActive,
+            IsRequired = document.IsRequired,
+            Questions = document.Questions
+                .OrderBy(q => q.SortOrder)
+                .Select(q => new ConstructorQuestionDraft
+                {
+                    Id = q.Id,
+                    SortOrder = q.SortOrder,
+                    Text = q.Text,
+                    Hint = q.Hint,
+                    Type = q.Type,
+                    AnswerStyle = q.AnswerStyle == AnswerOptionStyle.Default
+                        ? AnswerOptionStyle.Classic
+                        : q.AnswerStyle,
+                    ScaleMin = q.ScaleMin,
+                    ScaleMax = q.ScaleMax,
+                    Options = q.Options
+                        .OrderBy(o => o.SortOrder)
+                        .Select(o => new ConstructorOptionDraft
+                        {
+                            Id = o.Id,
+                            SortOrder = o.SortOrder,
+                            Key = o.Key,
+                            Text = o.Text
+                        })
+                        .ToList()
+                })
+                .ToList()
+        };
+    }
+
+    public async Task SaveConstructorDraftAsync(
+        ConstructorTestDraft draft,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+
+        var title = draft.Title.Trim();
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            throw new InvalidOperationException("Вкажіть назву тесту.");
+        }
+
+        if (draft.Questions.Count == 0)
+        {
+            throw new InvalidOperationException("Додайте хоча б одне питання.");
+        }
+
+        var incomingQuestions = draft.Questions
+            .Select((q, index) => NormalizeQuestion(q, index + 1))
+            .ToList();
+
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var document = await dbContext.TestDocuments
+            .Include(d => d.Questions)
+            .ThenInclude(q => q.Options)
+            .FirstOrDefaultAsync(d => d.Id == draft.Id, cancellationToken)
+            ?? throw new InvalidOperationException("Тест не знайдено.");
+
+        document.Title = title;
+        document.Instruction = NormalizeInstruction(draft.Instruction);
+        document.IsManual = true;
+
+        var existingQuestionIds = document.Questions.Select(q => q.Id).ToList();
+        if (existingQuestionIds.Count > 0)
+        {
+            var answers = await dbContext.TestAnswers
+                .Where(a => existingQuestionIds.Contains(a.TestQuestionId))
+                .ToListAsync(cancellationToken);
+            if (answers.Count > 0)
+            {
+                dbContext.TestAnswers.RemoveRange(answers);
+            }
+
+            dbContext.TestQuestions.RemoveRange(document.Questions.ToList());
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        foreach (var incoming in incomingQuestions)
+        {
+            var question = new TestQuestion
+            {
+                Id = Guid.NewGuid(),
+                TestDocumentId = document.Id,
+                SortOrder = incoming.SortOrder,
+                Text = incoming.Text,
+                Hint = incoming.Hint,
+                Type = incoming.Type,
+                AnswerStyle = incoming.Type == QuestionType.MultiChoice
+                    ? AnswerOptionStyle.Default
+                    : incoming.AnswerStyle,
+                ScaleMin = incoming.ScaleMin,
+                ScaleMax = incoming.ScaleMax
+            };
+
+            foreach (var option in incoming.Options)
+            {
+                question.Options.Add(new TestOption
+                {
+                    Id = Guid.NewGuid(),
+                    TestQuestionId = question.Id,
+                    SortOrder = option.SortOrder,
+                    Key = option.Key,
+                    Text = option.Text
+                });
+            }
+
+            dbContext.TestQuestions.Add(question);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static ConstructorQuestionDraft NormalizeQuestion(ConstructorQuestionDraft question, int sortOrder)
+    {
+        var text = question.Text.Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new InvalidOperationException($"Питання {sortOrder}: вкажіть текст.");
+        }
+
+        var type = question.Type;
+        var style = question.AnswerStyle == AnswerOptionStyle.Default
+            ? AnswerOptionStyle.Classic
+            : question.AnswerStyle;
+
+        var options = question.Options
+            .Select(o => new ConstructorOptionDraft
+            {
+                Id = o.Id,
+                Key = o.Key.Trim(),
+                Text = o.Text.Trim()
+            })
+            .Where(o => !string.IsNullOrWhiteSpace(o.Key) || !string.IsNullOrWhiteSpace(o.Text))
+            .ToList();
+
+        if (type == QuestionType.YesNo)
+        {
+            options = EnsureYesNoOptions(options);
+            style = style == AnswerOptionStyle.Default ? AnswerOptionStyle.Classic : style;
+        }
+        else if (type == QuestionType.Scale)
+        {
+            var min = question.ScaleMin ?? 1;
+            var max = question.ScaleMax ?? 5;
+            if (max < min)
+            {
+                (min, max) = (max, min);
+            }
+
+            if (max - min > 20)
+            {
+                throw new InvalidOperationException($"Питання {sortOrder}: занадто широка шкала.");
+            }
+
+            question.ScaleMin = min;
+            question.ScaleMax = max;
+            if (options.Count == 0)
+            {
+                options = Enumerable.Range(min, max - min + 1)
+                    .Select(value => new ConstructorOptionDraft
+                    {
+                        Key = value.ToString(),
+                        Text = value.ToString()
+                    })
+                    .ToList();
+            }
+        }
+        else if (type == QuestionType.MultiChoice)
+        {
+            style = AnswerOptionStyle.Default;
+        }
+
+        if (type is QuestionType.SingleChoice or QuestionType.MultiChoice or QuestionType.YesNo)
+        {
+            if (options.Count < 2)
+            {
+                throw new InvalidOperationException($"Питання {sortOrder}: додайте щонайменше два варіанти відповіді.");
+            }
+        }
+
+        for (var i = 0; i < options.Count; i++)
+        {
+            var option = options[i];
+            option.SortOrder = i + 1;
+            if (string.IsNullOrWhiteSpace(option.Text))
+            {
+                option.Text = string.IsNullOrWhiteSpace(option.Key) ? (i + 1).ToString() : option.Key;
+            }
+
+            option.Key = type == QuestionType.Scale
+                ? ((question.ScaleMin ?? 1) + i).ToString()
+                : (i + 1).ToString();
+            if (option.Key.Length > 20)
+            {
+                option.Key = option.Key[..20];
+            }
+        }
+
+        question.SortOrder = sortOrder;
+        question.Text = text;
+        question.Hint = string.IsNullOrWhiteSpace(question.Hint) ? null : question.Hint.Trim();
+        question.Type = type;
+        question.AnswerStyle = type == QuestionType.MultiChoice ? AnswerOptionStyle.Default : style;
+        question.Options = options;
+        return question;
+    }
+
+    private static List<ConstructorOptionDraft> EnsureYesNoOptions(List<ConstructorOptionDraft> options)
+    {
+        if (options.Count >= 2)
+        {
+            return options.Take(2).ToList();
+        }
+
+        return
+        [
+            new ConstructorOptionDraft { Key = "Так", Text = "Так" },
+            new ConstructorOptionDraft { Key = "Ні", Text = "Ні" }
+        ];
+    }
+
+    private static string? NormalizeInstruction(string? instruction)
+    {
+        var value = instruction?.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Length > 2000 ? value[..2000] : value;
     }
 }

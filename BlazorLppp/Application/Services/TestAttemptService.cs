@@ -285,6 +285,7 @@ public class TestAttemptService(
                     Text = q.Text,
                     Hint = q.Hint,
                     Type = q.Type,
+                    AnswerStyle = q.AnswerStyle,
                     ScaleMin = q.ScaleMin,
                     ScaleMax = q.ScaleMax,
                     MaxSelections = q.Text.Contains("до 3", StringComparison.OrdinalIgnoreCase) ? 3 : null,
@@ -830,6 +831,7 @@ public class TestAttemptService(
                 break;
 
             case QuestionType.Scale:
+                input.ScaleValue = ResolveScaleValue(question, input);
                 var min = question.ScaleMin ?? 1;
                 var max = question.ScaleMax ?? 10;
                 if (!input.ScaleValue.HasValue ||
@@ -840,7 +842,6 @@ public class TestAttemptService(
                         $"Для питання {question.SortOrder} оберіть значення від {min} до {max}.");
                 }
 
-                input.SelectedOptionId = null;
                 input.TextValue = null;
                 break;
 
@@ -871,5 +872,51 @@ public class TestAttemptService(
             default:
                 throw new InvalidOperationException($"Невідомий тип питання {question.SortOrder}.");
         }
+    }
+
+    private static int? ResolveScaleValue(TestQuestion question, TestAnswerInput input)
+    {
+        var min = question.ScaleMin ?? 1;
+        var max = question.ScaleMax ?? 10;
+        if (input.ScaleValue is int direct && direct >= min && direct <= max)
+        {
+            return direct;
+        }
+
+        var options = question.Options.OrderBy(o => o.SortOrder).ToList();
+        if (options.Count == 0)
+        {
+            return input.ScaleValue;
+        }
+
+        var index = -1;
+        if (input.SelectedOptionId is Guid selectedId)
+        {
+            index = options.FindIndex(o => o.Id == selectedId);
+        }
+
+        if (index < 0)
+        {
+            return input.ScaleValue;
+        }
+
+        var option = options[index];
+        if (TryParseScaleNumber(option.Key, min, max, out var fromKey))
+        {
+            return fromKey;
+        }
+
+        if (TryParseScaleNumber(option.Text, min, max, out var fromText))
+        {
+            return fromText;
+        }
+
+        return min + index;
+    }
+
+    private static bool TryParseScaleNumber(string? value, int min, int max, out int parsed)
+    {
+        parsed = 0;
+        return int.TryParse(value, out parsed) && parsed >= min && parsed <= max;
     }
 }

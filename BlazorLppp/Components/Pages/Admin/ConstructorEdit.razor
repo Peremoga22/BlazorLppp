@@ -1,0 +1,489 @@
+@page "/admin/constructor/edit/{DocumentId:guid}"
+@layout AdminLayout
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@attribute [Authorize(Roles = AppRoles.Admin)]
+
+@using BlazorLppp.Application.Models
+@using BlazorLppp.Domain
+@using BlazorLppp.Domain.Enums
+@using Microsoft.AspNetCore.Authorization
+
+@inject ITestDefinitionService TestDefinitionService
+
+<PageTitle>Редактор тесту</PageTitle>
+
+<div class="admin-page">
+    <header class="admin-page__header admin-page__header--hero">
+        <div class="admin-page__hero-copy">
+            <p class="admin-page__eyebrow">Конструктор</p>
+            <h1 class="admin-page__title">@(_draft?.Title is { Length: > 0 } title ? title : "Новий тест")</h1>
+            <p class="admin-page__subtitle">
+                Питання, варіанти відповіді та вигляд кнопок для працівника.
+            </p>
+        </div>
+        <a class="admin-link admin-link--back" href="/admin/constructor" data-enhance-nav="false">
+            <span class="admin-btn__icon admin-btn__icon--arrow-left" aria-hidden="true"></span>
+            До списку
+        </a>
+    </header>
+
+    @if (_isLoading)
+    {
+        <p class="admin-page__muted">Завантаження...</p>
+    }
+    else if (_draft is null)
+    {
+        <p class="admin-page__error" role="alert">Тест не знайдено.</p>
+    }
+    else
+    {
+        <section class="admin-panel">
+            <h2 class="admin-upload__title">Про тест</h2>
+            <div class="ctor-meta">
+                <label class="ctor-field">
+                    <span>Назва</span>
+                    <input class="admin-input ctor-title"
+                           @bind="_draft.Title"
+                           maxlength="300"
+                           placeholder="Назва тесту" />
+                </label>
+                <label class="ctor-field">
+                    <span>Інструкція для працівника</span>
+                    <textarea class="admin-input ctor-instruction"
+                              rows="2"
+                              maxlength="2000"
+                              @bind="_draft.Instruction"
+                              placeholder="Коротко, як проходити тест"></textarea>
+                </label>
+                <label class="admin-required-check ctor-check">
+                    <input type="checkbox" @bind="_draft.IsRequired" />
+                    <span>Обов’язковий для працівників</span>
+                </label>
+            </div>
+        </section>
+
+        @if (!string.IsNullOrEmpty(_message))
+        {
+            <p class="@(_isError ? "admin-page__error" : "admin-upload__success")" role="status">@_message</p>
+        }
+
+        <div class="ctor-toolbar">
+            <button type="button" class="admin-btn admin-btn--soft" @onclick="AddQuestion">
+                Додати питання
+            </button>
+            <button type="button"
+                    class="admin-btn"
+                    disabled="@_isSaving"
+                    @onclick="SaveAsync">
+                @(_isSaving ? "Збереження..." : "Зберегти тест")
+            </button>
+            <button type="button"
+                    class="admin-btn admin-btn--ghost"
+                    disabled="@_isSaving"
+                    @onclick="SaveAndActivateAsync">
+                Зберегти й активувати
+            </button>
+        </div>
+
+        @if (_draft.Questions.Count == 0)
+        {
+            <p class="admin-empty">Додайте перше питання — за замовчуванням шкала 1–5 у стилі Classic.</p>
+        }
+
+        @for (var i = 0; i < _draft.Questions.Count; i++)
+        {
+            var question = _draft.Questions[i];
+            var index = i;
+            <article class="ctor-q" @key="question.Id">
+                <header class="ctor-q__head">
+                    <strong class="ctor-q__num">@question.SortOrder</strong>
+                    <label class="ctor-field ctor-field--grow">
+                        <span>Питання</span>
+                        <input class="admin-input"
+                               @bind="question.Text"
+                               placeholder="Текст питання" />
+                    </label>
+                    <label class="ctor-field">
+                        <span>Тип</span>
+                        <select class="admin-select ctor-select"
+                                value="@((int)question.Type)"
+                                @onchange="e => ChangeType(question, e)">
+                            <option value="1">Один варіант</option>
+                            <option value="2">Так / Ні</option>
+                            <option value="3">Шкала</option>
+                            <option value="4">Кілька варіантів</option>
+                        </select>
+                    </label>
+                    <div class="ctor-q__moves">
+                        <button type="button" class="admin-icon-btn" title="Вище" disabled="@(index == 0)" @onclick="() => Move(index, -1)">↑</button>
+                        <button type="button" class="admin-icon-btn" title="Нижче" disabled="@(index == _draft.Questions.Count - 1)" @onclick="() => Move(index, 1)">↓</button>
+                        <button type="button" class="admin-icon-btn admin-icon-btn--danger" title="Видалити" @onclick="() => RemoveQuestion(index)">×</button>
+                    </div>
+                </header>
+
+                <label class="ctor-field">
+                    <span>Підказка (необов’язково)</span>
+                    <input class="admin-input" @bind="question.Hint" placeholder="Пояснення під питанням" />
+                </label>
+
+                @if (question.Type == QuestionType.Scale)
+                {
+                    <div class="ctor-scale">
+                        <label class="ctor-field">
+                            <span>Від</span>
+                            <input class="admin-input" type="number" @bind="question.ScaleMin" @bind:after="() => EnsureScaleOptions(question)" />
+                        </label>
+                        <label class="ctor-field">
+                            <span>До</span>
+                            <input class="admin-input" type="number" @bind="question.ScaleMax" @bind:after="() => EnsureScaleOptions(question)" />
+                        </label>
+                    </div>
+                }
+
+                <div class="ctor-options">
+                    <div class="ctor-options__head">
+                        <h3 class="ctor-options__title">Варіанти</h3>
+                        <div class="ctor-options__actions">
+                            @if (question.Type != QuestionType.YesNo)
+                            {
+                                <button type="button" class="admin-btn admin-btn--ghost admin-btn--sm" @onclick="() => ApplyLikert(question)">
+                                    Шаблон 1–5
+                                </button>
+                                <button type="button" class="admin-btn admin-btn--soft admin-btn--sm" @onclick="() => AddOption(question)">
+                                    Додати варіант
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    @for (var o = 0; o < question.Options.Count; o++)
+                    {
+                        var option = question.Options[o];
+                        var optionIndex = o;
+                        <div class="ctor-option" @key="option.Id">
+                            <span class="ctor-option__n">@(optionIndex + 1)</span>
+                            <input class="admin-input"
+                                   @bind="option.Text"
+                                   placeholder="Текст відповіді" />
+                            @if (question.Type != QuestionType.YesNo)
+                            {
+                                <button type="button"
+                                        class="admin-icon-btn admin-icon-btn--danger"
+                                        title="Прибрати"
+                                        @onclick="() => question.Options.RemoveAt(optionIndex)">
+                                    ×
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (question.Type != QuestionType.MultiChoice && question.Options.Count > 0)
+                {
+                    <div class="ctor-live">
+                        <span class="ctor-live__label">Перегляд</span>
+                        <AnswerChoiceBar Style="question.AnswerStyle"
+                                         Items="ToChoiceItems(question)"
+                                         SelectedIndex="PreviewIndex(question)"
+                                         SelectedIndexChanged="index => SetPreview(question.Id, index)"
+                                         Interactive="true"
+                                         AriaLabel="@question.Text" />
+                    </div>
+                }
+            </article>
+        }
+
+        <div class="ctor-toolbar ctor-toolbar--end">
+            <button type="button" class="admin-btn admin-btn--soft" @onclick="AddQuestion">
+                Додати питання
+            </button>
+            <button type="button"
+                    class="admin-btn"
+                    disabled="@_isSaving"
+                    @onclick="SaveAsync">
+                @(_isSaving ? "Збереження..." : "Зберегти тест")
+            </button>
+            <button type="button"
+                    class="admin-btn admin-btn--ghost"
+                    disabled="@_isSaving"
+                    @onclick="SaveAndActivateAsync">
+                Зберегти й активувати
+            </button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_message))
+        {
+            <p class="@(_isError ? "admin-page__error" : "admin-upload__success")" role="status">@_message</p>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid DocumentId { get; set; }
+
+    private ConstructorTestDraft? _draft;
+    private readonly Dictionary<Guid, int> _previewIndex = [];
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private string? _message;
+    private bool _isError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        try
+        {
+            _draft = await TestDefinitionService.GetConstructorDraftAsync(DocumentId);
+            if (_draft is not null && _draft.Questions.Count == 0)
+            {
+                AddQuestion();
+            }
+        }
+        catch (Exception)
+        {
+            _draft = null;
+            _message = "Не вдалося відкрити тест.";
+            _isError = true;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void AddQuestion()
+    {
+        if (_draft is null)
+        {
+            return;
+        }
+
+        var question = new ConstructorQuestionDraft
+        {
+            Id = Guid.NewGuid(),
+            SortOrder = _draft.Questions.Count + 1,
+            Type = QuestionType.SingleChoice,
+            AnswerStyle = AnswerOptionStyle.Classic
+        };
+        ApplyLikert(question);
+        _draft.Questions.Add(question);
+        Renumber();
+    }
+
+    private void RemoveQuestion(int index)
+    {
+        _draft?.Questions.RemoveAt(index);
+        Renumber();
+    }
+
+    private void Move(int index, int delta)
+    {
+        if (_draft is null)
+        {
+            return;
+        }
+
+        var target = index + delta;
+        if (target < 0 || target >= _draft.Questions.Count)
+        {
+            return;
+        }
+
+        (_draft.Questions[index], _draft.Questions[target]) = (_draft.Questions[target], _draft.Questions[index]);
+        Renumber();
+    }
+
+    private void Renumber()
+    {
+        if (_draft is null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < _draft.Questions.Count; i++)
+        {
+            _draft.Questions[i].SortOrder = i + 1;
+        }
+    }
+
+    private static void AddOption(ConstructorQuestionDraft question)
+    {
+        var n = question.Options.Count + 1;
+        question.Options.Add(new ConstructorOptionDraft
+        {
+            Id = Guid.NewGuid(),
+            SortOrder = n,
+            Key = n.ToString(),
+            Text = n.ToString()
+        });
+    }
+
+    private static void ApplyLikert(ConstructorQuestionDraft question)
+    {
+        question.Options =
+        [
+            new() { Id = Guid.NewGuid(), SortOrder = 1, Key = "1", Text = "1" },
+            new() { Id = Guid.NewGuid(), SortOrder = 2, Key = "2", Text = "2" },
+            new() { Id = Guid.NewGuid(), SortOrder = 3, Key = "3", Text = "3" },
+            new() { Id = Guid.NewGuid(), SortOrder = 4, Key = "4", Text = "4" },
+            new() { Id = Guid.NewGuid(), SortOrder = 5, Key = "5", Text = "5" }
+        ];
+        question.ScaleMin = 1;
+        question.ScaleMax = 5;
+        if (question.AnswerStyle == AnswerOptionStyle.Default)
+        {
+            question.AnswerStyle = AnswerOptionStyle.Classic;
+        }
+    }
+
+    private static void ChangeType(ConstructorQuestionDraft question, ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var value) ||
+            !Enum.IsDefined(typeof(QuestionType), value))
+        {
+            return;
+        }
+
+        question.Type = (QuestionType)value;
+        OnTypeChanged(question);
+    }
+
+    private static void OnTypeChanged(ConstructorQuestionDraft question)
+    {
+        if (question.Type == QuestionType.YesNo)
+        {
+            question.Options =
+            [
+                new() { Id = Guid.NewGuid(), SortOrder = 1, Key = "Так", Text = "Так" },
+                new() { Id = Guid.NewGuid(), SortOrder = 2, Key = "Ні", Text = "Ні" }
+            ];
+            question.AnswerStyle = question.AnswerStyle == AnswerOptionStyle.Default
+                ? AnswerOptionStyle.Classic
+                : question.AnswerStyle;
+            return;
+        }
+
+        if (question.Type == QuestionType.Scale)
+        {
+            question.ScaleMin ??= 1;
+            question.ScaleMax ??= 5;
+            EnsureScaleOptions(question);
+            return;
+        }
+
+        if (question.Type == QuestionType.MultiChoice)
+        {
+            question.AnswerStyle = AnswerOptionStyle.Default;
+            if (question.Options.Count < 2)
+            {
+                ApplyLikert(question);
+            }
+        }
+        else if (question.Options.Count == 0)
+        {
+            ApplyLikert(question);
+        }
+    }
+
+    private static void EnsureScaleOptions(ConstructorQuestionDraft question)
+    {
+        var min = question.ScaleMin ?? 1;
+        var max = question.ScaleMax ?? 5;
+        if (max < min)
+        {
+            (min, max) = (max, min);
+        }
+
+        max = Math.Min(max, min + 20);
+        question.ScaleMin = min;
+        question.ScaleMax = max;
+        question.Options = Enumerable.Range(min, max - min + 1)
+            .Select((value, i) => new ConstructorOptionDraft
+            {
+                Id = Guid.NewGuid(),
+                SortOrder = i + 1,
+                Key = value.ToString(),
+                Text = value.ToString()
+            })
+            .ToList();
+    }
+
+    private static IReadOnlyList<AnswerChoiceItem> ToChoiceItems(ConstructorQuestionDraft question) =>
+        question.Options
+            .Select(o => new AnswerChoiceItem(
+                string.IsNullOrWhiteSpace(o.Text) ? o.Key : o.Text,
+                o.Text))
+            .ToList();
+
+    private int PreviewIndex(ConstructorQuestionDraft question)
+    {
+        if (_previewIndex.TryGetValue(question.Id, out var index))
+        {
+            return Math.Clamp(index, 0, Math.Max(0, question.Options.Count - 1));
+        }
+
+        if (question.Options.Count == 0)
+        {
+            return -1;
+        }
+
+        return Math.Min(
+            AnswerOptionStyles.PreviewSelectedIndex(question.AnswerStyle),
+            question.Options.Count - 1);
+    }
+
+    private void SetPreview(Guid questionId, int index) => _previewIndex[questionId] = index;
+
+    private Task SaveAsync() => PersistAsync(activate: false);
+
+    private Task SaveAndActivateAsync() => PersistAsync(activate: true);
+
+    private async Task PersistAsync(bool activate)
+    {
+        if (_draft is null || _isSaving)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        _message = null;
+        _isError = false;
+
+        try
+        {
+            await TestDefinitionService.SaveConstructorDraftAsync(_draft);
+            if (activate)
+            {
+                await TestDefinitionService.SetActiveAsync(_draft.Id);
+                _draft.IsActive = true;
+            }
+
+            if (_draft.IsRequired)
+            {
+                await TestDefinitionService.SetRequiredAsync(_draft.Id, true);
+            }
+            else
+            {
+                await TestDefinitionService.SetRequiredAsync(_draft.Id, false);
+            }
+
+            _draft = await TestDefinitionService.GetConstructorDraftAsync(DocumentId) ?? _draft;
+            _message = activate
+                ? "Тест збережено й активовано для проходження."
+                : "Тест збережено.";
+        }
+        catch (Exception ex)
+        {
+            _message = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося зберегти тест."
+                : ex.Message;
+            _isError = true;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

@@ -282,6 +282,10 @@
     font-size: 0.9rem;
 }
 
+.test-form__question .ac {
+    margin-top: 0.9rem;
+}
+
 .test-form__options {
     display: flex;
     flex-direction: column;

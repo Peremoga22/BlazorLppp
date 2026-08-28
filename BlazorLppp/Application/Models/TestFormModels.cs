@@ -35,6 +35,8 @@ public class TestFormQuestionModel
 
     public IReadOnlyList<TestFormOptionModel> Options { get; init; } = [];
 
+    public AnswerOptionStyle AnswerStyle { get; init; }
+
     public Guid? SelectedOptionId { get; set; }
 
     public List<Guid> SelectedOptionIds { get; set; } = [];

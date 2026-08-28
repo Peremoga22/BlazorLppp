@@ -21,4 +21,17 @@ public interface ITestDefinitionService
     Task SetRequiredAsync(Guid documentId, bool isRequired, CancellationToken cancellationToken = default);
 
     Task DeleteAsync(Guid documentId, CancellationToken cancellationToken = default);
+
+    Task<TestDocument> CreateManualAsync(
+        string title,
+        string? instruction = null,
+        CancellationToken cancellationToken = default);
+
+    Task<ConstructorTestDraft?> GetConstructorDraftAsync(
+        Guid documentId,
+        CancellationToken cancellationToken = default);
+
+    Task SaveConstructorDraftAsync(
+        ConstructorTestDraft draft,
+        CancellationToken cancellationToken = default);
 }

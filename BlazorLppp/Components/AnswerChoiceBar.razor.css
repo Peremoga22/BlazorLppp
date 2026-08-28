@@ -1,0 +1,260 @@
+.ac {
+    --ac-ink: var(--ink, #1f2430);
+    --ac-muted: var(--muted, #8b93a7);
+    --ac-line: var(--line, #e6e8ef);
+    --ac-surface: var(--surface, #fff);
+    --ac-gradient: linear-gradient(135deg, #c084fc 0%, #8b5cf6 42%, #6366f1 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    user-select: none;
+}
+
+.ac--static {
+    pointer-events: none;
+}
+
+.ac__nav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ac-muted);
+    cursor: pointer;
+}
+
+.ac__nav svg {
+    width: 1.15rem;
+    height: 1.15rem;
+}
+
+.ac__nav:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.ac__nav:hover:not(:disabled) {
+    color: var(--ac-ink);
+    background: color-mix(in srgb, var(--ac-line) 70%, transparent);
+}
+
+.ac__nums,
+.ac__dots,
+.ac__steps,
+.ac__track,
+.ac__progress,
+.ac__compact {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.ac__num {
+    min-width: 2.05rem;
+    height: 2.05rem;
+    padding: 0 0.35rem;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ac-ink);
+    font: inherit;
+    font-size: 0.92rem;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.ac--classic .ac__num.is-active,
+.ac--pills .ac__num.is-active {
+    background: var(--ac-gradient);
+    color: #fff;
+    box-shadow: 0 8px 16px rgba(99, 102, 241, 0.28);
+}
+
+.ac--pills .ac__num {
+    border-radius: 999px;
+    min-width: 2.15rem;
+    height: 2.15rem;
+}
+
+.ac--bordered .ac__num {
+    border-color: var(--ac-line);
+    border-radius: 8px;
+    background: var(--ac-surface);
+}
+
+.ac--bordered .ac__num.is-active {
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 1px #8b5cf6;
+    color: #7c3aed;
+}
+
+.ac__ellipsis {
+    color: var(--ac-muted);
+    padding: 0 0.15rem;
+    font-weight: 700;
+}
+
+.ac__dots {
+    gap: 0.45rem;
+    min-height: 1.1rem;
+}
+
+.ac__dot {
+    width: 0.48rem;
+    height: 0.48rem;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: #d8dbe6;
+    cursor: pointer;
+}
+
+.ac__dot.is-active {
+    width: 1.35rem;
+    background: var(--ac-gradient);
+}
+
+.ac__track {
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: min(100%, 16rem);
+}
+
+.ac__track-nums {
+    display: flex;
+    width: 100%;
+}
+
+.ac__track-num {
+    flex: 1;
+    border: none;
+    background: none;
+    color: var(--ac-muted);
+    font: inherit;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.ac__track-num.is-active {
+    color: #7c3aed;
+}
+
+.ac__track-line {
+    position: relative;
+    width: 100%;
+    height: 3px;
+    border-radius: 999px;
+    background: #e6e8ef;
+}
+
+.ac__track-fill {
+    position: absolute;
+    top: -2px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--ac-gradient);
+}
+
+.ac__compact-value {
+    font-weight: 700;
+    color: var(--ac-ink);
+    letter-spacing: -0.02em;
+}
+
+.ac__progress {
+    gap: 0.75rem;
+    width: min(100%, 18rem);
+}
+
+.ac__progress-bar {
+    position: relative;
+    flex: 1;
+    display: flex;
+    height: 0.55rem;
+    border-radius: 999px;
+    background: #eceef5;
+    overflow: hidden;
+}
+
+.ac__progress-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: inherit;
+    background: var(--ac-gradient);
+}
+
+.ac__progress-hit {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+}
+
+.ac__steps {
+    gap: 0;
+    width: min(100%, 18rem);
+}
+
+.ac__step {
+    width: 1.85rem;
+    height: 1.85rem;
+    border-radius: 999px;
+    border: 1.5px dashed #d0d4e0;
+    background: transparent;
+    color: var(--ac-muted);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.ac__step.is-done {
+    border: none;
+    background: var(--ac-gradient);
+    color: #fff;
+}
+
+.ac__step.is-current {
+    border-style: dashed;
+    border-color: #8b5cf6;
+    color: #7c3aed;
+    background: color-mix(in srgb, #8b5cf6 10%, var(--ac-surface));
+}
+
+.ac__step-line {
+    flex: 1;
+    height: 0;
+    border-top: 1.5px dashed #d0d4e0;
+    margin: 0 0.2rem;
+    min-width: 0.7rem;
+}
+
+.ac__step-line.is-done {
+    border-top-style: solid;
+    border-top-color: #8b5cf6;
+}
+
+:root[data-theme="dark"] .ac__dot {
+    background: #3a4154;
+}
+
+:root[data-theme="dark"] .ac__track-line,
+:root[data-theme="dark"] .ac__progress-bar {
+    background: #2a3142;
+}
+
+:root[data-theme="dark"] .ac__step,
+:root[data-theme="dark"] .ac__step-line {
+    border-color: #4a5166;
+}

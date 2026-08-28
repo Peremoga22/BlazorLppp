@@ -25,12 +25,14 @@
             <p class="admin-page__subtitle">
                 Завантажте .docx/.doc/.txt — система зчитає питання і сформує вебформу.
                 Позначте чекбоксом, які тести мають пройти працівники.
+                Або складіть тест самостійно в <a class="admin-page__link" href="/admin/constructor">конструкторі</a>.
             </p>
         </div>
-        <a class="admin-link admin-link--back" href="/admin-home">
-            <span class="admin-btn__icon admin-btn__icon--arrow-left" aria-hidden="true"></span>
-            До панелі
-        </a>
+        <div class="admin-page__hero-meta">
+            <a class="admin-btn admin-btn--soft" href="/admin/constructor">
+                Конструктор тестів
+            </a>
+        </div>
     </header>
 
     <section class="admin-upload" aria-labelledby="upload-heading">
@@ -126,6 +128,15 @@
                                 <td>@doc.UploadedAt.ToString("dd.MM.yyyy HH:mm")</td>
                                 <td>
                                     <div class="admin-actions admin-actions--icons">
+                                        @if (doc.IsManual)
+                                        {
+                                            <a class="admin-icon-btn"
+                                               href="@($"/admin/constructor/edit/{doc.Id}")"
+                                               title="Редагувати в конструкторі"
+                                               aria-label="Редагувати в конструкторі">
+                                                <span class="admin-btn__icon admin-btn__icon--file" aria-hidden="true"></span>
+                                            </a>
+                                        }
                                         <button type="button"
                                                 class="admin-icon-btn"
                                                 title="Перегляд"

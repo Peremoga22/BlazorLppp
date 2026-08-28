@@ -134,7 +134,9 @@ public partial class TestResultDocumentService(
 
                 var instruction = !string.IsNullOrWhiteSpace(document?.Instruction)
                     ? document.Instruction
-                    : "Вам будуть запропоновані твердження, які стосуються Вашого здоров’я та характеру. Якщо Ви згодні з твердженням, поставте знак “+” у графі “Так” в реєстраційному бланку, якщо ні – поставте знак “-” у графі “Ні”. Над відповідями намагайтеся довго не замислюватися, правильних або неправильних відповідей немає.";
+                    : document?.IsManual == true
+                        ? "Дайте відповідь на кожне питання. Оберіть варіант, який найбільше вам підходить."
+                        : "Вам будуть запропоновані твердження, які стосуються Вашого здоров’я та характеру. Якщо Ви згодні з твердженням, поставте знак “+” у графі “Так” в реєстраційному бланку, якщо ні – поставте знак “-” у графі “Ні”. Над відповідями намагайтеся довго не замислюватися, правильних або неправильних відповідей немає.";
 
                 AppendInstructionParagraph(body, instruction);
                 AppendEmptyParagraph(body);
@@ -145,7 +147,7 @@ public partial class TestResultDocumentService(
                     ? BuildAssingerAnswersTable(questions, answersByQuestion)
                     : isHorska
                         ? BuildScaleAnswersTable(questions, answersByQuestion)
-                        : BuildAnswersTable(questions, answersByQuestion));
+                        : BuildAdaptiveAnswersTable(questions, answersByQuestion));
 
                 if (isHorska)
                 {
@@ -1110,6 +1112,143 @@ public partial class TestResultDocumentService(
         return table;
     }
 
+    private static Table BuildAdaptiveAnswersTable(
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
+    {
+        if (questions.Count > 0 && questions.All(IsYesNoQuestion))
+        {
+            return BuildAnswersTable(questions, answersByQuestion);
+        }
+
+        return BuildChosenAnswersTable(questions, answersByQuestion);
+    }
+
+    private static Table BuildChosenAnswersTable(
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
+    {
+        var table = new Table();
+        table.AppendChild(new TableProperties(
+            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct },
+            new TableBorders(
+                CreateBorder<TopBorder>(),
+                CreateBorder<LeftBorder>(),
+                CreateBorder<BottomBorder>(),
+                CreateBorder<RightBorder>(),
+                CreateBorder<InsideHorizontalBorder>(),
+                CreateBorder<InsideVerticalBorder>()),
+            new TableLayout { Type = TableLayoutValues.Fixed }));
+
+        table.AppendChild(new TableGrid(
+            new GridColumn { Width = "700" },
+            new GridColumn { Width = "6200" },
+            new GridColumn { Width = "2800" }));
+
+        var header = new TableRow();
+        header.AppendChild(CreateCell("№з/п", bold: true, center: true, width: "700"));
+        header.AppendChild(CreateCell("Питання і твердження", bold: true, center: true, width: "6200"));
+        header.AppendChild(CreateCell("Відповідь", bold: true, center: true, width: "2800"));
+        table.AppendChild(header);
+
+        foreach (var question in questions)
+        {
+            answersByQuestion.TryGetValue(question.Id, out var answer);
+            var row = new TableRow();
+            row.AppendChild(CreateCell(question.SortOrder.ToString(), center: true, width: "700"));
+            row.AppendChild(CreateCell(question.Text, width: "6200"));
+            row.AppendChild(CreateCell(FormatChosenAnswer(question, answer), bold: true, width: "2800"));
+            table.AppendChild(row);
+        }
+
+        return table;
+    }
+
+    private static bool IsYesNoQuestion(TestQuestion question)
+    {
+        if (question.Type == QuestionType.YesNo)
+        {
+            return true;
+        }
+
+        if (question.Type != QuestionType.SingleChoice || question.Options.Count != 2)
+        {
+            return false;
+        }
+
+        var texts = question.Options
+            .Select(o => (o.Text ?? o.Key ?? string.Empty).Trim())
+            .ToList();
+        return texts.Any(IsYes) && texts.Any(IsNo);
+    }
+
+    private static string FormatChosenAnswer(TestQuestion question, TestAnswer? answer)
+    {
+        if (answer is null)
+        {
+            return "—";
+        }
+
+        if (question.Type == QuestionType.MultiChoice)
+        {
+            var (ids, extra) = AnonymousSurveyScoring.Unpack(answer.TextValue);
+            if (ids.Count == 0 && answer.SelectedOptionId is Guid selected)
+            {
+                ids.Add(selected);
+            }
+
+            var labels = question.Options
+                .OrderBy(o => o.SortOrder)
+                .Where(o => ids.Contains(o.Id))
+                .Select(o => string.IsNullOrWhiteSpace(o.Text) ? o.Key : o.Text)
+                .Where(text => !string.IsNullOrWhiteSpace(text))
+                .ToList();
+
+            if (!string.IsNullOrWhiteSpace(extra) &&
+                !labels.Any(label => label.Equals(extra, StringComparison.OrdinalIgnoreCase)))
+            {
+                labels.Add(extra.Trim());
+            }
+
+            return labels.Count == 0 ? "—" : string.Join(", ", labels);
+        }
+
+        if (question.Type == QuestionType.Scale)
+        {
+            if (answer.ScaleValue is int scale)
+            {
+                var max = question.ScaleMax;
+                return max is int maxValue ? $"{scale} / {maxValue}" : scale.ToString();
+            }
+
+            var scaleOption = ResolveSelectedOption(question, answer);
+            if (scaleOption is not null)
+            {
+                return string.IsNullOrWhiteSpace(scaleOption.Text) ? scaleOption.Key : scaleOption.Text;
+            }
+
+            return "—";
+        }
+
+        var option = ResolveSelectedOption(question, answer);
+        if (option is not null)
+        {
+            var text = string.IsNullOrWhiteSpace(option.Text) ? option.Key : option.Text;
+            return string.IsNullOrWhiteSpace(text) ? "—" : text;
+        }
+
+        if (!string.IsNullOrWhiteSpace(answer.TextValue))
+        {
+            return answer.TextValue.Trim();
+        }
+
+        return "—";
+    }
+
+    private static TestOption? ResolveSelectedOption(TestQuestion question, TestAnswer answer)
+        => answer.SelectedOption
+           ?? question.Options.FirstOrDefault(o => o.Id == answer.SelectedOptionId);
+
     private static Table BuildAnswersTable(
         IReadOnlyList<TestQuestion> questions,
         IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
@@ -1629,11 +1768,11 @@ public partial class TestResultDocumentService(
         {
             if (i > 0)
             {
-                paragraph.AppendChild(CreateRun("    ", bold: false, BodyFontSize));
+                paragraph.AppendChild(CreateRun("          ", bold: false, BodyFontSize));
             }
 
             var (label, value) = fields[i];
-            paragraph.AppendChild(CreateRun($"{label} ", bold: true, BodyFontSize));
+            paragraph.AppendChild(CreateRun($"{label}:     ", bold: true, BodyFontSize));
 
             var filled = string.IsNullOrWhiteSpace(value)
                 ? "____________________"
@@ -1664,7 +1803,10 @@ public partial class TestResultDocumentService(
             runProperties.AppendChild(new Bold());
         }
 
-        return new Run(runProperties, new Text(text));
+        return new Run(runProperties, new Text(text)
+        {
+            Space = SpaceProcessingModeValues.Preserve
+        });
     }
 
     private static string Initial(string? value)

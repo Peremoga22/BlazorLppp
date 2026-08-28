@@ -1,0 +1,290 @@
+@using BlazorLppp.Domain.Enums
+
+<div class="ac ac--@CssName(Style) @(!Interactive ? "ac--static" : null)"
+     role="radiogroup"
+     aria-label="@AriaLabel">
+    @if (Style is AnswerOptionStyle.Classic or AnswerOptionStyle.Pills or AnswerOptionStyle.Dots or AnswerOptionStyle.Bordered)
+    {
+        <button type="button"
+                class="ac__nav"
+                disabled="@(!CanGoPrev)"
+                aria-label="Попередній варіант"
+                @onclick="PrevAsync">
+            @if (Style == AnswerOptionStyle.Dots)
+            {
+                <span aria-hidden="true">«</span>
+            }
+            else
+            {
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            }
+        </button>
+    }
+
+    @if (Style == AnswerOptionStyle.Dots)
+    {
+        <div class="ac__dots">
+            @for (var i = 0; i < Items.Count; i++)
+            {
+                var index = i;
+                <button type="button"
+                        class="ac__dot @(index == SelectedIndex ? "is-active" : null)"
+                        role="radio"
+                        aria-checked="@(index == SelectedIndex)"
+                        aria-label="@Items[index].Label"
+                        title="@Items[index].Title"
+                        disabled="@(!Interactive)"
+                        @onclick="() => SelectAsync(index)">
+                </button>
+            }
+        </div>
+    }
+    else if (Style == AnswerOptionStyle.Track)
+    {
+        <div class="ac__track">
+            <div class="ac__track-nums">
+                @for (var i = 0; i < Items.Count; i++)
+                {
+                    var index = i;
+                    <button type="button"
+                            class="ac__track-num @(index == SelectedIndex ? "is-active" : null)"
+                            role="radio"
+                            aria-checked="@(index == SelectedIndex)"
+                            title="@Items[index].Title"
+                            disabled="@(!Interactive)"
+                            @onclick="() => SelectAsync(index)">
+                        @Items[index].Label
+                    </button>
+                }
+            </div>
+            <div class="ac__track-line" aria-hidden="true">
+                <span class="ac__track-fill" style="@TrackFillStyle"></span>
+            </div>
+        </div>
+    }
+    else if (Style == AnswerOptionStyle.Compact)
+    {
+        <div class="ac__compact">
+            <button type="button"
+                    class="ac__nav ac__nav--solo"
+                    disabled="@(!CanGoPrev)"
+                    aria-label="Попередній варіант"
+                    @onclick="PrevAsync">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <span class="ac__compact-value">@CompactLabel</span>
+            <button type="button"
+                    class="ac__nav ac__nav--solo"
+                    disabled="@(!CanGoNext)"
+                    aria-label="Наступний варіант"
+                    @onclick="NextAsync">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+        </div>
+    }
+    else if (Style == AnswerOptionStyle.Progress)
+    {
+        <div class="ac__progress">
+            <div class="ac__progress-bar"
+                 role="slider"
+                 aria-valuemin="1"
+                 aria-valuemax="@Items.Count"
+                 aria-valuenow="@(SelectedIndex + 1)"
+                 aria-label="@AriaLabel">
+                <span class="ac__progress-fill" style="@ProgressFillStyle"></span>
+                @for (var i = 0; i < Items.Count; i++)
+                {
+                    var index = i;
+                    <button type="button"
+                            class="ac__progress-hit"
+                            aria-label="@Items[index].Label"
+                            title="@Items[index].Title"
+                            disabled="@(!Interactive)"
+                            @onclick="() => SelectAsync(index)">
+                    </button>
+                }
+            </div>
+            <span class="ac__compact-value">@CompactLabel</span>
+        </div>
+    }
+    else if (Style == AnswerOptionStyle.Steps)
+    {
+        <div class="ac__steps">
+            @for (var i = 0; i < Items.Count; i++)
+            {
+                var index = i;
+                var state = index < SelectedIndex
+                    ? "is-done"
+                    : index == SelectedIndex ? "is-current" : "is-todo";
+                <button type="button"
+                        class="ac__step @state"
+                        role="radio"
+                        aria-checked="@(index == SelectedIndex)"
+                        title="@Items[index].Title"
+                        disabled="@(!Interactive)"
+                        @onclick="() => SelectAsync(index)">
+                    @Items[index].Label
+                </button>
+                if (i < Items.Count - 1)
+                {
+                    <span class="ac__step-line @(index < SelectedIndex ? "is-done" : null)" aria-hidden="true"></span>
+                }
+            }
+        </div>
+    }
+    else
+    {
+        <div class="ac__nums">
+            @foreach (var index in VisibleIndexes)
+            {
+                if (index < 0)
+                {
+                    <span class="ac__ellipsis" aria-hidden="true">…</span>
+                    continue;
+                }
+
+                var itemIndex = index;
+                <button type="button"
+                        class="ac__num @(itemIndex == SelectedIndex ? "is-active" : null)"
+                        role="radio"
+                        aria-checked="@(itemIndex == SelectedIndex)"
+                        title="@Items[itemIndex].Title"
+                        disabled="@(!Interactive)"
+                        @onclick="() => SelectAsync(itemIndex)">
+                    @Items[itemIndex].Label
+                </button>
+            }
+        </div>
+    }
+
+    @if (Style is AnswerOptionStyle.Classic or AnswerOptionStyle.Pills or AnswerOptionStyle.Dots or AnswerOptionStyle.Bordered)
+    {
+        <button type="button"
+                class="ac__nav"
+                disabled="@(!CanGoNext)"
+                aria-label="Наступний варіант"
+                @onclick="NextAsync">
+            @if (Style == AnswerOptionStyle.Dots)
+            {
+                <span aria-hidden="true">»</span>
+            }
+            else
+            {
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            }
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public AnswerOptionStyle Style { get; set; } = AnswerOptionStyle.Classic;
+    [Parameter] public IReadOnlyList<AnswerChoiceItem> Items { get; set; } = [];
+    [Parameter] public int SelectedIndex { get; set; }
+    [Parameter] public EventCallback<int> SelectedIndexChanged { get; set; }
+    [Parameter] public bool Interactive { get; set; } = true;
+    [Parameter] public string AriaLabel { get; set; } = "Варіант відповіді";
+
+    private bool CanGoPrev => Interactive && Items.Count > 0 && SelectedIndex > 0;
+    private bool CanGoNext => Interactive && Items.Count > 0 && SelectedIndex < Items.Count - 1;
+
+    private string CompactLabel =>
+        Items.Count == 0 || SelectedIndex < 0
+            ? (Items.Count == 0 ? "—" : $"— / {Items.Count}")
+            : $"{SelectedIndex + 1} / {Items.Count}";
+
+    private string ProgressFillStyle
+    {
+        get
+        {
+            if (Items.Count == 0 || SelectedIndex < 0)
+            {
+                return "width:0";
+            }
+
+            var ratio = (SelectedIndex + 1) / (double)Items.Count;
+            return $"width:{(ratio * 100):0.##}%";
+        }
+    }
+
+    private string TrackFillStyle
+    {
+        get
+        {
+            if (Items.Count == 0 || SelectedIndex < 0)
+            {
+                return "left:0;width:0";
+            }
+
+            if (Items.Count == 1)
+            {
+                return "left:0;width:18%";
+            }
+
+            var index = Math.Clamp(SelectedIndex, 0, Items.Count - 1);
+            var slot = 100.0 / Items.Count;
+            var width = Math.Max(12, slot * 0.55);
+            var left = (index * slot) + ((slot - width) / 2);
+            return $"left:{left:0.##}%;width:{width:0.##}%";
+        }
+    }
+
+    private IEnumerable<int> VisibleIndexes
+    {
+        get
+        {
+            var count = Items.Count;
+            if (count <= 7 || Style != AnswerOptionStyle.Pills)
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    yield return i;
+                }
+
+                yield break;
+            }
+
+            var selected = Math.Clamp(SelectedIndex, 0, count - 1);
+            var start = Math.Max(1, selected - 1);
+            var end = Math.Min(count - 2, selected + 1);
+            yield return 0;
+            if (start > 1)
+            {
+                yield return -1;
+            }
+
+            for (var i = start; i <= end; i++)
+            {
+                yield return i;
+            }
+
+            if (end < count - 2)
+            {
+                yield return -1;
+            }
+
+            yield return count - 1;
+        }
+    }
+
+    private Task PrevAsync() => SelectAsync(SelectedIndex - 1);
+
+    private Task NextAsync() => SelectAsync(SelectedIndex + 1);
+
+    private async Task SelectAsync(int index)
+    {
+        if (!Interactive || Items.Count == 0)
+        {
+            return;
+        }
+
+        var clamped = Math.Clamp(index, 0, Items.Count - 1);
+        if (clamped == SelectedIndex)
+        {
+            return;
+        }
+
+        await SelectedIndexChanged.InvokeAsync(clamped);
+    }
+
+    private static string CssName(AnswerOptionStyle style) => style.ToString().ToLowerInvariant();
+}

@@ -1546,6 +1546,16 @@ h1:focus {
     color: var(--admin-ink);
 }
 
+.admin-input--area {
+    min-height: 5.5rem;
+    max-height: none;
+    height: auto;
+    resize: vertical;
+    line-height: 1.45;
+    padding-top: 0.7rem;
+    padding-bottom: 0.7rem;
+}
+
 .admin-input--staff {
     flex: 0 0 8.75rem;
     min-width: 8.75rem;

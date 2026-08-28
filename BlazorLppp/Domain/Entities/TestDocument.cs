@@ -20,5 +20,7 @@ public class TestDocument
 
     public bool IsRequired { get; set; }
 
+    public bool IsManual { get; set; }
+
     public ICollection<TestQuestion> Questions { get; set; } = new List<TestQuestion>();
 }

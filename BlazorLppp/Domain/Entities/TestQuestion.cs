@@ -18,6 +18,8 @@ public class TestQuestion
 
     public QuestionType Type { get; set; }
 
+    public AnswerOptionStyle AnswerStyle { get; set; }
+
     public int? ScaleMin { get; set; }
 
     public int? ScaleMax { get; set; }

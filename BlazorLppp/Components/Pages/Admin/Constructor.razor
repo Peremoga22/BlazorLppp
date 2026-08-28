@@ -1,0 +1,226 @@
+@page "/admin/constructor"
+@layout AdminLayout
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@attribute [Authorize(Roles = AppRoles.Admin)]
+
+@using Microsoft.AspNetCore.Authorization
+
+@inject ITestDefinitionService TestDefinitionService
+@inject NavigationManager Navigation
+@inject IJSRuntime JsRuntime
+
+<PageTitle>Конструктор тестів</PageTitle>
+
+<div class="admin-page">
+    <header class="admin-page__header admin-page__header--hero">
+        <div class="admin-page__hero-copy">
+            <p class="admin-page__eyebrow">Методики</p>
+            <h1 class="admin-page__title">Конструктор тестів</h1>
+            <p class="admin-page__subtitle">
+                Складіть власний тест: питання, варіанти відповіді та візуальний стиль з 8 макетів.
+            </p>
+        </div>
+        <a class="admin-link admin-link--back" href="/admin/documents">
+            <span class="admin-btn__icon admin-btn__icon--arrow-left" aria-hidden="true"></span>
+            До документів
+        </a>
+    </header>
+
+    <section class="admin-panel">
+        <h2 class="admin-upload__title">Новий тест</h2>
+        <div class="admin-form-row">
+            <input class="admin-input"
+                   @bind="_newTitle"
+                   @bind:event="oninput"
+                   placeholder="Назва тесту"
+                   maxlength="300" />
+            <button type="button"
+                    class="admin-btn"
+                    disabled="@(_isCreating || string.IsNullOrWhiteSpace(_newTitle))"
+                    @onclick="CreateAsync">
+                Створити
+            </button>
+        </div>
+        @if (!string.IsNullOrEmpty(_formMessage))
+        {
+            <p class="@(_formIsError ? "admin-page__error" : "admin-upload__success")" role="status">@_formMessage</p>
+        }
+    </section>
+
+    <section class="admin-upload-list" aria-labelledby="constructor-list-heading">
+        <h2 id="constructor-list-heading" class="admin-upload__title">Тести з конструктора</h2>
+
+        @if (_isLoading)
+        {
+            <p class="admin-page__muted">Завантаження...</p>
+        }
+        else if (_tests.Count == 0)
+        {
+            <p class="admin-empty">Ще немає тестів, складених вручну. Створіть перший вище.</p>
+        }
+        else
+        {
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Назва</th>
+                            <th>Питань</th>
+                            <th>Для працівників</th>
+                            <th>Статус</th>
+                            <th>Оновлено</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var test in _tests)
+                        {
+                            <tr>
+                                <td>@test.Title</td>
+                                <td>@test.Questions.Count</td>
+                                <td>
+                                    @if (test.IsRequired)
+                                    {
+                                        <span class="admin-badge admin-badge--done">Пройти</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="admin-page__muted">ні</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (test.IsActive)
+                                    {
+                                        <span class="admin-badge admin-badge--done">Активний</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="admin-badge admin-badge--progress">Чернетка</span>
+                                    }
+                                </td>
+                                <td>@test.UploadedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                                <td>
+                                    <div class="admin-actions admin-actions--icons">
+                                        <a class="admin-icon-btn"
+                                           href="@($"/admin/constructor/edit/{test.Id}")"
+                                           data-enhance-nav="false"
+                                           title="Редагувати"
+                                           aria-label="Редагувати">
+                                            <span class="admin-btn__icon admin-btn__icon--file" aria-hidden="true"></span>
+                                        </a>
+                                        <button type="button"
+                                                class="admin-icon-btn admin-icon-btn--danger"
+                                                title="Видалити"
+                                                aria-label="Видалити"
+                                                disabled="@_isDeleting"
+                                                @onclick="() => DeleteAsync(test)">
+                                            <span class="admin-btn__icon admin-btn__icon--trash" aria-hidden="true"></span>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private readonly List<TestDocument> _tests = [];
+    private string _newTitle = string.Empty;
+    private bool _isLoading = true;
+    private bool _isCreating;
+    private bool _isDeleting;
+    private string? _formMessage;
+    private bool _formIsError;
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            var items = await TestDefinitionService.ListAsync();
+            _tests.Clear();
+            _tests.AddRange(items.Where(d => d.IsManual));
+        }
+        catch (Exception)
+        {
+            _formMessage = "Не вдалося завантажити список тестів.";
+            _formIsError = true;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_isCreating || string.IsNullOrWhiteSpace(_newTitle))
+        {
+            return;
+        }
+
+        _isCreating = true;
+        _formMessage = null;
+        _formIsError = false;
+
+        try
+        {
+            var document = await TestDefinitionService.CreateManualAsync(_newTitle);
+            _newTitle = string.Empty;
+            Navigation.NavigateTo($"/admin/constructor/edit/{document.Id}", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            _formMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося створити тест."
+                : ex.Message;
+            _formIsError = true;
+        }
+        finally
+        {
+            _isCreating = false;
+        }
+    }
+
+    private async Task DeleteAsync(TestDocument document)
+    {
+        if (_isDeleting)
+        {
+            return;
+        }
+
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Видалити тест «{document.Title}» разом із пов’язаними спробами?");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+        try
+        {
+            await TestDefinitionService.DeleteAsync(document.Id);
+            await ReloadAsync();
+            _formMessage = $"Тест «{document.Title}» видалено.";
+            _formIsError = false;
+        }
+        catch (Exception ex)
+        {
+            _formMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося видалити тест."
+                : ex.Message;
+            _formIsError = true;
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
+    }
+}

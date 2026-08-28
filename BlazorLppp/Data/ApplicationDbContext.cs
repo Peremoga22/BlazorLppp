@@ -1,4 +1,5 @@
 using BlazorLppp.Domain.Entities;
+using BlazorLppp.Domain.Enums;
 
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -130,7 +131,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(e => e.IsRequired)
                 .HasDefaultValue(false);
 
+            entity.Property(e => e.IsManual)
+                .IsRequired()
+                .HasDefaultValue(false);
+
             entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.IsManual);
             entity.HasIndex(e => e.IsRequired);
             entity.HasIndex(e => e.RelativePath).IsUnique();
         });
@@ -150,6 +156,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(e => e.Type)
                 .IsRequired()
                 .HasConversion<int>();
+
+            entity.Property(e => e.AnswerStyle)
+                .IsRequired()
+                .HasConversion<int>()
+                .HasDefaultValue(AnswerOptionStyle.Default);
 
             entity.HasOne(e => e.TestDocument)
                 .WithMany(d => d.Questions)
