@@ -161,7 +161,7 @@
                         var option = question.Options[o];
                         var optionIndex = o;
                         <div class="ctor-option" @key="option.Id">
-                            <span class="ctor-option__n">@(optionIndex + 1)</span>
+                            <span class="ctor-option__n">@(optionIndex + 1).</span>
                             <input class="admin-input"
                                    @bind="option.Text"
                                    placeholder="Текст відповіді" />
@@ -236,9 +236,17 @@
         try
         {
             _draft = await TestDefinitionService.GetConstructorDraftAsync(DocumentId);
-            if (_draft is not null && _draft.Questions.Count == 0)
+            if (_draft is not null)
             {
-                AddQuestion();
+                foreach (var question in _draft.Questions)
+                {
+                    NormalizeNumericOptionLabels(question);
+                }
+
+                if (_draft.Questions.Count == 0)
+                {
+                    AddQuestion();
+                }
             }
         }
         catch (Exception)
@@ -316,7 +324,7 @@
             Id = Guid.NewGuid(),
             SortOrder = n,
             Key = n.ToString(),
-            Text = n.ToString()
+            Text = ScaleLabels.ForValue(n)
         });
     }
 
@@ -324,11 +332,11 @@
     {
         question.Options =
         [
-            new() { Id = Guid.NewGuid(), SortOrder = 1, Key = "1", Text = "1" },
-            new() { Id = Guid.NewGuid(), SortOrder = 2, Key = "2", Text = "2" },
-            new() { Id = Guid.NewGuid(), SortOrder = 3, Key = "3", Text = "3" },
-            new() { Id = Guid.NewGuid(), SortOrder = 4, Key = "4", Text = "4" },
-            new() { Id = Guid.NewGuid(), SortOrder = 5, Key = "5", Text = "5" }
+            new() { Id = Guid.NewGuid(), SortOrder = 1, Key = "1", Text = ScaleLabels.ForValue(1) },
+            new() { Id = Guid.NewGuid(), SortOrder = 2, Key = "2", Text = ScaleLabels.ForValue(2) },
+            new() { Id = Guid.NewGuid(), SortOrder = 3, Key = "3", Text = ScaleLabels.ForValue(3) },
+            new() { Id = Guid.NewGuid(), SortOrder = 4, Key = "4", Text = ScaleLabels.ForValue(4) },
+            new() { Id = Guid.NewGuid(), SortOrder = 5, Key = "5", Text = ScaleLabels.ForValue(5) }
         ];
         question.ScaleMin = 1;
         question.ScaleMax = 5;
@@ -405,7 +413,7 @@
                 Id = Guid.NewGuid(),
                 SortOrder = i + 1,
                 Key = value.ToString(),
-                Text = value.ToString()
+                Text = ScaleLabels.ForValue(value)
             })
             .ToList();
     }
@@ -413,9 +421,26 @@
     private static IReadOnlyList<AnswerChoiceItem> ToChoiceItems(ConstructorQuestionDraft question) =>
         question.Options
             .Select(o => new AnswerChoiceItem(
-                string.IsNullOrWhiteSpace(o.Text) ? o.Key : o.Text,
+                ScaleLabels.ForDisplay(o.Text, o.Key),
                 o.Text))
             .ToList();
+
+    private static void NormalizeNumericOptionLabels(ConstructorQuestionDraft question)
+    {
+        if (question.Type != QuestionType.Scale)
+        {
+            return;
+        }
+
+        foreach (var option in question.Options)
+        {
+            var formatted = ScaleLabels.ForDisplay(option.Text, option.Key);
+            if (!string.IsNullOrWhiteSpace(formatted))
+            {
+                option.Text = formatted;
+            }
+        }
+    }
 
     private int PreviewIndex(ConstructorQuestionDraft question)
     {

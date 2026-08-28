@@ -3,6 +3,7 @@
 @attribute [AllowAnonymous]
 
 @using BlazorLppp.Application.Models
+@using BlazorLppp.Domain
 @using BlazorLppp.Domain.Enums
 @using Microsoft.AspNetCore.Authorization
 
@@ -335,7 +336,7 @@
         {
             return question.Options
                 .Select(o => new AnswerChoiceItem(
-                    string.IsNullOrWhiteSpace(o.Text) ? o.Key : o.Text,
+                    ScaleLabels.ForDisplay(o.Text, o.Key),
                     o.Text))
                 .ToList();
         }
@@ -348,7 +349,7 @@
         var min = question.ScaleMin ?? 1;
         var max = question.ScaleMax ?? 5;
         return Enumerable.Range(min, Math.Max(0, max - min + 1))
-            .Select(value => new AnswerChoiceItem(value.ToString()))
+            .Select(value => new AnswerChoiceItem(ScaleLabels.ForValue(value)))
             .ToList();
     }
 

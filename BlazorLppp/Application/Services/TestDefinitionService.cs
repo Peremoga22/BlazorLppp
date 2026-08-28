@@ -1,5 +1,6 @@
 using BlazorLppp.Application.Models;
 using BlazorLppp.Data;
+using BlazorLppp.Domain;
 using BlazorLppp.Domain.Entities;
 using BlazorLppp.Domain.Enums;
 
@@ -493,7 +494,7 @@ public class TestDefinitionService(
                     .Select(value => new ConstructorOptionDraft
                     {
                         Key = value.ToString(),
-                        Text = value.ToString()
+                        Text = ScaleLabels.ForValue(value)
                     })
                     .ToList();
             }
