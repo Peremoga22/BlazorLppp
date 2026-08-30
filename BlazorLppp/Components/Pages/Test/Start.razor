@@ -50,7 +50,7 @@
         else if (_availableTests.Count == 0)
         {
             <p class="test-start__form-error" role="alert">
-                Наразі немає доступних тестів. Зверніться до адміністратора.
+                Наразі немає тестів, позначених для проходження. Зверніться до адміністратора.
             </p>
         }
         else
@@ -337,30 +337,13 @@
             _departments.AddRange(await OrganizationService.ListDepartmentsAsync());
 
             var documents = await TestDefinitionService.ListAsync();
-            var withQuestions = documents
-                .Where(d => d.Questions.Count > 0 && !IsBrokenZbroyaDocument(d))
-                .ToList();
-
-            var required = withQuestions.Where(d => d.IsRequired).ToList();
-            var list = (required.Count > 0 ? required : withQuestions).ToList();
-            foreach (var anonymous in withQuestions.Where(AnonymousSurveyScoring.LooksLike))
-            {
-                if (list.All(d => d.Id != anonymous.Id))
-                {
-                    list.Add(anonymous);
-                }
-            }
-
             _availableTests.AddRange(
-                list
+                documents
+                    .Where(d => d.IsRequired && d.Questions.Count > 0 && !IsBrokenZbroyaDocument(d))
                     .OrderByDescending(d => AnonymousSurveyScoring.LooksLike(d))
-                    .ThenByDescending(d => d.IsRequired)
-                    .ThenByDescending(d => d.IsActive)
                     .ThenByDescending(d => d.UploadedAt));
 
-            var preferred = _availableTests.FirstOrDefault(d => d.IsRequired)
-                ?? _availableTests.FirstOrDefault(d => d.IsActive)
-                ?? _availableTests.FirstOrDefault();
+            var preferred = _availableTests.FirstOrDefault();
             if (preferred is not null)
             {
                 Model.TestDocumentId = preferred.Id;

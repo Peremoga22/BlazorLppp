@@ -35,6 +35,12 @@ public class TestAttemptService(
                 "Обраний тест не містить питань. Зверніться до адміністратора.");
         }
 
+        if (!document.IsRequired)
+        {
+            throw new InvalidOperationException(
+                "Цей тест зараз недоступний. Оберіть тест зі списку, визначеного адміністратором.");
+        }
+
         var isAnonymous = respondent.IsAnonymous || AnonymousSurveyScoring.LooksLike(document);
         if (isAnonymous)
         {
@@ -49,16 +55,6 @@ public class TestAttemptService(
         }
 
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-
-        var hasRequiredTests = await dbContext.TestDocuments
-            .AsNoTracking()
-            .AnyAsync(d => d.IsRequired && d.Questions.Any(), cancellationToken);
-
-        if (hasRequiredTests && !document.IsRequired && !isAnonymous)
-        {
-            throw new InvalidOperationException(
-                "Цей тест зараз недоступний. Оберіть тест зі списку, визначеного адміністратором.");
-        }
 
         var lastName = isAnonymous ? "Тест" : respondent.LastName.Trim();
         var firstName = isAnonymous ? "анонімний" : respondent.FirstName.Trim();

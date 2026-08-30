@@ -266,7 +266,7 @@
                 upload.AbsolutePath);
 
             _successMessage =
-                $"Документ оброблено: «{document.Title}». Знайдено питань: {document.Questions.Count}. Тест активовано.";
+                $"Документ оброблено: «{document.Title}». Знайдено питань: {document.Questions.Count}. Позначте «Пройти», щоб тест з’явився працівникам.";
             _selectedFile = null;
             _canUpload = false;
             _preview = null;
@@ -289,7 +289,7 @@
         try
         {
             await TestDefinitionService.SetActiveAsync(documentId);
-            _successMessage = "Тест активовано для проходження працівниками.";
+            _successMessage = "Тест позначено як активний. Щоб він з’явився працівникам, позначте «Пройти».";
             await ReloadListAsync();
         }
         catch (Exception ex)
