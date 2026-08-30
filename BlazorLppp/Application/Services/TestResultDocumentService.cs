@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 
 using BlazorLppp.Application.Models;
 using BlazorLppp.Data;
+using BlazorLppp.Domain;
 using BlazorLppp.Domain.Entities;
 using BlazorLppp.Domain.Enums;
 
@@ -124,7 +125,7 @@ public partial class TestResultDocumentService(
                     ("Вік", string.Empty),
                     ("Стать", string.Empty)
                 ]);
-                AppendFieldLine(body, [("Посада (підрозділ)", attempt.NumberUnit.ToString())]);
+                AppendFieldLine(body, [("Посада (підрозділ)", UnitNumbers.GetDefaultName(attempt.NumberUnit))]);
                 AppendFieldLine(body,
                 [
                     ("Спеціальність", string.Empty),
@@ -405,7 +406,7 @@ public partial class TestResultDocumentService(
             ("Вік", string.Empty),
             ("Стать", string.Empty)
         ]);
-        AppendFieldLine(body, [("Посада (підрозділ)", attempt.NumberUnit.ToString())]);
+        AppendFieldLine(body, [("Посада (підрозділ)", UnitNumbers.GetDefaultName(attempt.NumberUnit))]);
         AppendFieldLine(body,
         [
             ("Спеціальність", string.Empty),
@@ -470,7 +471,7 @@ public partial class TestResultDocumentService(
         AppendFieldLine(body,
         [
             ("П.І.Б.", string.IsNullOrWhiteSpace(fullName) ? string.Empty : fullName),
-            ("Підрозділ", attempt.NumberUnit.ToString()),
+            ("Підрозділ", UnitNumbers.GetDefaultName(attempt.NumberUnit)),
             ("Дата", examDate)
         ]);
 
@@ -770,7 +771,7 @@ public partial class TestResultDocumentService(
         AppendEmptyParagraph(body);
         AppendBodyParagraph(
             body,
-            $"Підрозділ: {attempt.NumberUnit}. Дата обстеження: {examDate}.");
+            $"Підрозділ: {UnitNumbers.GetDefaultName(attempt.NumberUnit)}. Дата обстеження: {examDate}.");
     }
 
     private static string FormatUkrainianDateLine(string examDate)
@@ -1435,7 +1436,7 @@ public partial class TestResultDocumentService(
             ("Вік", string.Empty),
             ("Стать", string.Empty)
         ]);
-        AppendFieldLine(body, [("Посада (підрозділ)", attempt.NumberUnit.ToString())]);
+        AppendFieldLine(body, [("Посада (підрозділ)", UnitNumbers.GetDefaultName(attempt.NumberUnit))]);
         AppendFieldLine(body,
         [
             ("Спеціальність", string.Empty),

@@ -231,7 +231,7 @@
                             <p class="test-start__resume-text">
                                 У вас є незавершена спроба
                                 «@_incompleteAttempt.TestTitle»
-                                (підрозділ @_incompleteAttempt.NumberUnit,
+                                (@GetDepartmentName(_incompleteAttempt.NumberUnit),
                                 почато @_incompleteAttempt.StartedAt.ToString("dd.MM.yyyy HH:mm")).
                             </p>
                             <button type="button"
@@ -537,6 +537,14 @@
         return string.IsNullOrWhiteSpace(document.OriginalFileName)
             ? "Тест без назви"
             : document.OriginalFileName;
+    }
+
+    private string GetDepartmentName(int numberUnit)
+    {
+        var fromDb = _departments.FirstOrDefault(d => d.Number == numberUnit)?.Name;
+        return string.IsNullOrWhiteSpace(fromDb)
+            ? UnitNumbers.GetDefaultName(numberUnit)
+            : fromDb;
     }
 
     private void HandleResumeAsync()

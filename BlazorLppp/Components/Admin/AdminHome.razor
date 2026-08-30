@@ -21,12 +21,12 @@
             <p class="admin-page__subtitle">
                 @(_selectedUnit is null
                     ? "Загальний огляд усіх підрозділів"
-                    : $"Підрозділ {_selectedUnit}: спроби та результати працівників")
+                    : $"{UnitNumbers.GetDefaultName(_selectedUnit.Value)}: спроби та результати працівників")
             </p>
         </div>
         <div class="admin-page__hero-meta" aria-hidden="true">
             <span class="admin-page__hero-chip">
-                @(_selectedUnit is null ? "Усі відділи" : $"Відділ {_selectedUnit}")
+                @(_selectedUnit is null ? "Усі відділи" : UnitNumbers.GetDefaultName(_selectedUnit.Value))
             </span>
         </div>
     </header>
@@ -52,8 +52,8 @@
                     @onclick="() => SelectTabAsync(unit)">
                 <span class="admin-tabs__num" aria-hidden="true">@unit</span>
                 <span class="admin-tabs__text">
-                    <span class="admin-tabs__label">Підрозділ</span>
-                    <span class="admin-tabs__hint">відділ @unit</span>
+                    <span class="admin-tabs__label">@UnitNumbers.GetTabLabel(unit)</span>
+                    <span class="admin-tabs__hint">@(unit is UnitNumbers.Management or UnitNumbers.Logistics ? "підрозділ" : $"відділ {unit}")</span>
                 </span>
             </button>
         }
@@ -168,7 +168,7 @@
                                 <tr>
                                     <td>@item.DisplayName</td>
                                     <td>@(string.IsNullOrWhiteSpace(item.TestTitle) ? "—" : item.TestTitle)</td>
-                                    <td>@item.NumberUnit</td>
+                                    <td>@UnitNumbers.GetDefaultName(item.NumberUnit)</td>
                                     <td>
                                         @if (item.HasResultFile)
                                         {
@@ -282,7 +282,7 @@
         {
             var scope = _selectedUnit is null
                 ? "Завершені тести по всіх підрозділах"
-                : $"Завершені тести підрозділу {_selectedUnit}";
+                : $"Завершені тести: {UnitNumbers.GetDefaultName(_selectedUnit.Value)}";
             var period = SelectedMonthLabel is { } label
                 ? $" за {label}"
                 : string.Empty;

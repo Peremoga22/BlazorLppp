@@ -1,5 +1,6 @@
 using BlazorLppp.Application.Models;
 using BlazorLppp.Data;
+using BlazorLppp.Domain;
 using BlazorLppp.Domain.Entities;
 using BlazorLppp.Domain.Enums;
 
@@ -254,7 +255,7 @@ public class AnalyticsService(IDbContextFactory<ApplicationDbContext> dbContextF
                     ?? $"{attempt.LastName} {attempt.FirstName} {attempt.MiddleName}".Trim(),
                 DepartmentId = attempt.Employee?.DepartmentId,
                 DepartmentName = attempt.Employee?.Department?.Name
-                    ?? $"Підрозділ {attempt.NumberUnit}",
+                    ?? UnitNumbers.GetDefaultName(attempt.NumberUnit),
                 TestDocumentId = attempt.TestDocumentId,
                 TestTitle = attempt.TestDocument?.Title
                     ?? attempt.TestDocument?.OriginalFileName

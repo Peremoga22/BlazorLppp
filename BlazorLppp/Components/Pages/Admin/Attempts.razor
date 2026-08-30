@@ -96,7 +96,7 @@
                             <td>@(item.IsAnonymous
                                     ? $"Анонімний тест · {(item.AnonymousRank is AnonymousRank rank ? AnonymousRankNames.Display(rank) : "—")}"
                                     : $"{item.LastName} {item.FirstName} {item.MiddleName}")</td>
-                            <td>@(item.IsAnonymous ? "—" : item.NumberUnit.ToString())</td>
+                            <td>@(item.IsAnonymous ? "—" : UnitNumbers.GetDefaultName(item.NumberUnit))</td>
                             <td>
                                 <span class="admin-badge @(item.Status == TestAttemptStatus.Completed ? "admin-badge--done" : "admin-badge--progress")">
                                     @StatusLabel(item.Status)

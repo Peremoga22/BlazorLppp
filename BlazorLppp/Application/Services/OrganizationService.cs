@@ -17,23 +17,54 @@ public class OrganizationService(
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
         // Сідимо 1–5 лише якщо підрозділів ще немає (щоб видалені не з’являлись знову).
-        if (await db.Departments.AnyAsync(cancellationToken))
+        if (!await db.Departments.AnyAsync(cancellationToken))
         {
+            foreach (var number in UnitNumbers.All)
+            {
+                db.Departments.Add(new Department
+                {
+                    Id = Guid.NewGuid(),
+                    Number = number,
+                    Name = UnitNumbers.GetDefaultName(number),
+                    CreatedAt = DateTime.Now
+                });
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
             return;
         }
 
-        foreach (var number in UnitNumbers.All)
+        // Перейменовуємо застарілі «Підрозділ 4/5» на «управління» / «логістика».
+        var existing = await db.Departments.ToListAsync(cancellationToken);
+        var changed = false;
+        foreach (var department in existing)
         {
-            db.Departments.Add(new Department
+            if (department.Number is not (UnitNumbers.Management or UnitNumbers.Logistics))
             {
-                Id = Guid.NewGuid(),
-                Number = number,
-                Name = $"Підрозділ {number}",
-                CreatedAt = DateTime.Now
-            });
+                continue;
+            }
+
+            if (!UnitNumbers.IsLegacyGeneratedName(department.Name, department.Number))
+            {
+                continue;
+            }
+
+            var expected = UnitNumbers.GetDefaultName(department.Number);
+            if (existing.Any(d =>
+                    d.Id != department.Id &&
+                    d.Name.Equals(expected, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            department.Name = expected;
+            changed = true;
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        if (changed)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
     }
 
     public async Task BackfillEmployeesFromAttemptsAsync(CancellationToken cancellationToken = default)
@@ -137,7 +168,7 @@ public class OrganizationService(
             ? await db.Departments.MaxAsync(d => d.Number, cancellationToken) + 1
             : 1;
 
-        var autoName = $"Підрозділ {nextNumber}";
+        var autoName = UnitNumbers.GetDefaultName(nextNumber);
         var trimmed = name?.Trim() ?? string.Empty;
 
         // Порожня назва або шаблон «Підрозділ N» → завжди наступний номер.

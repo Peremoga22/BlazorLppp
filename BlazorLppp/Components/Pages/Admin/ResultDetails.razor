@@ -47,7 +47,7 @@
             </div>
             <div class="admin-details__row">
                 <dt>Підрозділ</dt>
-                <dd>@_details.Attempt.NumberUnit</dd>
+                <dd>@(UnitNumbers.GetDefaultName(_details.Attempt.NumberUnit) is { Length: > 0 } name ? name : "—")</dd>
             </div>
             <div class="admin-details__row">
                 <dt>Тест</dt>

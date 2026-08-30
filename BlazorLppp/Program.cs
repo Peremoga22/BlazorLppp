@@ -174,7 +174,7 @@ app.MapGet("/admin/results/download-all", async (
 
     var hint = numberUnit is null
         ? "Результати_усі"
-        : $"Результати_підрозділ_{numberUnit.Value}";
+        : $"Результати_{UnitNumbers.GetDefaultName(numberUnit.Value).Replace(' ', '_')}";
     if (monthFilter is int selectedMonth)
     {
         hint = $"{hint}_{selectedMonth:00}";
