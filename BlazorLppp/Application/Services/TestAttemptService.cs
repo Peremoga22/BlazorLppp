@@ -285,7 +285,7 @@ public class TestAttemptService(
                     Text = q.Text,
                     Hint = q.Hint,
                     Type = q.Type,
-                    AnswerStyle = q.AnswerStyle,
+                    AnswerStyle = document.IsManual ? AnswerOptionStyle.Default : q.AnswerStyle,
                     ScaleMin = q.ScaleMin,
                     ScaleMax = q.ScaleMax,
                     MaxSelections = q.Text.Contains("до 3", StringComparison.OrdinalIgnoreCase) ? 3 : null,
@@ -828,6 +828,10 @@ public class TestAttemptService(
                 }
 
                 input.ScaleValue = null;
+                var chosen = question.Options.First(o => o.Id == input.SelectedOptionId.Value);
+                input.TextValue = AnonymousSurveyScoring.IsFreeTextOption(chosen.Text)
+                    ? AnonymousSurveyScoring.Pack([chosen.Id], input.TextValue)
+                    : null;
                 break;
 
             case QuestionType.Scale:
@@ -866,7 +870,9 @@ public class TestAttemptService(
                 input.SelectedOptionIds = selected;
                 input.SelectedOptionId = selected[0];
                 input.ScaleValue = null;
-                input.TextValue = AnonymousSurveyScoring.Pack(selected, input.TextValue);
+                var otherSelected = selected.Any(id =>
+                    question.Options.Any(o => o.Id == id && AnonymousSurveyScoring.IsFreeTextOption(o.Text)));
+                input.TextValue = AnonymousSurveyScoring.Pack(selected, otherSelected ? input.TextValue : null);
                 break;
 
             default:

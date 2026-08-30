@@ -194,9 +194,43 @@ public static class AnonymousSurveyScoring
         return (ids, text);
     }
 
-    public static bool IsFreeTextOption(string text)
-        => text.StartsWith("Інше", StringComparison.OrdinalIgnoreCase) ||
-           text.StartsWith("Ваш варіант", StringComparison.OrdinalIgnoreCase);
+    public static bool IsFreeTextOption(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var core = StripOptionNumberPrefix(text);
+        return core.StartsWith("Інше", StringComparison.OrdinalIgnoreCase) ||
+               core.StartsWith("Інша відповід", StringComparison.OrdinalIgnoreCase) ||
+               core.StartsWith("Інший варіант", StringComparison.OrdinalIgnoreCase) ||
+               core.StartsWith("Ваш варіант", StringComparison.OrdinalIgnoreCase) ||
+               core.StartsWith("Свій варіант", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string StripOptionNumberPrefix(string text)
+    {
+        var trimmed = text.TrimStart();
+        var i = 0;
+        while (i < trimmed.Length && char.IsAsciiDigit(trimmed[i]))
+        {
+            i++;
+        }
+
+        if (i == 0 || i >= trimmed.Length || trimmed[i] is not ('.' or ')' or ':'))
+        {
+            return trimmed.Trim();
+        }
+
+        i++;
+        while (i < trimmed.Length && char.IsWhiteSpace(trimmed[i]))
+        {
+            i++;
+        }
+
+        return trimmed[i..].Trim();
+    }
 
     private static string ResolveSingle(
         IReadOnlyDictionary<int, TestQuestion> byOrder,

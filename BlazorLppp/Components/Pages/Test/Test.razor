@@ -186,13 +186,22 @@
                                                        @onchange="() => question.SelectedOptionId = option.Id" />
                                                 <span>
                                                     @if (!string.IsNullOrWhiteSpace(option.Key) &&
-                                                         option.Key is not ("Так" or "Ні"))
+                                                         option.Key is not ("Так" or "Ні") &&
+                                                         !int.TryParse(option.Key, out _))
                                                     {
                                                         <strong>@option.Key.</strong>
                                                     }
                                                     @option.Text
                                                 </span>
                                             </label>
+                                            @if (ShowsOtherInput(question, option))
+                                            {
+                                                <input class="test-form__other"
+                                                       placeholder="Вкажіть свій варіант"
+                                                       value="@question.TextValue"
+                                                       disabled="@_form.IsCompleted"
+                                                       @oninput="ev => question.TextValue = ev.Value?.ToString()" />
+                                            }
                                         }
                                     </div>
                                 }
@@ -208,12 +217,12 @@
                                                        @onchange="e => ToggleMulti(question, optionId, e)" />
                                                 <span>@option.Text</span>
                                             </label>
-                                            @if (AnonymousSurveyScoring.IsFreeTextOption(option.Text) &&
-                                                 question.SelectedOptionIds.Contains(optionId))
+                                            @if (ShowsOtherInput(question, option))
                                             {
                                                 <input class="test-form__other"
                                                        placeholder="Вкажіть свій варіант"
                                                        value="@question.TextValue"
+                                                       disabled="@_form.IsCompleted"
                                                        @oninput="ev => question.TextValue = ev.Value?.ToString()" />
                                             }
                                         }
@@ -329,6 +338,18 @@
     private static bool UsesAnswerStyle(TestFormQuestionModel question) =>
         question.AnswerStyle != AnswerOptionStyle.Default &&
         question.Type != QuestionType.MultiChoice;
+
+    private static bool ShowsOtherInput(TestFormQuestionModel question, TestFormOptionModel option)
+    {
+        if (!AnonymousSurveyScoring.IsFreeTextOption(option.Text))
+        {
+            return false;
+        }
+
+        return question.Type == QuestionType.MultiChoice
+            ? question.SelectedOptionIds.Contains(option.Id)
+            : question.SelectedOptionId == option.Id;
+    }
 
     private static IReadOnlyList<AnswerChoiceItem> ChoiceItems(TestFormQuestionModel question)
     {

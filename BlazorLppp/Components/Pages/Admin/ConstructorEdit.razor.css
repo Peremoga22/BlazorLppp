@@ -155,8 +155,8 @@
 
 .ctor-live {
     display: grid;
-    gap: 0.45rem;
-    padding: 0.75rem 0.85rem;
+    gap: 0.55rem;
+    padding: 0.75rem 0.85rem 0.9rem;
     border-radius: 12px;
     background: var(--admin-surface-soft, var(--surface-2));
     border: 1px dashed var(--admin-line-strong, var(--line-strong));
@@ -168,4 +168,95 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--admin-muted);
+}
+
+.ctor-preview {
+    display: grid;
+    gap: 0.85rem;
+    padding: 1.1rem 1.15rem 1.15rem;
+    border-radius: 16px;
+    border: 1px solid var(--admin-line);
+    background: var(--admin-surface);
+}
+
+.ctor-preview__question {
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: var(--admin-ink);
+    line-height: 1.45;
+}
+
+.ctor-preview__num {
+    color: var(--admin-accent);
+    margin-right: 0.25rem;
+}
+
+.ctor-preview__hint {
+    margin: -0.35rem 0 0;
+    color: var(--admin-muted);
+    font-size: 0.9rem;
+}
+
+.ctor-preview__options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.ctor-preview__option {
+    display: flex;
+    gap: 0.65rem;
+    align-items: center;
+    padding: 0.75rem 0.9rem;
+    border-radius: 12px;
+    background: var(--admin-surface-soft, var(--surface-2));
+    border: 1px solid var(--admin-line);
+    cursor: pointer;
+    color: var(--admin-ink);
+    font-weight: 500;
+    box-shadow: var(--admin-shadow-xs, var(--shadow-xs));
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.ctor-preview__option:hover {
+    border-color: var(--admin-accent-mid);
+    background: var(--admin-accent-soft);
+}
+
+.ctor-preview__option.is-selected,
+.ctor-preview__option:has(input:checked) {
+    border-color: var(--admin-accent);
+    background: var(--admin-accent-soft);
+    box-shadow: 0 0 0 3px var(--admin-accent-ring);
+}
+
+.ctor-preview__option input {
+    flex: 0 0 auto;
+    width: 1.05rem;
+    height: 1.05rem;
+    margin: 0;
+    accent-color: var(--admin-accent);
+}
+
+.ctor-preview__option span {
+    min-width: 0;
+    line-height: 1.4;
+}
+
+.ctor-preview__other {
+    width: 100%;
+    min-height: 2.5rem;
+    margin: -0.15rem 0 0.15rem;
+    padding: 0.55rem 0.8rem;
+    border: 1px solid var(--admin-accent);
+    border-radius: 12px;
+    background: var(--admin-surface-soft, var(--surface-2));
+    color: var(--admin-ink);
+    font: inherit;
+    box-shadow: 0 0 0 3px var(--admin-accent-ring);
+}
+
+.ctor-preview__other:focus {
+    outline: none;
+    border-color: var(--admin-accent-strong, var(--admin-accent));
 }

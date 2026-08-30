@@ -339,9 +339,7 @@ public class TestDefinitionService(
                     Text = q.Text,
                     Hint = q.Hint,
                     Type = q.Type,
-                    AnswerStyle = q.AnswerStyle == AnswerOptionStyle.Default
-                        ? AnswerOptionStyle.Classic
-                        : q.AnswerStyle,
+                    AnswerStyle = AnswerOptionStyle.Default,
                     ScaleMin = q.ScaleMin,
                     ScaleMax = q.ScaleMax,
                     Options = q.Options
@@ -418,9 +416,7 @@ public class TestDefinitionService(
                 Text = incoming.Text,
                 Hint = incoming.Hint,
                 Type = incoming.Type,
-                AnswerStyle = incoming.Type == QuestionType.MultiChoice
-                    ? AnswerOptionStyle.Default
-                    : incoming.AnswerStyle,
+                AnswerStyle = AnswerOptionStyle.Default,
                 ScaleMin = incoming.ScaleMin,
                 ScaleMax = incoming.ScaleMax
             };
@@ -453,9 +449,6 @@ public class TestDefinitionService(
         }
 
         var type = question.Type;
-        var style = question.AnswerStyle == AnswerOptionStyle.Default
-            ? AnswerOptionStyle.Classic
-            : question.AnswerStyle;
 
         var options = question.Options
             .Select(o => new ConstructorOptionDraft
@@ -470,7 +463,6 @@ public class TestDefinitionService(
         if (type == QuestionType.YesNo)
         {
             options = EnsureYesNoOptions(options);
-            style = style == AnswerOptionStyle.Default ? AnswerOptionStyle.Classic : style;
         }
         else if (type == QuestionType.Scale)
         {
@@ -498,10 +490,6 @@ public class TestDefinitionService(
                     })
                     .ToList();
             }
-        }
-        else if (type == QuestionType.MultiChoice)
-        {
-            style = AnswerOptionStyle.Default;
         }
 
         if (type is QuestionType.SingleChoice or QuestionType.MultiChoice or QuestionType.YesNo)
@@ -534,7 +522,7 @@ public class TestDefinitionService(
         question.Text = text;
         question.Hint = string.IsNullOrWhiteSpace(question.Hint) ? null : question.Hint.Trim();
         question.Type = type;
-        question.AnswerStyle = type == QuestionType.MultiChoice ? AnswerOptionStyle.Default : style;
+        question.AnswerStyle = AnswerOptionStyle.Default;
         question.Options = options;
         return question;
     }

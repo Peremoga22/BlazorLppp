@@ -18,7 +18,7 @@
             <p class="admin-page__eyebrow">Конструктор</p>
             <h1 class="admin-page__title">@(_draft?.Title is { Length: > 0 } title ? title : "Новий тест")</h1>
             <p class="admin-page__subtitle">
-                Питання, варіанти відповіді та вигляд кнопок для працівника.
+                Питання та варіанти відповіді — так, як їх побачить працівник.
             </p>
         </div>
         <a class="admin-link admin-link--back" href="/admin/constructor" data-enhance-nav="false">
@@ -87,7 +87,7 @@
 
         @if (_draft.Questions.Count == 0)
         {
-            <p class="admin-empty">Додайте перше питання — за замовчуванням шкала 1–5 у стилі Classic.</p>
+            <p class="admin-empty">Додайте перше питання — за замовчуванням варіанти 1–5 списком.</p>
         }
 
         @for (var i = 0; i < _draft.Questions.Count; i++)
@@ -178,16 +178,57 @@
                     }
                 </div>
 
-                @if (question.Type != QuestionType.MultiChoice && question.Options.Count > 0)
+                @if (question.Options.Count > 0)
                 {
+                    var isMulti = question.Type == QuestionType.MultiChoice;
                     <div class="ctor-live">
                         <span class="ctor-live__label">Перегляд</span>
-                        <AnswerChoiceBar Style="question.AnswerStyle"
-                                         Items="ToChoiceItems(question)"
-                                         SelectedIndex="PreviewIndex(question)"
-                                         SelectedIndexChanged="index => SetPreview(question.Id, index)"
-                                         Interactive="true"
-                                         AriaLabel="@question.Text" />
+                        <div class="ctor-preview">
+                            <div class="ctor-preview__question">
+                                <span class="ctor-preview__num">@question.SortOrder.</span>
+                                @(string.IsNullOrWhiteSpace(question.Text) ? "Текст питання" : question.Text)
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(question.Hint))
+                            {
+                                <p class="ctor-preview__hint">@question.Hint</p>
+                            }
+                            <div class="ctor-preview__options"
+                                 role="@(isMulti ? "group" : "radiogroup")"
+                                 aria-label="@question.Text">
+                                @for (var p = 0; p < question.Options.Count; p++)
+                                {
+                                    var previewOption = question.Options[p];
+                                    var previewIndex = p;
+                                    var isSelected = isMulti
+                                        ? IsPreviewMulti(question.Id, previewIndex)
+                                        : PreviewIndex(question) == previewIndex;
+                                    <label class="ctor-preview__option @(isSelected ? "is-selected" : null)"
+                                           @key="previewOption.Id">
+                                        @if (isMulti)
+                                        {
+                                            <input type="checkbox"
+                                                   checked="@isSelected"
+                                                   @onchange="() => TogglePreviewMulti(question.Id, previewIndex)" />
+                                        }
+                                        else
+                                        {
+                                            <input type="radio"
+                                                   name="@($"ctor-preview-{question.Id}")"
+                                                   checked="@isSelected"
+                                                   @onchange="() => SetPreview(question.Id, previewIndex)" />
+                                        }
+                                        <span>@(string.IsNullOrWhiteSpace(previewOption.Text) ? $"Варіант {previewIndex + 1}" : previewOption.Text)</span>
+                                    </label>
+                                    @if (isSelected && AnonymousSurveyScoring.IsFreeTextOption(previewOption.Text))
+                                    {
+                                        <input class="ctor-preview__other"
+                                               placeholder="Вкажіть свій варіант"
+                                               value="@PreviewOther(question.Id)"
+                                               @oninput="e => SetPreviewOther(question.Id, e.Value?.ToString())" />
+                                    }
+                                }
+                            </div>
+                        </div>
                     </div>
                 }
             </article>
@@ -224,6 +265,8 @@
 
     private ConstructorTestDraft? _draft;
     private readonly Dictionary<Guid, int> _previewIndex = [];
+    private readonly Dictionary<Guid, HashSet<int>> _previewMulti = [];
+    private readonly Dictionary<Guid, string> _previewOther = [];
     private bool _isLoading = true;
     private bool _isSaving;
     private string? _message;
@@ -273,7 +316,7 @@
             Id = Guid.NewGuid(),
             SortOrder = _draft.Questions.Count + 1,
             Type = QuestionType.SingleChoice,
-            AnswerStyle = AnswerOptionStyle.Classic
+            AnswerStyle = AnswerOptionStyle.Default
         };
         ApplyLikert(question);
         _draft.Questions.Add(question);
@@ -340,10 +383,7 @@
         ];
         question.ScaleMin = 1;
         question.ScaleMax = 5;
-        if (question.AnswerStyle == AnswerOptionStyle.Default)
-        {
-            question.AnswerStyle = AnswerOptionStyle.Classic;
-        }
+        question.AnswerStyle = AnswerOptionStyle.Default;
     }
 
     private static void ChangeType(ConstructorQuestionDraft question, ChangeEventArgs args)
@@ -367,9 +407,7 @@
                 new() { Id = Guid.NewGuid(), SortOrder = 1, Key = "Так", Text = "Так" },
                 new() { Id = Guid.NewGuid(), SortOrder = 2, Key = "Ні", Text = "Ні" }
             ];
-            question.AnswerStyle = question.AnswerStyle == AnswerOptionStyle.Default
-                ? AnswerOptionStyle.Classic
-                : question.AnswerStyle;
+            question.AnswerStyle = AnswerOptionStyle.Default;
             return;
         }
 
@@ -418,13 +456,6 @@
             .ToList();
     }
 
-    private static IReadOnlyList<AnswerChoiceItem> ToChoiceItems(ConstructorQuestionDraft question) =>
-        question.Options
-            .Select(o => new AnswerChoiceItem(
-                ScaleLabels.ForDisplay(o.Text, o.Key),
-                o.Text))
-            .ToList();
-
     private static void NormalizeNumericOptionLabels(ConstructorQuestionDraft question)
     {
         if (question.Type != QuestionType.Scale)
@@ -444,22 +475,38 @@
 
     private int PreviewIndex(ConstructorQuestionDraft question)
     {
-        if (_previewIndex.TryGetValue(question.Id, out var index))
-        {
-            return Math.Clamp(index, 0, Math.Max(0, question.Options.Count - 1));
-        }
-
-        if (question.Options.Count == 0)
+        if (!_previewIndex.TryGetValue(question.Id, out var index) || question.Options.Count == 0)
         {
             return -1;
         }
 
-        return Math.Min(
-            AnswerOptionStyles.PreviewSelectedIndex(question.AnswerStyle),
-            question.Options.Count - 1);
+        return Math.Clamp(index, 0, question.Options.Count - 1);
     }
 
     private void SetPreview(Guid questionId, int index) => _previewIndex[questionId] = index;
+
+    private bool IsPreviewMulti(Guid questionId, int index) =>
+        _previewMulti.TryGetValue(questionId, out var selected) && selected.Contains(index);
+
+    private void TogglePreviewMulti(Guid questionId, int index)
+    {
+        if (!_previewMulti.TryGetValue(questionId, out var selected))
+        {
+            selected = [];
+            _previewMulti[questionId] = selected;
+        }
+
+        if (!selected.Add(index))
+        {
+            selected.Remove(index);
+        }
+    }
+
+    private string PreviewOther(Guid questionId) =>
+        _previewOther.TryGetValue(questionId, out var text) ? text : string.Empty;
+
+    private void SetPreviewOther(Guid questionId, string? text) =>
+        _previewOther[questionId] = text ?? string.Empty;
 
     private Task SaveAsync() => PersistAsync(activate: false);
 

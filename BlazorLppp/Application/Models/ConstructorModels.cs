@@ -29,7 +29,7 @@ public class ConstructorQuestionDraft
 
     public QuestionType Type { get; set; } = QuestionType.SingleChoice;
 
-    public AnswerOptionStyle AnswerStyle { get; set; } = AnswerOptionStyle.Classic;
+    public AnswerOptionStyle AnswerStyle { get; set; } = AnswerOptionStyle.Default;
 
     public int? ScaleMin { get; set; }
 

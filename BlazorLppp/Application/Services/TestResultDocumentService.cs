@@ -1234,6 +1234,20 @@ public partial class TestResultDocumentService(
         if (option is not null)
         {
             var text = string.IsNullOrWhiteSpace(option.Text) ? option.Key : option.Text;
+            var extra = AnonymousSurveyScoring.Unpack(answer.TextValue).Text;
+            if (string.IsNullOrWhiteSpace(extra) &&
+                !string.IsNullOrWhiteSpace(answer.TextValue) &&
+                !answer.TextValue.Contains('|'))
+            {
+                extra = answer.TextValue.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(extra) &&
+                !string.Equals(text, extra, StringComparison.OrdinalIgnoreCase))
+            {
+                return string.IsNullOrWhiteSpace(text) ? extra : $"{text}: {extra}";
+            }
+
             return string.IsNullOrWhiteSpace(text) ? "—" : text;
         }
 
@@ -1617,9 +1631,17 @@ public partial class TestResultDocumentService(
 
         if (answer.SelectedOptionId is Guid selected)
         {
-            return question.Options.FirstOrDefault(o => o.Id == selected)?.Text
-                   ?? answer.SelectedOption?.Text
-                   ?? "—";
+            var label = question.Options.FirstOrDefault(o => o.Id == selected)?.Text
+                        ?? answer.SelectedOption?.Text
+                        ?? "—";
+            var extra = AnonymousSurveyScoring.Unpack(answer.TextValue).Text;
+            if (!string.IsNullOrWhiteSpace(extra) &&
+                !string.Equals(label, extra, StringComparison.OrdinalIgnoreCase))
+            {
+                return $"{label}: {extra}";
+            }
+
+            return label;
         }
 
         return "—";
