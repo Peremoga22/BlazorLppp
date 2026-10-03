@@ -51,16 +51,19 @@ public partial class TestResultDocumentService(
             .ToListAsync(cancellationToken);
 
         var answersByQuestion = answers.ToDictionary(a => a.TestQuestionId);
-        var isAnonymousSurvey = attempt.IsAnonymous || AnonymousSurveyScoring.CanScore(document, questions);
+        // Макет «Анонімного опитування» — лише для самого опитування; решта тестів, позначених анонімними,
+        // зберігають свій бланк, але без ПІБ і підрозділу.
+        var isAnonymousSurvey = AnonymousSurveyScoring.CanScore(document, questions);
+        var isAnonymousAttempt = attempt.IsAnonymous || isAnonymousSurvey;
 
-        var baseName = isAnonymousSurvey
+        var baseName = isAnonymousAttempt
             ? BuildAnonymousFileBaseName(attempt)
             : BuildFileBaseName(attempt.LastName, attempt.FirstName, attempt.MiddleName);
         var root = ResolveResultsRoot();
-        var folderPath = isAnonymousSurvey
+        var folderPath = isAnonymousAttempt
             ? Path.Combine(
                 root,
-                AnonymousSurveyDocumentTemplate.FolderName,
+                isAnonymousSurvey ? AnonymousSurveyDocumentTemplate.FolderName : "Анонімні тести",
                 AnonymousRankNames.Folder(attempt.AnonymousRank ?? AnonymousRank.Soldier))
             : Path.Combine(root, baseName);
         Directory.CreateDirectory(folderPath);
@@ -81,17 +84,25 @@ public partial class TestResultDocumentService(
             mainPart.Document = new Document(new Body());
             var body = mainPart.Document.Body!;
 
-            var fullName = $"{attempt.LastName} {attempt.FirstName} {attempt.MiddleName}".Trim();
+            var fullName = attempt.IsAnonymous
+                ? $"Анонімно ({AnonymousRankNames.Display(attempt.AnonymousRank ?? AnonymousRank.Soldier)})"
+                : $"{attempt.LastName} {attempt.FirstName} {attempt.MiddleName}".Trim();
             var examDate = (attempt.CompletedAt ?? attempt.StartedAt).ToString("dd.MM.yyyy");
             var isAdaptivity200 = Adaptivity200Document.IsAdaptivity200(document, questions);
             var isZbroya = ZbroyaScoring.CanScore(document, questions);
             var isNpna = NpnaScoring.CanScore(document, questions);
             var isSzch = SzchScoring.CanScore(document, questions);
+            var isMps = MpsScoring.CanScore(document, questions);
 
             if (isAnonymousSurvey)
             {
                 var scoring = AnonymousSurveyScoring.Evaluate(attempt, questions, answersByQuestion);
                 AppendAnonymousSurveyBlank(body, attempt, examDate, questions, answersByQuestion, scoring);
+            }
+            else if (isMps)
+            {
+                var scoring = MpsScoring.Evaluate(questions, answersByQuestion);
+                AppendMpsBlank(body, attempt, fullName, examDate, questions, answersByQuestion, scoring);
             }
             else if (isAdaptivity200)
             {
@@ -1415,6 +1426,225 @@ public partial class TestResultDocumentService(
             Space = 0,
             Color = "000000"
         };
+
+    private static void AppendMpsBlank(
+        Body body,
+        TestAttempt attempt,
+        string fullName,
+        string examDate,
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion,
+        MpsScoringResult scoring)
+    {
+        AppendCenteredParagraph(body, MpsDocumentTemplate.CanonicalTitle, bold: true, fontSize: TitleFontSize);
+        AppendCenteredParagraph(body, "Реєстраційний бланк", bold: true, fontSize: BodyFontSize);
+        AppendEmptyParagraph(body);
+
+        AppendFieldLine(body, [("П.І.Б. (повністю)", fullName)]);
+        AppendFieldLine(body,
+        [
+            ("Дата обстеження", examDate),
+            ("Вік", string.Empty),
+            ("Стать", string.Empty)
+        ]);
+        AppendFieldLine(body, [("Посада (підрозділ)", UnitNumbers.GetDefaultName(attempt.NumberUnit))]);
+        AppendFieldLine(body,
+        [
+            ("Спеціальність", string.Empty),
+            ("Військове звання", string.Empty)
+        ]);
+        AppendEmptyParagraph(body);
+        AppendInstructionParagraph(body, MpsDocumentTemplate.CanonicalInstruction);
+        AppendEmptyParagraph(body);
+
+        AppendMpsScoringSection(body, scoring);
+
+        AppendEmptyParagraph(body);
+        AppendCenteredParagraph(body, "Відповіді за критеріями", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+        body.AppendChild(BuildMpsAnswersTable(questions, answersByQuestion));
+    }
+
+    private static void AppendMpsScoringSection(Body body, MpsScoringResult scoring)
+    {
+        AppendCenteredParagraph(body, "Оцінка результатів", bold: true, fontSize: TitleFontSize);
+        AppendEmptyParagraph(body);
+
+        AppendBodyParagraph(
+            body,
+            "Обробка виконана за Інструкцією з оцінювання морально-психологічного стану особового складу " +
+            "Збройних Сил України (Додаток 3). Кожен компонент — середнє арифметичне балів (0–10) за його " +
+            "критеріями; рівень МПС Р МПС = (К МН + К ЕВН + К МГ + К ФГ + К ФЗ + К ОСЧ) / 6.");
+        AppendEmptyParagraph(body);
+
+        body.AppendChild(BuildMpsComponentsTable(scoring));
+        AppendEmptyParagraph(body);
+
+        if (scoring.IsScorable)
+        {
+            AppendBodyParagraph(
+                body,
+                $"Рівень МПС: Р МПС = {scoring.Score:0.##} з {scoring.ScoreMax:0.##} " +
+                $"(коефіцієнт МПС {scoring.Coefficient:0.##}) — {scoring.LevelName.ToLowerInvariant()} рівень.",
+                bold: true);
+            AppendBodyParagraph(
+                body,
+                scoring.SupportsTasks
+                    ? "Морально-психологічний стан сприяє виконанню завдань за призначенням."
+                    : "Морально-психологічний стан не сприяє виконанню завдань за призначенням.",
+                bold: true);
+        }
+
+        if (scoring.MotivationChoices.Count > 0)
+        {
+            AppendEmptyParagraph(body);
+            AppendBodyParagraph(
+                body,
+                "Чим обумовлена готовність захищати Україну (питання 3.1, у розрахунок не входить):",
+                bold: true);
+            foreach (var choice in scoring.MotivationChoices)
+            {
+                AppendBodyParagraph(body, $"— {choice}");
+            }
+        }
+
+        if (scoring.LowestCriteria.Count > 0)
+        {
+            AppendEmptyParagraph(body);
+            AppendBodyParagraph(body, "Критерії з найнижчими оцінками (до 4 балів включно)", bold: true);
+            foreach (var criterion in scoring.LowestCriteria)
+            {
+                AppendBodyParagraph(
+                    body,
+                    $"{MpsLabel(criterion.SortOrder)} — {criterion.Score} з {MpsDocumentTemplate.ScaleMaxValue}: {criterion.Text}");
+            }
+        }
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Психологічний висновок", bold: true);
+        AppendBodyParagraph(body, scoring.Conclusion);
+
+        AppendEmptyParagraph(body);
+        AppendBodyParagraph(body, "Орієнтири інтерпретації (таблиця 4.1 Інструкції)", bold: true);
+        AppendBodyParagraph(body, "8,5–10 балів (коефіцієнт 0,85–1) — оптимальний рівень;");
+        AppendBodyParagraph(body, "7–8,49 балів (коефіцієнт 0,7–0,84) — задовільний рівень;");
+        AppendBodyParagraph(body, "5–6,9 балів (коефіцієнт 0,5–0,69) — критичний рівень, МПС не сприяє виконанню завдань;");
+        AppendBodyParagraph(body, "1–4,9 балів (коефіцієнт 0,1–0,49) — незадовільний рівень, МПС не сприяє виконанню завдань.");
+    }
+
+    private static Table BuildMpsComponentsTable(MpsScoringResult scoring)
+    {
+        var table = new Table();
+        table.AppendChild(new TableProperties(
+            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct },
+            new TableBorders(
+                CreateBorder<TopBorder>(),
+                CreateBorder<LeftBorder>(),
+                CreateBorder<BottomBorder>(),
+                CreateBorder<RightBorder>(),
+                CreateBorder<InsideHorizontalBorder>(),
+                CreateBorder<InsideVerticalBorder>()),
+            new TableLayout { Type = TableLayoutValues.Fixed }));
+
+        table.AppendChild(new TableGrid(
+            new GridColumn { Width = "700" },
+            new GridColumn { Width = "5400" },
+            new GridColumn { Width = "1100" },
+            new GridColumn { Width = "1100" },
+            new GridColumn { Width = "1400" }));
+
+        var header = new TableRow();
+        header.AppendChild(CreateCell("№ з/п", bold: true, center: true, width: "700"));
+        header.AppendChild(CreateCell("Оціночний компонент", bold: true, center: true, width: "5400"));
+        header.AppendChild(CreateCell("Сума балів", bold: true, center: true, width: "1100"));
+        header.AppendChild(CreateCell("Середнє (К)", bold: true, center: true, width: "1100"));
+        header.AppendChild(CreateCell("Рівень", bold: true, center: true, width: "1400"));
+        table.AppendChild(header);
+
+        for (var i = 0; i < scoring.Components.Count; i++)
+        {
+            var component = scoring.Components[i];
+            var row = new TableRow();
+            row.AppendChild(CreateCell((i + 1).ToString(), center: true, width: "700"));
+            row.AppendChild(CreateCell($"{component.Name} (К {component.Symbol})", width: "5400"));
+            row.AppendChild(CreateCell(
+                $"{component.Sum} / {component.Total * MpsDocumentTemplate.ScaleMaxValue}",
+                center: true,
+                width: "1100"));
+            row.AppendChild(CreateCell($"{component.Average:0.##}", center: true, bold: true, width: "1100"));
+            row.AppendChild(CreateCell(component.LevelName, center: true, width: "1400"));
+            table.AppendChild(row);
+        }
+
+        return table;
+    }
+
+    private static Table BuildMpsAnswersTable(
+        IReadOnlyList<TestQuestion> questions,
+        IReadOnlyDictionary<Guid, TestAnswer> answersByQuestion)
+    {
+        var table = new Table();
+        table.AppendChild(new TableProperties(
+            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct },
+            new TableBorders(
+                CreateBorder<TopBorder>(),
+                CreateBorder<LeftBorder>(),
+                CreateBorder<BottomBorder>(),
+                CreateBorder<RightBorder>(),
+                CreateBorder<InsideHorizontalBorder>(),
+                CreateBorder<InsideVerticalBorder>()),
+            new TableLayout { Type = TableLayoutValues.Fixed }));
+
+        table.AppendChild(new TableGrid(
+            new GridColumn { Width = "700" },
+            new GridColumn { Width = "7200" },
+            new GridColumn { Width = "1800" }));
+
+        var header = new TableRow();
+        header.AppendChild(CreateCell("№ з/п", bold: true, center: true, width: "700"));
+        header.AppendChild(CreateCell("Критерії оцінювання", bold: true, center: true, width: "7200"));
+        header.AppendChild(CreateCell("Показник (0–10)", bold: true, center: true, width: "1800"));
+        table.AppendChild(header);
+
+        foreach (var question in questions.OrderBy(q => q.SortOrder))
+        {
+            answersByQuestion.TryGetValue(question.Id, out var answer);
+            var mark = question.Type == QuestionType.Scale
+                ? answer?.ScaleValue?.ToString() ?? string.Empty
+                : FormatChosenAnswer(question, answer);
+            var row = new TableRow();
+            row.AppendChild(CreateCell(MpsLabel(question.SortOrder), center: true, width: "700"));
+            row.AppendChild(CreateCell(question.Text, width: "7200"));
+            row.AppendChild(CreateCell(mark, center: true, bold: !string.IsNullOrWhiteSpace(mark), width: "1800"));
+            table.AppendChild(row);
+        }
+
+        return table;
+    }
+
+    /// <summary>Номер критерію як у Додатку 2 (1.1 … 6.19).</summary>
+    private static string MpsLabel(int sortOrder)
+    {
+        if (sortOrder == MpsDocumentTemplate.MotivationQuestionOrder)
+        {
+            return "3.1";
+        }
+
+        var component = MpsDocumentTemplate.ComponentFor(sortOrder);
+        if (component is null)
+        {
+            return sortOrder.ToString();
+        }
+
+        var section = Array.IndexOf(MpsDocumentTemplate.Components, component) + 1;
+        var index = sortOrder - component.FirstQuestion + 1;
+        if (section == 3)
+        {
+            index++;
+        }
+
+        return $"{section}.{index}";
+    }
 
     private static void AppendSzchBlank(
         Body body,

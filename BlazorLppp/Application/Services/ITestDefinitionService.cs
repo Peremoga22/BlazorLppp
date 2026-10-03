@@ -20,6 +20,8 @@ public interface ITestDefinitionService
 
     Task SetRequiredAsync(Guid documentId, bool isRequired, CancellationToken cancellationToken = default);
 
+    Task SetAnonymousAsync(Guid documentId, bool isAnonymous, CancellationToken cancellationToken = default);
+
     Task DeleteAsync(Guid documentId, CancellationToken cancellationToken = default);
 
     Task<TestDocument> CreateManualAsync(

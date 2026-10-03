@@ -67,9 +67,11 @@ public partial class TestDocumentParser : ITestDocumentParser
         bool forceSzch = false)
     {
         ParsedTestDocument parsed;
+        IReadOnlyList<string>? sourceLines = null;
         if (Path.GetExtension(filePath).Equals(".txt", StringComparison.OrdinalIgnoreCase))
         {
-            parsed = ParseLines(ReadTxtLines(filePath), forceAssinger, forceNpna);
+            sourceLines = ReadTxtLines(filePath);
+            parsed = ParseLines(sourceLines, forceAssinger, forceNpna);
         }
         else if (WordDocConverter.IsDocExtension(filePath))
         {
@@ -78,7 +80,8 @@ public partial class TestDocumentParser : ITestDocumentParser
                 var convertedPath = WordDocConverter.ConvertToDocx(filePath);
                 try
                 {
-                    parsed = ParseLines(ReadDocxLines(convertedPath), forceAssinger, forceNpna);
+                    sourceLines = ReadDocxLines(convertedPath);
+                    parsed = ParseLines(sourceLines, forceAssinger, forceNpna);
                 }
                 finally
                 {
@@ -88,7 +91,8 @@ public partial class TestDocumentParser : ITestDocumentParser
             catch (Exception)
             {
                 // На Linux / без Word читаємо текст напряму з OLE .doc
-                parsed = ParseLines(DocBinaryTextReader.ReadLines(filePath), forceAssinger, forceNpna);
+                sourceLines = DocBinaryTextReader.ReadLines(filePath);
+                parsed = ParseLines(sourceLines, forceAssinger, forceNpna);
             }
 
             // Якщо .doc Адаптивності розібрався погано — беремо канонічний .docx із SeedDocuments.
@@ -103,7 +107,14 @@ public partial class TestDocumentParser : ITestDocumentParser
         }
         else
         {
-            parsed = ParseLines(ReadDocxLines(filePath), forceAssinger, forceNpna);
+            sourceLines = ReadDocxLines(filePath);
+            parsed = ParseLines(sourceLines, forceAssinger, forceNpna);
+        }
+
+        if (sourceLines is not null &&
+            (IsMpsFileName(filePath) || LooksLikeMpsLines(sourceLines)))
+        {
+            return ParseMps(sourceLines) ?? MpsDocumentTemplate.Create();
         }
 
         if (IsAdaptivity200FileName(filePath) ||

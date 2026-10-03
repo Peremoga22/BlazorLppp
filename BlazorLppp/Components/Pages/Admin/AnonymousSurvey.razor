@@ -135,6 +135,7 @@
                     <table class="admin-table">
                         <thead>
                             <tr>
+                                <th>Тест</th>
                                 <th>Категорія</th>
                                 <th>Дата</th>
                                 <th>Файл</th>
@@ -145,6 +146,7 @@
                             @foreach (var item in _items)
                             {
                                 <tr>
+                                    <td>@(item.TestTitle ?? "—")</td>
                                     <td>@(item.AnonymousRank is AnonymousRank rank ? AnonymousRankNames.Display(rank) : "—")</td>
                                     <td>@(item.CompletedAt?.ToString("dd.MM.yyyy HH:mm") ?? "—")</td>
                                     <td>

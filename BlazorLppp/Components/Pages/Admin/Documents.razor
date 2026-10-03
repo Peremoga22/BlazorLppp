@@ -91,6 +91,7 @@
                     <thead>
                         <tr>
                             <th>Для працівників</th>
+                            <th>Респондент</th>
                             <th>Назва</th>
                             <th>Файл</th>
                             <th>Питань</th>
@@ -110,6 +111,16 @@
                                                disabled="@_isTogglingRequired"
                                                @onchange="e => ToggleRequiredAsync(doc, e)" />
                                         <span>Пройти</span>
+                                    </label>
+                                </td>
+                                <td>
+                                    <label class="admin-required-check"
+                                           title="@(TestDocumentAnonymity.IsLockedAnonymous(doc) ? "Це опитування анонімне завжди" : "Якщо вимкнено — респондент вказує прізвище, ім’я, по батькові та підрозділ")">
+                                        <input type="checkbox"
+                                               checked="@TestDocumentAnonymity.IsAnonymous(doc)"
+                                               disabled="@(_isTogglingAnonymous || TestDocumentAnonymity.IsLockedAnonymous(doc))"
+                                               @onchange="e => ToggleAnonymousAsync(doc, e)" />
+                                        <span>Анонімно</span>
                                     </label>
                                 </td>
                                 <td>@doc.Title</td>
@@ -227,6 +238,7 @@
     private bool _isUploading;
     private bool _isDeleting;
     private bool _isTogglingRequired;
+    private bool _isTogglingAnonymous;
     private bool _canUpload;
     private string? _errorMessage;
     private string? _successMessage;
@@ -295,6 +307,42 @@
         catch (Exception ex)
         {
             _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task ToggleAnonymousAsync(TestDocument document, ChangeEventArgs args)
+    {
+        if (_isTogglingAnonymous || TestDocumentAnonymity.IsLockedAnonymous(document))
+        {
+            return;
+        }
+
+        var isAnonymous = args.Value is bool b
+            ? b
+            : bool.TryParse(args.Value?.ToString(), out var parsed) && parsed;
+
+        _isTogglingAnonymous = true;
+        _errorMessage = null;
+        _successMessage = null;
+
+        try
+        {
+            await TestDefinitionService.SetAnonymousAsync(document.Id, isAnonymous);
+            document.IsAnonymous = isAnonymous;
+            _successMessage = isAnonymous
+                ? $"Тест «{document.Title}» проходять анонімно (лише категорія: солдат, сержант, офіцер)."
+                : $"Тест «{document.Title}» проходять із зазначенням прізвища, імені, по батькові та підрозділу.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Не вдалося змінити режим тесту."
+                : ex.Message;
+            await ReloadListAsync();
+        }
+        finally
+        {
+            _isTogglingAnonymous = false;
         }
     }
 

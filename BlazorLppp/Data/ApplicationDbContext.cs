@@ -135,6 +135,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .IsRequired()
                 .HasDefaultValue(false);
 
+            entity.Property(e => e.IsAnonymous)
+                .IsRequired()
+                .HasDefaultValue(false);
+
             entity.HasIndex(e => e.IsActive);
             entity.HasIndex(e => e.IsManual);
             entity.HasIndex(e => e.IsRequired);

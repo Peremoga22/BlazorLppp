@@ -112,6 +112,10 @@ public class TestDefinitionService(
             TestDocumentParser.IsSzchFileName(upload.FolderName) ||
             TestDocumentParser.IsSzchTitle(upload.FileName);
 
+        var looksLikeMps =
+            TestDocumentParser.IsMpsFileName(absoluteFilePath) ||
+            TestDocumentParser.IsMpsFileName(upload.FileName);
+
         ParsedTestDocument parsed;
         try
         {
@@ -132,6 +136,10 @@ public class TestDefinitionService(
         catch (Exception) when (looksLikeSzch)
         {
             parsed = SzchDocumentTemplate.Create();
+        }
+        catch (Exception) when (looksLikeMps)
+        {
+            parsed = MpsDocumentTemplate.Create();
         }
 
         if (looksLikeAssinger &&
@@ -156,6 +164,11 @@ public class TestDefinitionService(
         if (looksLikeSzch)
         {
             parsed = SzchDocumentTemplate.Create();
+        }
+
+        if (looksLikeMps && !TestDocumentParser.IsCompleteMpsDocument(parsed))
+        {
+            parsed = MpsDocumentTemplate.Create();
         }
 
         return parsed;
@@ -223,6 +236,21 @@ public class TestDefinitionService(
             ?? throw new InvalidOperationException("Документ тесту не знайдено.");
 
         document.IsRequired = isRequired;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task SetAnonymousAsync(
+        Guid documentId,
+        bool isAnonymous,
+        CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var document = await dbContext.TestDocuments
+            .FirstOrDefaultAsync(d => d.Id == documentId, cancellationToken)
+            ?? throw new InvalidOperationException("Документ тесту не знайдено.");
+
+        document.IsAnonymous = isAnonymous;
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 

@@ -41,7 +41,7 @@ public class TestAttemptService(
                 "Цей тест зараз недоступний. Оберіть тест зі списку, визначеного адміністратором.");
         }
 
-        var isAnonymous = respondent.IsAnonymous || AnonymousSurveyScoring.LooksLike(document);
+        var isAnonymous = TestDocumentAnonymity.IsAnonymous(document);
         if (isAnonymous)
         {
             if (respondent.AnonymousRank is null)
@@ -284,7 +284,7 @@ public class TestAttemptService(
                     AnswerStyle = document.IsManual ? AnswerOptionStyle.Default : q.AnswerStyle,
                     ScaleMin = q.ScaleMin,
                     ScaleMax = q.ScaleMax,
-                    MaxSelections = q.Text.Contains("до 3", StringComparison.OrdinalIgnoreCase) ? 3 : null,
+                    MaxSelections = MultiChoiceLimit.FromText(q.Text),
                     Options = q.Options
                         .Select(o => new TestFormOptionModel
                         {
@@ -443,6 +443,13 @@ public class TestAttemptService(
         AnonymousRank? rank = null,
         int? monthOfYear = null,
         CancellationToken cancellationToken = default)
+        => await GetAnonymousResultsAsync(rank, monthOfYear, surveyOnly: false, cancellationToken);
+
+    private async Task<IReadOnlyList<TestResultListItem>> GetAnonymousResultsAsync(
+        AnonymousRank? rank,
+        int? monthOfYear,
+        bool surveyOnly,
+        CancellationToken cancellationToken)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
@@ -466,7 +473,10 @@ public class TestAttemptService(
             .OrderByDescending(a => a.CompletedAt ?? a.StartedAt)
             .ToListAsync(cancellationToken);
 
-        return items.Select(MapResultListItem).ToList();
+        return items
+            .Where(a => !surveyOnly || AnonymousSurveyScoring.LooksLike(a.TestDocument))
+            .Select(MapResultListItem)
+            .ToList();
     }
 
     public async Task<AnonymousSurveyStatsDto> GetAnonymousStatsAsync(
@@ -474,7 +484,8 @@ public class TestAttemptService(
         int? monthOfYear = null,
         CancellationToken cancellationToken = default)
     {
-        var results = await GetAnonymousResultsAsync(rank, monthOfYear, cancellationToken);
+        // Діаграми рахуються за питаннями «Анонімного опитування»; інші анонімні тести сюди не входять.
+        var results = await GetAnonymousResultsAsync(rank, monthOfYear, surveyOnly: true, cancellationToken);
         var soldiers = results.Count(r => r.AnonymousRank == AnonymousRank.Soldier);
         var sergeants = results.Count(r => r.AnonymousRank == AnonymousRank.Sergeant);
         var officers = results.Count(r => r.AnonymousRank == AnonymousRank.Officer);
@@ -856,7 +867,7 @@ public class TestAttemptService(
                         $"Оберіть хоча б один варіант для питання {question.SortOrder}.");
                 }
 
-                var maxSelections = question.Text.Contains("до 3", StringComparison.OrdinalIgnoreCase) ? 3 : 0;
+                var maxSelections = MultiChoiceLimit.FromText(question.Text) ?? 0;
                 if (maxSelections > 0 && selected.Count > maxSelections)
                 {
                     throw new InvalidOperationException(

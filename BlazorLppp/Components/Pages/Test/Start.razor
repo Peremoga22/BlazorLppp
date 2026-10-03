@@ -312,7 +312,7 @@
     private bool IsAnonymousSelected =>
         HasSelectedTest &&
         _availableTests.FirstOrDefault(d => d.Id == Model.TestDocumentId) is { } selected &&
-        AnonymousSurveyScoring.LooksLike(selected);
+        TestDocumentAnonymity.IsAnonymous(selected);
 
     private bool CanStart =>
         HasSelectedTest &&
@@ -340,14 +340,14 @@
             _availableTests.AddRange(
                 documents
                     .Where(d => d.IsRequired && d.Questions.Count > 0 && !IsBrokenZbroyaDocument(d))
-                    .OrderByDescending(d => AnonymousSurveyScoring.LooksLike(d))
+                    .OrderByDescending(d => TestDocumentAnonymity.IsAnonymous(d))
                     .ThenByDescending(d => d.UploadedAt));
 
             var preferred = _availableTests.FirstOrDefault();
             if (preferred is not null)
             {
                 Model.TestDocumentId = preferred.Id;
-                Model.IsAnonymous = AnonymousSurveyScoring.LooksLike(preferred);
+                Model.IsAnonymous = TestDocumentAnonymity.IsAnonymous(preferred);
             }
         }
         finally

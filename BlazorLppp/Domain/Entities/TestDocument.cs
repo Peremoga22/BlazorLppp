@@ -20,6 +20,9 @@ public class TestDocument
 
     public bool IsRequired { get; set; }
 
+    /// <summary>Тест проходять анонімно: без ПІБ і підрозділу, лише з категорією (солдат/сержант/офіцер).</summary>
+    public bool IsAnonymous { get; set; }
+
     public bool IsManual { get; set; }
 
     public ICollection<TestQuestion> Questions { get; set; } = new List<TestQuestion>();

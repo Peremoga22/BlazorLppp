@@ -227,6 +227,32 @@ public static class AttemptAttentionEvaluator
             };
         }
 
+        if (MpsScoring.CanScore(document, questions))
+        {
+            var scoring = MpsScoring.Evaluate(questions, answersByQuestion);
+            var needs = !scoring.IsScorable ||
+                        scoring.LevelName is MpsScoring.Critical or MpsScoring.Unsatisfactory;
+            var reason = !scoring.IsScorable
+                ? "Не всі компоненти МПС мають оцінки — потрібен повторний перегляд"
+                : scoring.LevelName == MpsScoring.Unsatisfactory
+                    ? "Незадовільний рівень МПС — потрібен аналіз критеріїв з найнижчими оцінками"
+                    : scoring.LevelName == MpsScoring.Critical
+                        ? "Критичний рівень МПС — потрібен аналіз критеріїв з найнижчими оцінками"
+                        : string.Empty;
+
+            return new AttemptAttentionResult
+            {
+                NeedsAttention = needs,
+                IsUnreliable = !scoring.IsScorable,
+                Reason = reason,
+                LevelName = scoring.LevelName,
+                ScaleRaw = scoring.Components
+                    .ToDictionary(c => c.Symbol, c => c.Average)
+                    .Concat([new KeyValuePair<string, double>("Р МПС", scoring.Score)])
+                    .ToDictionary(pair => pair.Key, pair => pair.Value)
+            };
+        }
+
         if (SzchScoring.CanScore(document, questions))
         {
             var scoring = SzchScoring.Evaluate(questions, answersByQuestion);
