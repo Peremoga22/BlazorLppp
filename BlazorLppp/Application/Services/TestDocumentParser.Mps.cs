@@ -16,6 +16,9 @@ public partial class TestDocumentParser
     private static readonly Regex MpsOptionLine = new(@"^\d\.\s*(.+)$", RegexOptions.Compiled);
     private static readonly Regex MpsInlineOptionsStart = new(@"(?:^|\s)1\.\s+\S", RegexOptions.Compiled);
     private static readonly Regex MpsOptionSplit = new(@"\s(?=\d\.\s)", RegexOptions.Compiled);
+    // Без Microsoft Word .doc читається з бінарних фрагментів, між якими лишається латинське сміття;
+    // у самому опитувальнику латиниці немає.
+    private static readonly Regex MpsJunkChars = new(@"[A-Za-z-�]", RegexOptions.Compiled);
     private static readonly Regex MpsScaleRow = new(@"^0(\s+\d{1,2}){10}$", RegexOptions.Compiled);
     private static readonly Regex MpsFileNameWord = new(
         @"(?<![\p{L}])МПС(?![\p{L}])",
@@ -56,7 +59,76 @@ public partial class TestDocumentParser
     internal static ParsedTestDocument? ParseMps(IReadOnlyList<string> lines)
     {
         var result = ParseMpsCore(lines);
+        RepairMpsFromTemplate(result);
         return IsCompleteMpsDocument(result) ? result : null;
+    }
+
+    /// <summary>
+    /// Якщо .doc прочитано без Microsoft Word, у текст питань можуть потрапити фрагменти сміття.
+    /// Критерії опитувальника канонічні, тому «брудний» текст замінюється текстом із шаблону.
+    /// </summary>
+    private static void RepairMpsFromTemplate(ParsedTestDocument parsed)
+    {
+        var template = MpsDocumentTemplate.Create();
+        if (parsed.Questions.Count != template.Questions.Count)
+        {
+            return;
+        }
+
+        for (var i = 0; i < template.Questions.Count; i++)
+        {
+            var actual = parsed.Questions[i];
+            var expected = template.Questions[i];
+
+            if (actual.Type != expected.Type)
+            {
+                continue;
+            }
+
+            if (HasMpsForeignChars(actual.Text))
+            {
+                actual.Text = expected.Text;
+            }
+
+            if (actual.Hint is not null && HasMpsForeignChars(actual.Hint))
+            {
+                actual.Hint = expected.Hint;
+            }
+
+            if (actual.Options.Any(o => HasMpsForeignChars(o.Text)))
+            {
+                actual.Options = expected.Options
+                    .Select(o => new ParsedTestOption { SortOrder = o.SortOrder, Key = o.Key, Text = o.Text })
+                    .ToList();
+            }
+        }
+    }
+
+    /// <summary>Символи поза українським алфавітом, латиницею й керівними кодами — ознака сміття.</summary>
+    private static bool HasMpsForeignChars(string? value)
+        => !string.IsNullOrEmpty(value) && value.Any(IsMpsForeignChar);
+
+    private static bool IsMpsForeignChar(char ch)
+    {
+        if (ch is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or '�')
+        {
+            return true;
+        }
+
+        if (ch is >= '' and <= '')
+        {
+            return true;
+        }
+
+        if (ch is < 'Ѐ' or > 'ӿ')
+        {
+            return false;
+        }
+
+        // Український алфавіт у блоці кирилиці.
+        return !(ch is >= 'А' and <= 'Я' and not 'Ъ' and not 'Ы' and not 'Э' ||
+                 ch is >= 'а' and <= 'я' and not 'ъ' and not 'ы' and not 'э' ||
+                 ch is 'Є' or 'І' or 'Ї' or 'є' or 'і' or 'ї' or 'Ґ' or 'ґ');
     }
 
     internal static ParsedTestDocument ParseMpsCore(IReadOnlyList<string> lines)
@@ -90,7 +162,7 @@ public partial class TestDocumentParser
         foreach (var raw in lines)
         {
             var line = Clean(raw);
-            if (line.Length == 0)
+            if (line.Length == 0 || MpsJunkChars.IsMatch(line))
             {
                 continue;
             }
